@@ -14,8 +14,10 @@ from typing import TypedDict
 from triagedesk.core.schema import (
     CaseInput,
     CommitResult,
+    Escalation,
     HandoverCard,
     PriorityResult,
+    RecoveryRequest,
 )
 
 
@@ -41,3 +43,6 @@ class TriageState(TypedDict, total=False):
     route: str | None
     error: str | None
     attempt: int
+    # Safe terminals (ORCH-05, D-03): a typed recovery/escalation the graph stops on.
+    recovery: RecoveryRequest | None
+    escalation: Escalation | None

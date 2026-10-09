@@ -28,10 +28,12 @@ from pydantic import BaseModel
 from triagedesk.core.hashing import hash_value
 from triagedesk.core.schema import (
     CommitResult,
+    Escalation,
     ExtractionResult,
     HandoverCard,
     MatchResult,
     PriorityResult,
+    RecoveryRequest,
 )
 from triagedesk.graph.state import TriageState
 
@@ -42,6 +44,11 @@ ToolMap = Mapping[str, Callable[[Mapping[str, Any]], Awaitable[Any]]]
 # A node reads the state and returns a partial update (sync or async — LangGraph
 # accepts both; the tool-calling nodes are async).
 NodeFn = Callable[[TriageState], Any]
+
+# The terminal reasons — named once so the recovery/escalation text is not inlined
+# at each call site (DRY).
+_RECOVERY_REASON = "a scored vital is missing; re-measure before scoring"
+_ESCALATION_REASON = "case could not be safely scored; escalating for human review"
 
 
 def parse_tool_result[ModelT: BaseModel](model: type[ModelT], payload: Any) -> ModelT:
@@ -124,9 +131,7 @@ def _make_score(tools: ToolMap) -> NodeFn:
             "case": state["case"].model_dump(),
             "matched_discriminator_ids": list(state.get("matched_ids") or []),
         }
-        priority = parse_tool_result(
-            PriorityResult, await tools["score_priority"](payload)
-        )
+        priority = parse_tool_result(PriorityResult, await tools["score_priority"](payload))
         return {"priority": priority}
 
     return score
@@ -142,12 +147,39 @@ def verify(state: TriageState) -> dict[str, Any]:
     """
     priority = state["priority"]
     invariant_holds = len(priority.citations) == len(priority.triggered_rules)
-    has_evidence = (
-        priority.abstained or priority.out_of_scope or len(priority.citations) >= 1
-    )
+    has_evidence = priority.abstained or priority.out_of_scope or len(priority.citations) >= 1
     if invariant_holds and has_evidence:
         return {"route": "ok"}
     return {"route": "retry", "attempt": int(state.get("attempt") or 0) + 1}
+
+
+def request_missing_info(state: TriageState) -> dict[str, Any]:
+    """Stop on a recovery terminal — re-measure, never guess a value (ORCH-05, D-03).
+
+    Reached when the scored priority reports a missing critical vital. It names the
+    missing vitals and carries a re-measure instruction; it produces no colour and
+    has no edge to ``commit`` (Pitfall 4).
+    """
+    priority = state.get("priority")
+    missing = list(priority.missing_vitals) if priority is not None else []
+    return {"recovery": RecoveryRequest(missing_vitals=missing, reason=_RECOVERY_REASON)}
+
+
+def escalate(state: TriageState) -> dict[str, Any]:
+    """Stop on an abstention/escalation terminal — never an adult colour (ORCH-05, D-03).
+
+    Reached for an out-of-scope case (paediatric / missing / ambiguous age) or an
+    extraction that exhausted its bounded retry with no structured fallback. The
+    reason is taken from the scored priority when present, else the recorded error.
+    It produces no colour and has no edge to ``commit`` (Pitfall 10).
+    """
+    if state.get("escalation") is not None:
+        return {}
+    priority = state.get("priority")
+    reason = priority.reason if priority is not None and priority.reason else None
+    return {
+        "escalation": Escalation(reason=reason or str(state.get("error") or _ESCALATION_REASON))
+    }
 
 
 def approval_gate(state: TriageState) -> dict[str, Any]:
@@ -260,4 +292,6 @@ def make_nodes(tools: ToolMap) -> dict[str, NodeFn]:
         "approval_gate": approval_gate,
         "commit": _make_commit(tools),
         "handover": handover,
+        "request_missing_info": request_missing_info,
+        "escalate": escalate,
     }

@@ -45,13 +45,15 @@ __all__ = [
     "build_graph",
     "checkpointed_graph",
     "load_graph_tools",
+    "route_after_normalize",
+    "route_after_score",
     "route_after_verify",
     "run_case",
 ]
 
-# The tracer's node set. A later plan may add recovery / recheck / escalation
-# nodes; the proof suite checks a *superset*, so those additions do not
-# invalidate this tracer.
+# The tracer's node set. The proof suite checks a *superset*, so a later plan may
+# add nodes without invalidating the tracer. The recovery/abstention terminals are
+# part of the full safety spine (Plan 03-04).
 TRACER_NODES: tuple[str, ...] = (
     "ingest",
     "normalize",
@@ -61,11 +63,42 @@ TRACER_NODES: tuple[str, ...] = (
     "approval_gate",
     "commit",
     "handover",
+    "request_missing_info",
+    "escalate",
 )
 
 # The retry edge is bounded: after this many failed evidence checks the graph
 # stops rather than looping (T-03-05).
 _MAX_ATTEMPTS = 2
+
+
+def route_after_normalize(state: TriageState) -> str:
+    """Choose the next node after ``normalize`` — recovery vs the scored path (ORCH-04).
+
+    A failed extraction that exhausted its bounded retry (and had no structured
+    fallback) sets ``route="escalate"`` and stops at the escalation terminal; every
+    other case proceeds to ``retrieve``. The graph never falls through to score on
+    an unparseable case.
+    """
+    if state.get("route") == "escalate":
+        return "escalate"
+    return "retrieve"
+
+
+def route_after_score(state: TriageState) -> str:
+    """Choose the next node after ``score`` — safe terminals vs ``verify`` (ORCH-05).
+
+    The scored ``PriorityResult`` carries the deterministic signals: an out-of-scope
+    case escalates, a case missing a scored vital asks for re-measure, and only a
+    fully-scored case proceeds to ``verify``. Neither terminal has an edge to
+    ``commit``, so no missing/out-of-scope case is ever written (D-03).
+    """
+    priority = state.get("priority")
+    if priority is not None and priority.out_of_scope:
+        return "escalate"
+    if priority is not None and priority.missing_vitals:
+        return "request_missing_info"
+    return "verify"
 
 
 def route_after_verify(state: TriageState) -> str:
@@ -85,10 +118,12 @@ def route_after_verify(state: TriageState) -> str:
 def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
     """Compile the tracer graph over the injected ``tools`` mapping (D-01, D-13).
 
-    ``START -> ingest -> normalize -> retrieve -> score -> verify ->
-    (approval_gate -> commit -> handover | score) -> END``. The ``verify`` edge is
-    conditional and bounded. ``checkpointer`` is injected so the same builder
-    serves both the in-memory test graph and the durable SQLite graph (D-09).
+    ``START -> ingest -> normalize -> (retrieve -> score | escalate) ->
+    (verify -> approval_gate -> commit -> handover | request_missing_info |
+    escalate) -> END``. The ``normalize``, ``score`` and ``verify`` edges are
+    conditional; the recovery/abstention terminals have no edge to ``commit``.
+    ``checkpointer`` is injected so the same builder serves both the in-memory test
+    graph and the durable SQLite graph (D-09).
     """
     nodes = make_nodes(tools)
     graph: StateGraph = StateGraph(TriageState)
@@ -97,9 +132,21 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
 
     graph.add_edge(START, "ingest")
     graph.add_edge("ingest", "normalize")
-    graph.add_edge("normalize", "retrieve")
+    graph.add_conditional_edges(
+        "normalize",
+        route_after_normalize,
+        {"escalate": "escalate", "retrieve": "retrieve"},
+    )
     graph.add_edge("retrieve", "score")
-    graph.add_edge("score", "verify")
+    graph.add_conditional_edges(
+        "score",
+        route_after_score,
+        {
+            "escalate": "escalate",
+            "request_missing_info": "request_missing_info",
+            "verify": "verify",
+        },
+    )
     graph.add_conditional_edges(
         "verify",
         route_after_verify,
@@ -108,6 +155,8 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
     graph.add_edge("approval_gate", "commit")
     graph.add_edge("commit", "handover")
     graph.add_edge("handover", END)
+    graph.add_edge("request_missing_info", END)
+    graph.add_edge("escalate", END)
     return graph.compile(checkpointer=checkpointer)
 
 
@@ -174,4 +223,3 @@ def _allowed_msgpack_modules() -> list[tuple[str, str]]:
         and issubclass(obj, BaseModel)
         and obj.__module__ == schema_module.__name__
     ]
-

@@ -146,6 +146,31 @@ class RecheckFlag(BaseModel):
     reason: str | None = None
 
 
+class RecoveryRequest(BaseModel):
+    """A re-measure request for a case missing a scored vital (ORCH-05, D-03).
+
+    ``missing_vitals`` names the scored TEWS parameters absent from the case and
+    ``reason`` carries the human-readable re-measure instruction. There is
+    deliberately no colour field: the recovery terminal never scores and never
+    guesses a value (D-03).
+    """
+
+    missing_vitals: list[str] = Field(default_factory=list)
+    reason: str
+
+
+class Escalation(BaseModel):
+    """A safe abstention/escalation terminal (ORCH-05, D-03).
+
+    ``reason`` states why the case could not be scored — an out-of-scope
+    (paediatric / missing / ambiguous age) case, or an extraction that exhausted
+    its bounded retry with no structured fallback. There is deliberately no colour
+    field: an abstained case never receives an adult colour (D-03).
+    """
+
+    reason: str
+
+
 class ApprovalToken(BaseModel):
     """The named-clinician approval the queue-affecting gate requires (D-05, TOOL-05).
 

@@ -19,6 +19,8 @@ from triagedesk.graph.build import (
     build_graph,
     checkpointed_graph,
     load_graph_tools,
+    route_after_normalize,
+    route_after_score,
     route_after_verify,
     run_case,
 )
@@ -35,6 +37,8 @@ __all__ = [
     "load_graph_tools",
     "make_nodes",
     "parse_tool_result",
+    "route_after_normalize",
+    "route_after_score",
     "route_after_verify",
     "run_case",
 ]

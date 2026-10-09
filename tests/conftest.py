@@ -9,12 +9,22 @@ exercised against the fake rather than the borrowed default.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
+from triagedesk.core import matcher, scorer
+from triagedesk.core.schema import (
+    ApprovalToken,
+    CaseInput,
+    CommitResult,
+    ExtractionResult,
+)
 from triagedesk.mcp import server as server_module
 from triagedesk.store import CaseRow, QueueRow
+from triagedesk.store.queue import commit_to_queue
 
 
 class InMemoryStore:
@@ -72,3 +82,81 @@ def injected_store(memory_store: InMemoryStore) -> Iterator[InMemoryStore]:
         yield memory_store
     finally:
         server_module.set_store(None)
+
+
+# --------------------------------------------------------------------------- graph
+# The complete adult case the default fake extraction returns — all scored TEWS
+# parameters are present, so the priority is cited and no recovery edge fires.
+COMPLETE_CASE = CaseInput(
+    age_years=40,
+    mobility="walking",
+    avpu="alert",
+    respiratory_rate=24,
+    heart_rate=118,
+    systolic_bp=108,
+    temperature_c=38.9,
+    trauma=False,
+    complaint="central chest pain",
+)
+
+
+def build_graph_tools(
+    *,
+    case: CaseInput | None = None,
+    normalize_impl: Callable[[dict[str, Any]], Any] | None = None,
+    calls: list[tuple[str, Any]] | None = None,
+    writes: list[Any] | None = None,
+    store: InMemoryStore | None = None,
+) -> dict[str, Callable[[dict[str, Any]], Any]]:
+    """Build the offline graph tool mapping — the ONE fake for the graph proof suites.
+
+    The graph depends on an injected ``name -> async callable`` mapping (D-13), so
+    the proof suites supply these fakes and never launch the MCP subprocess or the
+    model. Kept here (not per test module) so the fake is defined once (DRY).
+    ``normalize_impl`` overrides the extraction; ``store``, when given, receives the
+    real idempotent queue write.
+    """
+    calls = calls if calls is not None else []
+    writes = writes if writes is not None else []
+    resolved_case = case if case is not None else COMPLETE_CASE
+
+    async def normalize_case(inp: dict[str, Any]) -> Any:
+        calls.append(("normalize_case", inp))
+        if normalize_impl is not None:
+            return normalize_impl(inp)
+        return ExtractionResult(case=resolved_case, matched_discriminator_ids=[])
+
+    async def match_discriminators(inp: dict[str, Any]) -> Any:
+        calls.append(("match_discriminators", inp))
+        return matcher.match_discriminators(inp["complaint"])
+
+    async def score_priority(inp: dict[str, Any]) -> Any:
+        calls.append(("score_priority", inp))
+        parsed = CaseInput.model_validate(inp["case"])
+        return scorer.score_priority(parsed, inp.get("matched_discriminator_ids"))
+
+    async def commit_priority(inp: dict[str, Any]) -> CommitResult:
+        calls.append(("commit_priority", inp))
+        token = inp.get("approval_token")
+        if token is None:
+            return CommitResult(refused=True, reason="no approval token supplied")
+        try:
+            ApprovalToken.model_validate(token)
+        except ValidationError:
+            return CommitResult(refused=True, reason="approval token is malformed")
+        writes.append(inp)
+        if store is not None:
+            await commit_to_queue(
+                store,
+                case_id=inp["case_id"],
+                colour=inp["colour"],
+                content={"colour": inp["colour"]},
+            )
+        return CommitResult(committed=store is not None, reason="accepted")
+
+    return {
+        "normalize_case": normalize_case,
+        "match_discriminators": match_discriminators,
+        "score_priority": score_priority,
+        "commit_priority": commit_priority,
+    }
