@@ -31,7 +31,7 @@
 - [x] **TOOL-03**: Own MCP server exposes `score_priority` (acting)
 - [x] **TOOL-04**: Own MCP server exposes `raise_recheck_flag` (acting)
 - [x] **TOOL-05**: Own MCP server exposes `commit_priority` (acting + gated + idempotent)
-- [ ] **TOOL-06**: A **borrowed**, maintained SQLite MCP server provides case/queue storage + audit
+- [x] **TOOL-06**: A **borrowed**, maintained SQLite MCP server provides case/queue storage + audit
 
 ### Orchestration
 
@@ -45,7 +45,7 @@
 
 - [x] **GATE-01**: A LangGraph `interrupt()` pauses for a **named** clinician before any queue-affecting write
 - [x] **GATE-02**: `commit_priority` cannot run without a valid approval token (approve/edit/dismiss + name + role + timestamp)
-- [ ] **GATE-03**: The write is **idempotent** (keyed by `case_id` + content hash) — a retry cannot double-place a patient
+- [x] **GATE-03**: The write is **idempotent** (keyed by `case_id` + content hash) — a retry cannot double-place a patient
 - [ ] **GATE-04**: A deterioration re-check raises a second-look flag **without** reordering the queue on its own
 
 ### Audit
@@ -128,7 +128,7 @@ Which phases cover which requirements.
 | TOOL-03 | Phase 2 | Complete |
 | TOOL-04 | Phase 2 | Complete |
 | TOOL-05 | Phase 2 | Complete |
-| TOOL-06 | Phase 3 | Pending |
+| TOOL-06 | Phase 3 | Complete |
 | ORCH-01 | Phase 3 | Complete |
 | ORCH-02 | Phase 3 | Complete |
 | ORCH-03 | Phase 3 | Pending |
@@ -136,7 +136,7 @@ Which phases cover which requirements.
 | ORCH-05 | Phase 3 | Pending |
 | GATE-01 | Phase 3 | Complete |
 | GATE-02 | Phase 3 | Complete |
-| GATE-03 | Phase 3 | Pending |
+| GATE-03 | Phase 3 | Complete |
 | GATE-04 | Phase 3 | Pending |
 | AUDIT-01 | Phase 3 | Pending |
 | AUDIT-02 | Phase 3 | Pending |

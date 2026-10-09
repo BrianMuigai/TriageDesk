@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 3
 current_phase_name: Approval Gate, Gated Commit & Safety Spine
 status: executing
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-10-09T16:09:22.361Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-10-09T16:27:09.967Z"
 last_activity: 2026-10-09
 last_activity_desc: Phase 3 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 12
-  completed_plans: 8
+  completed_plans: 9
 state_head: a345a0d3af4b3fd5e4f92776f67b71e642e6c252
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 ## Current Position
 
 Phase: 3 (Approval Gate, Gated Commit & Safety Spine) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-10-09 — Phase 3 execution started
 
-Progress: [███████░░░] 67%
+Progress: [████████░░] 75%
 
 ## Performance Metrics
 
@@ -67,6 +67,7 @@ Progress: [███████░░░] 67%
 | Phase 02 P02 | 6 | 3 tasks | 7 files |
 | Phase 02 P03 | 10 | 3 tasks | 8 files |
 | Phase 3 P01 | 11 | 3 tasks | 8 files |
+| Phase 3 P02 | 9 | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -109,6 +110,12 @@ Recent decisions affecting current work:
 - [Phase 3]: ApprovalToken.final_colour is validated against the colour set read from data/sats_tews.yaml, never a literal (CONVENTIONS 1).
 - [Phase 3]: checkpoints.db (runtime state) is a different file from triage.db (clinical record + audit) (D-09); the SQLite saver registers an explicit per-type msgpack allowlist derived from core.schema.
 - [Phase 3]: The verify retry edge is bounded (attempt < 2); an exhausted retry stops at END, never reaching the gate or commit (T-03-05).
+- [Phase 3]: The graph and the server depend on the Store protocol, not the borrowed tool set; a World-B store swap touches store/borrowed.py alone (D-13, SOLID: D/L)
+- [Phase 3]: content_hash reads ONLY immutable case content (colour, target, triggered_rules, citations, used_vitals); the approval timestamp and volatile fields are structurally excluded (D-06, Pitfall 14)
+- [Phase 3]: commit_to_queue is the ONE idempotent write: an existing (case_id, content_hash) key is returned unchanged and no second row is inserted; crash-safety IS the idempotency key
+- [Phase 3]: commit_priority is async; the refusal path returns BEFORE any store call, so no path reaches the store without a valid named approval (GATE-02, T-03-09)
+- [Phase 3]: The committed colour is token.final_colour for an edit and the scored colour for an approve (D-05)
+- [Phase 3]: DOMAIN_DB_PATH is owned by the store package (single source); graph/build.py imports it (DRY)
 
 ### Pending Todos
 
@@ -131,6 +138,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T16:09:15.205Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-10-09T16:27:03.389Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None
