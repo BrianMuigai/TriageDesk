@@ -71,7 +71,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Every tool call appends one canonical hash-chained audit record through a single shared helper; the chain verifies after a restart and the audit store and queue store never diverge.
   4. The full graph runs `ingest → normalize → retrieve → score → verify → (recheck) → gate → commit → handover` on the local model only, with a deterministic-first `verify`, and missing-vital / out-of-scope conditions route to recovery or abstention edges that never guess.
   5. A deterioration re-check raises a visible second-look flag showing the before/after vitals with the queue position unchanged, and the handover card renders only structured fields with no diagnosis or prescription language.
-**Plans**: TBD
+**Plans**: 5 plans
+- [ ] 03-01-PLAN.md — Tracer: raw note → full graph → sourced priority → gate `interrupt()` → refused-without-approval
+- [ ] 03-02-PLAN.md — Borrowed SQLite persistence + idempotent approval-keyed commit (`commit_priority` real gate)
+- [ ] 03-03-PLAN.md — One hash-chained audit interceptor; chain verifies after restart; approver + role recorded
+- [ ] 03-04-PLAN.md — Recovery/abstention edges + bounded retry/fallback + non-mutating deterioration re-check
+- [ ] 03-05-PLAN.md — Safety hardening: templated handover, least-privilege allowlist, pure-core/model-free guards
 
 ### Phase 4: Evaluation, Recovery & Honest Failure
 **Goal**: An honest, enforcing evaluation proves the system's behaviour — including one declared failure — and reports safety-relevant error directions and run-to-run stability.
@@ -106,6 +111,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. SATS Foundations & Risk Retirement | 4/4 | Complete | 2026-10-09 |
 | 2. Deterministic Scorer & Own MCP Server | 3/3 | Complete | 2026-10-09 |
-| 3. Approval Gate, Gated Commit & Safety Spine | 0/TBD | Not started | - |
+| 3. Approval Gate, Gated Commit & Safety Spine | 0/5 | Not started | - |
 | 4. Evaluation, Recovery & Honest Failure | 0/TBD | Not started | - |
 | 5. Demo, Docs & Freeze | 0/TBD | Not started | - |
