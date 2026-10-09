@@ -1,20 +1,20 @@
 ---
-gsd_state_version: "1.0"
+gsd_state_version: 1.0
 milestone: v1.0
+milestone_name: milestone
 current_phase: 4
 current_phase_name: Evaluation, Recovery & Honest Failure
 status: executing
-stopped_at: Completed 03-05-PLAN.md
-last_updated: "2026-10-09T18:14:53.105Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-10-09T18:40:13.110Z"
 last_activity: 2026-10-09
 last_activity_desc: Phase 4 execution started
-state_head: bad675a53c01366530f0aea27e61b72b45c1f88b
 progress:
-  total_phases: 5
+  total_phases: 4
   completed_phases: 3
   total_plans: 16
-  completed_plans: 12
-milestone_name: milestone
+  completed_plans: 13
+state_head: bad675a53c01366530f0aea27e61b72b45c1f88b
 ---
 
 # Project State
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 ## Current Position
 
 Phase: 4 (Evaluation, Recovery & Honest Failure) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 4
+Plan: 2 of 4
+Status: Ready to execute
 Last activity: 2026-10-09 — Phase 4 execution started
 
-Progress: [██████████] 100%
+Progress: [████████░░] 81%
 
 ## Performance Metrics
 
@@ -71,6 +71,7 @@ Progress: [██████████] 100%
 | Phase 3 P04 | 15 | 3 tasks | 9 files |
 | Phase 03 P03 | 13 | 3 tasks | 6 files |
 | Phase 03 P05 | 13 | 3 tasks | 8 files |
+| Phase 04 P01 | 23 | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -133,6 +134,10 @@ Recent decisions affecting current work:
 - [Phase 03]: ONE OWNED_TOOL_ALLOWLIST asserted by ONE assert_tool_allowlist at both owned-server discovery and graph composition; tool drift fails loudly (SAFE-03, D-12)
 - [Phase 03]: The graph path imports no network client and reads no credentials; the core/ purity guard names the MCP client (fastmcp/langchain) explicitly (SAFE-03, QUAL-02)
 - [Phase 03]: The score path is proven model-free by stubbing the model to raise (identical colour) + an AST guard on the scoring branch (ORCH-03, D-02)
+- [Phase 04]: The eval harness consumes the ONE graph interface (TriageState + interrupt); no bespoke code path (D-01, EVAL-02)
+- [Phase 04]: Colour, matched-set and field stability are three SEPARATE flags; an unstable colour/matched-set is a recorded failure, never averaged (D-02, Pitfall 12)
+- [Phase 04]: Token cost is read from the SAME ollama response via an injected usage_sink on llm.client.extract; never a second model call (D-08, Pitfall 16)
+- [Phase 04]: The report carries a report_digest over non-volatile content (ids, outcomes, stability flags, provenance), excluding latency/tokens/timestamps (D-08, Pitfall 18)
 
 ### Pending Todos
 
@@ -155,6 +160,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T17:32:41.471Z
-Stopped at: Completed 03-05-PLAN.md
+Last session: 2026-10-09T18:40:13.096Z
+Stopped at: Completed 04-01-PLAN.md
 Resume file: None
