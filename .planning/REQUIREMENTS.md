@@ -37,7 +37,7 @@
 
 - [x] **ORCH-01**: LangGraph graph runs `ingest → normalize → retrieve → score → verify → (recheck) → gate → commit → handover`
 - [x] **ORCH-02**: The whole task runs on a **local open-weights** model; no frontier model in the required path
-- [ ] **ORCH-03**: Model is used only to extract/explain; the score path never imports the model or an MCP client (enforced by a guard test)
+- [x] **ORCH-03**: Model is used only to extract/explain; the score path never imports the model or an MCP client (enforced by a guard test)
 - [x] **ORCH-04**: Extraction uses structured JSON output; invalid output retries once, then falls back deterministically
 - [x] **ORCH-05**: Missing-vital recovery and safe abstention are conditional edges that never guess
 
@@ -57,8 +57,8 @@
 ### Safety & hardening
 
 - [x] **SAFE-01**: Free-text complaint is treated as untrusted data — prompt injection cannot set a priority (tested by E-13)
-- [ ] **SAFE-02**: No diagnosis/prescription output exists and no dx/rx tool is defined
-- [ ] **SAFE-03**: Least privilege — tools are allowlisted; no network/credentials in the agent path
+- [x] **SAFE-02**: No diagnosis/prescription output exists and no dx/rx tool is defined
+- [x] **SAFE-03**: Least privilege — tools are allowlisted; no network/credentials in the agent path
 - [x] **SAFE-04**: Version pinning + hashing for prompts, model, scale data, and tool schemas
 - [ ] **SAFE-05**: Suppression-direction injection is tested (injection that tries to *hide* a finding)
 
@@ -80,7 +80,7 @@
 ### Engineering standards
 
 - [x] **QUAL-01**: DRY + SOLID enforced — no duplicated SATS values/citations; graph depends on the tool interface
-- [ ] **QUAL-02**: A guard test proves `core/` does not import `llm/` or any MCP client
+- [x] **QUAL-02**: A guard test proves `core/` does not import `llm/` or any MCP client
 
 ## v2 Requirements
 
@@ -131,7 +131,7 @@ Which phases cover which requirements.
 | TOOL-06 | Phase 3 | Complete |
 | ORCH-01 | Phase 3 | Complete |
 | ORCH-02 | Phase 3 | Complete |
-| ORCH-03 | Phase 3 | Pending |
+| ORCH-03 | Phase 3 | Complete |
 | ORCH-04 | Phase 3 | Complete |
 | ORCH-05 | Phase 3 | Complete |
 | GATE-01 | Phase 3 | Complete |
@@ -142,8 +142,8 @@ Which phases cover which requirements.
 | AUDIT-02 | Phase 3 | Complete |
 | AUDIT-03 | Phase 3 | Complete |
 | SAFE-01 | Phase 2 | Complete |
-| SAFE-02 | Phase 3 | Pending |
-| SAFE-03 | Phase 3 | Pending |
+| SAFE-02 | Phase 3 | Complete |
+| SAFE-03 | Phase 3 | Complete |
 | SAFE-04 | Phase 1 | Complete |
 | SAFE-05 | Phase 4 | Pending |
 | EVAL-01 | Phase 4 | Pending |
@@ -156,7 +156,7 @@ Which phases cover which requirements.
 | DOCS-03 | Phase 5 | Pending |
 | DEMO-01 | Phase 5 | Pending |
 | QUAL-01 | Phase 1 | Complete |
-| QUAL-02 | Phase 3 | Pending |
+| QUAL-02 | Phase 3 | Complete |
 
 **Coverage:**
 

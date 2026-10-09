@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 3
 current_phase_name: Approval Gate, Gated Commit & Safety Spine
-status: executing
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-10-09T17:14:41.512Z"
+status: verifying
+stopped_at: Completed 03-05-PLAN.md
+last_updated: "2026-10-09T17:32:41.483Z"
 last_activity: 2026-10-09
 last_activity_desc: Phase 3 execution started
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 12
-  completed_plans: 11
+  completed_plans: 12
 state_head: a345a0d3af4b3fd5e4f92776f67b71e642e6c252
 ---
 
@@ -30,10 +30,10 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 
 Phase: 3 (Approval Gate, Gated Commit & Safety Spine) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-09 — Phase 3 execution started
 
-Progress: [█████████░] 92%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -70,6 +70,7 @@ Progress: [█████████░] 92%
 | Phase 3 P02 | 9 | 3 tasks | 10 files |
 | Phase 3 P04 | 15 | 3 tasks | 9 files |
 | Phase 03 P03 | 13 | 3 tasks | 6 files |
+| Phase 03 P05 | 13 | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -128,6 +129,10 @@ Recent decisions affecting current work:
 - [Phase 03]: The chain head is persisted in the authoritative store (audit_head); verify recomputes the chain and cross-checks the persisted head, so verification survives a restart (M-6)
 - [Phase 03]: append is the only audit write; verify/reconcile are read-only. reconcile reports any queue row lacking its approval audit record, closed by re-issuing the idempotent commit (D-09, no claimed transaction primitive)
 - [Phase 03]: ONE uniform @audited interceptor wraps every @server.tool(); the record tool name is the wrapped function's name, the append follows the tool's logic so refused/raising calls are recorded honestly (AUDIT-01/03, T-03-15)
+- [Phase 03]: HandoverCard is locked with extra="forbid" + a declared FORBIDDEN_FIELD_TOKENS tuple; the guard test reads that ONE tuple (SAFE-02, DRY)
+- [Phase 03]: ONE OWNED_TOOL_ALLOWLIST asserted by ONE assert_tool_allowlist at both owned-server discovery and graph composition; tool drift fails loudly (SAFE-03, D-12)
+- [Phase 03]: The graph path imports no network client and reads no credentials; the core/ purity guard names the MCP client (fastmcp/langchain) explicitly (SAFE-03, QUAL-02)
+- [Phase 03]: The score path is proven model-free by stubbing the model to raise (identical colour) + an AST guard on the scoring branch (ORCH-03, D-02)
 
 ### Pending Todos
 
@@ -150,6 +155,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T17:14:29.446Z
-Stopped at: Completed 03-03-PLAN.md
+Last session: 2026-10-09T17:32:41.471Z
+Stopped at: Completed 03-05-PLAN.md
 Resume file: None
