@@ -21,11 +21,15 @@ def _stub_result() -> ExtractionResult:
     )
 
 
-async def test_owned_server_lists_the_single_normalize_case_tool() -> None:
+async def test_owned_server_lists_normalize_case_and_grows_its_tool_surface() -> None:
     async with Client(server_module.server) as client:
         listed = await client.list_tools()
-    names = [t.name for t in listed.tools]
-    assert names == ["normalize_case"], f"owned server tool surface drifted: {names}"
+    names = {t.name for t in listed.tools}
+    # A superset check preserves the Phase-1 normalize_case contract without
+    # forbidding the tool surface from growing (Phase 2 adds score_priority).
+    assert names >= {"normalize_case", "score_priority"}, (
+        f"owned server tool surface drifted: {names}"
+    )
 
 
 async def test_owned_server_call_returns_the_shared_schema(monkeypatch) -> None:

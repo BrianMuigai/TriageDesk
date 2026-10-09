@@ -12,7 +12,8 @@ from __future__ import annotations
 
 from mcp.server import MCPServer
 
-from triagedesk.core.schema import ExtractionResult
+from triagedesk.core import scorer
+from triagedesk.core.schema import CaseInput, ExtractionResult, PriorityResult
 from triagedesk.llm.client import extract
 
 # The owned server. Name is positional; everything else is keyword (SDK v2).
@@ -28,6 +29,21 @@ def normalize_case(raw_note: str) -> ExtractionResult:
     contract cannot drift. Read-only — it never writes to the queue (D-06).
     """
     return extract(raw_note)
+
+
+@server.tool()
+def score_priority(
+    case: CaseInput,
+    matched_discriminator_ids: list[str] | None = None,
+) -> PriorityResult:
+    """Score a typed case deterministically — no model on this path (D-02).
+
+    A thin, contract-typed adapter over the pure ``core.scorer.score_priority``
+    function (SOLID: S/D): it touches no model and cannot inject a colour. The
+    returned ``PriorityResult`` carries the colour, TEWS total, target time and
+    one citation per triggered rule.
+    """
+    return scorer.score_priority(case, matched_discriminator_ids)
 
 
 if __name__ == "__main__":

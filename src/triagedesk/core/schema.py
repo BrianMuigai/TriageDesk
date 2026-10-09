@@ -31,6 +31,10 @@ class CaseInput(BaseModel):
     """
 
     age_years: int | None = Field(default=None, ge=0, le=130)
+    # A months-expressed or ambiguous age is representable so the scorer can fail
+    # closed (Roadmap SC2): only an unambiguous adult-year integer may be scored.
+    age_months: int | None = Field(default=None, ge=0, le=1560)
+    age_ambiguous: bool = False
     height_cm: float | None = Field(default=None, ge=30.0, le=260.0)
     respiratory_rate: int | None = Field(default=None, ge=0, le=100)
     heart_rate: int | None = Field(default=None, ge=0, le=350)
@@ -55,3 +59,39 @@ class ExtractionResult(BaseModel):
     case: CaseInput
     matched_discriminator_ids: list[str] = Field(default_factory=list)
     no_discriminator_matched: bool = False  # coverage signal (v1 field)
+
+
+class TriggeredRule(BaseModel):
+    """One TEWS rule that fired — the unit the citations are derived from (D-01).
+
+    ``rule_id`` is the structural parameter key from the loaded data (never a
+    clinical value); ``detail`` is a human-readable ``parameter=value -> points``
+    string; ``citation`` is produced by the one citation helper.
+    """
+
+    rule_id: str
+    detail: str
+    points: int
+    citation: str
+
+
+class PriorityResult(BaseModel):
+    """The pure scorer's contract (D-01).
+
+    The invariant ``len(citations) == len(triggered_rules)`` is fixed: every
+    fired rule is cited exactly once (SCORE-03). A failed-closed (out-of-scope or
+    abstained) result carries no colour, no total and no citations.
+    """
+
+    colour: str | None = None
+    tews: int | None = None
+    target: str | None = None
+    destination: str | None = None
+    triggered_rules: list[TriggeredRule] = Field(default_factory=list)
+    citations: list[str] = Field(default_factory=list)
+    matched_discriminator_ids: list[str] = Field(default_factory=list)
+    missing_vitals: list[str] = Field(default_factory=list)
+    used_vitals: list[str] = Field(default_factory=list)
+    out_of_scope: bool = False
+    abstained: bool = False
+    reason: str | None = None
