@@ -1,0 +1,73 @@
+flowchart TD
+    subgraph HITL["Human in the loop"]
+        NURSE["Triage nurse<br/>enters vitals + complaint"]
+        CLIN["Named clinician<br/>approves / edits / dismisses"]
+    end
+
+    subgraph AGENT["LangGraph Agent (orchestrator)"]
+        N1["ingest"] --> N2["normalize"] --> N3["retrieve"] --> N4["score"] --> N5["verify"] --> N6["recheck"] --> N7["approval_gate (interrupt)"] --> N8["commit (gated)"] --> N9["handover"]
+    end
+
+    subgraph LLM["Local LLM (no egress)"]
+        QWEN["Ollama: Qwen3 4B<br/>fallback Qwen2.5<br/>structured JSON output"]
+    end
+
+    subgraph MCPCLIENT["MCP client"]
+        ADAPTER["langchain.mcp adapter (stdio)"]
+    end
+
+    subgraph OWNED["Owned Triage MCP server"]
+        subgraph TOOLS["Tools (act)"]
+            T1["normalize_case"]
+            T2["match_discriminators"]
+            T3["score_priority"]
+            T4["raise_recheck_flag"]
+            T5["commit_priority (gated)"]
+        end
+        subgraph RES["Resources (read-only)"]
+            R1["sats://tews"]
+            R2["sats://discriminators"]
+            R3["sats://discriminators/{id}"]
+            R4["sats://version"]
+        end
+        subgraph PROMPTS["Prompts"]
+            P1["normalize_case"]
+            P2["verify_priority"]
+        end
+    end
+
+    subgraph BORROWED["Borrowed SQLite MCP server"]
+        B1["query tools"]
+        B2["table resources"]
+    end
+
+    subgraph DATA["Data sources"]
+        Y1["data/sats_tews.yaml"]
+        Y2["data/sats_discriminators.yaml"]
+        FIX["synthetic fixtures"]
+        DB1[("triage.db<br/>cases + queue + audit")]
+        DB2[("checkpoints.db<br/>runtime state")]
+        LOG["log/audit.jsonl<br/>hash chain"]
+    end
+
+    EXT["External APIs: none (offline)"]
+
+    NURSE --> N1
+    N2 -. structured output .-> QWEN
+    N5 -. critic .-> QWEN
+    AGENT --> ADAPTER
+    ADAPTER --> TOOLS
+    ADAPTER --> RES
+    ADAPTER --> PROMPTS
+    ADAPTER --> BORROWED
+    RES --> Y1
+    RES --> Y2
+    Y1 --> T3
+    Y2 --> T3
+    T5 --> B1 --> DB1
+    AGENT --> DB2
+    T5 --> LOG
+    N7 --> CLIN
+    CLIN --> N8
+    FIX --> N1
+    ADAPTER -. no network .-> EXT
