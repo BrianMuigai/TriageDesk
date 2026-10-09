@@ -26,10 +26,16 @@ async def test_owned_server_lists_normalize_case_and_grows_its_tool_surface() ->
         listed = await client.list_tools()
     names = {t.name for t in listed.tools}
     # A superset check preserves the Phase-1 normalize_case contract without
-    # forbidding the tool surface from growing (Phase 2 adds score_priority).
-    assert names >= {"normalize_case", "score_priority"}, (
-        f"owned server tool surface drifted: {names}"
-    )
+    # forbidding the tool surface from growing. Phase 2 completes the five-tool
+    # contract (D-07), so SC3's "all five tools" claim is machine-verified here
+    # while still allowing future growth.
+    assert names >= {
+        "normalize_case",
+        "match_discriminators",
+        "score_priority",
+        "raise_recheck_flag",
+        "commit_priority",
+    }, f"owned server tool surface drifted: {names}"
 
 
 async def test_owned_server_call_returns_the_shared_schema(monkeypatch) -> None:

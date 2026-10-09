@@ -11,10 +11,13 @@ adapter seam (``mcp/adapter.py``), which launches it as a stdio subprocess.
 from __future__ import annotations
 
 from mcp.server import MCPServer
+from pydantic import ValidationError
 
 from triagedesk.core import matcher, recheck, scorer
 from triagedesk.core.schema import (
+    ApprovalToken,
     CaseInput,
+    CommitResult,
     ExtractionResult,
     MatchResult,
     PriorityResult,
@@ -82,6 +85,31 @@ def raise_recheck_flag(previous: CaseInput, current: CaseInput) -> RecheckFlag:
     never returns a colour and never reorders the queue (TOOL-04, T-02-10).
     """
     return recheck.compare_vitals(previous, current)
+
+
+@server.tool()
+def commit_priority(
+    case_id: str, colour: str, approval_token: dict[str, object] | None = None
+) -> CommitResult:
+    """The queue-affecting gate — a Phase-2 stub that refuses without approval (D-07).
+
+    This is the ONLY queue-affecting tool. In Phase 2 it is a gated *stub*: it
+    validates the approval-token shape (named approver + role + decision in
+    approve|edit|dismiss + timestamp) and refuses (``refused=True``) any call that
+    lacks a well-formed token. It performs NO queue or store write on any path — the
+    real LangGraph ``interrupt()`` gate, idempotent content-hash commit and queue
+    write are Phase 3 (TOOL-05, GATE-01..04).
+    """
+    if approval_token is None:
+        return CommitResult(refused=True, reason="no approval token supplied; refusing to commit")
+    try:
+        ApprovalToken.model_validate(approval_token)
+    except ValidationError:
+        return CommitResult(refused=True, reason="approval token is malformed; refusing to commit")
+    return CommitResult(
+        refused=False,
+        reason="approval token accepted; the gate and idempotent commit are enforced in Phase 3",
+    )
 
 
 if __name__ == "__main__":

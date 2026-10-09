@@ -10,6 +10,7 @@ closed set — it never computes a TEWS score or a colour (D-03).
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -140,4 +141,33 @@ class RecheckFlag(BaseModel):
     flag: bool = False
     deteriorations: list[str] = Field(default_factory=list)
     changes: list[VitalChange] = Field(default_factory=list)
+    reason: str | None = None
+
+
+class ApprovalToken(BaseModel):
+    """The named-clinician approval the queue-affecting gate requires (D-07, TOOL-05).
+
+    A well-formed token names an approver and a role, records a decision in
+    ``approve|edit|dismiss``, and carries a timestamp. The Phase-2 ``commit_priority``
+    stub validates this shape and refuses anything else; the real LangGraph gate is
+    Phase 3.
+    """
+
+    approved_by: str = Field(min_length=1)
+    role: str = Field(min_length=1)
+    decision: Literal["approve", "edit", "dismiss"]
+    approved_at: datetime
+
+
+class CommitResult(BaseModel):
+    """The gated commit stub's contract (D-07).
+
+    ``refused`` is ``True`` when no well-formed approval token was supplied (or the
+    token was malformed), in which case nothing is written. ``committed`` is only
+    ever ``True`` once the real idempotent commit exists (Phase 3); the Phase-2 stub
+    never sets it, so a caller can never mistake the stub for a queue write.
+    """
+
+    committed: bool = False
+    refused: bool = False
     reason: str | None = None

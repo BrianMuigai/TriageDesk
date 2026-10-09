@@ -11,12 +11,14 @@ gated ``commit_priority`` stub refuses without a valid approval token (Task 3).
 
 from __future__ import annotations
 
+import inspect
+import re
 from typing import Any
 
 from mcp import Client
 
 from triagedesk.core.rules import get_discriminators
-from triagedesk.core.schema import CaseInput, ExtractionResult
+from triagedesk.core.schema import CaseInput, CommitResult, ExtractionResult
 from triagedesk.mcp import server as server_module
 
 
@@ -81,3 +83,72 @@ async def test_normalize_case_reports_no_match_when_all_ids_are_unknown(monkeypa
     parsed = ExtractionResult.model_validate_json(call.content[0].text)
     assert parsed.matched_discriminator_ids == []
     assert parsed.no_discriminator_matched is True
+
+
+async def test_commit_priority_refuses_without_a_token() -> None:
+    async with Client(server_module.server) as client:
+        call = await client.call_tool("commit_priority", {"case_id": "c-1", "colour": "RED"})
+
+    assert not call.is_error, f"commit_priority errored instead of refusing: {call}"
+    parsed = CommitResult.model_validate_json(call.content[0].text)
+    assert parsed.refused is True
+    assert parsed.committed is False
+
+
+async def test_commit_priority_refuses_a_malformed_token() -> None:
+    malformed = {
+        "approved_by": "",
+        "role": "",
+        "decision": "maybe",
+        "approved_at": "not-a-timestamp",
+    }
+    async with Client(server_module.server) as client:
+        call = await client.call_tool(
+            "commit_priority",
+            {"case_id": "c-1", "colour": "RED", "approval_token": malformed},
+        )
+
+    assert not call.is_error, f"commit_priority errored instead of refusing: {call}"
+    parsed = CommitResult.model_validate_json(call.content[0].text)
+    assert parsed.refused is True
+    assert parsed.committed is False
+
+
+async def test_commit_priority_accepts_a_well_formed_token_without_committing() -> None:
+    token = {
+        "approved_by": "Dr A. Nurse",
+        "role": "triage clinician",
+        "decision": "approve",
+        "approved_at": "2026-10-09T15:00:00Z",
+    }
+    async with Client(server_module.server) as client:
+        call = await client.call_tool(
+            "commit_priority",
+            {"case_id": "c-1", "colour": "RED", "approval_token": token},
+        )
+
+    parsed = CommitResult.model_validate_json(call.content[0].text)
+    # A valid token is accepted, but the stub NEVER fakes a write — the real
+    # LangGraph gate + idempotent commit is Phase 3 (D-07, GATE-01..04).
+    assert parsed.refused is False
+    assert parsed.committed is False
+
+
+def test_commit_priority_path_imports_no_store() -> None:
+    """No path through commit_priority may touch a store: Phase 2 writes nothing.
+
+    There is no store dependency on this path — the module imports no ``store``
+    (the real idempotent queue write is Phase 3, GATE-01..04).
+    """
+    source = inspect.getsource(server_module)
+    assert not re.search(r"^\s*(from|import)\b.*\bstore\b", source, re.M), (
+        "the commit path must not import a store — Phase 2 performs no queue write"
+    )
+
+
+async def test_commit_priority_is_listed_by_the_owned_server() -> None:
+    async with Client(server_module.server) as client:
+        listed = await client.list_tools()
+
+    names = {tool.name for tool in listed.tools}
+    assert "commit_priority" in names, f"owned server missing the tool: {names}"
