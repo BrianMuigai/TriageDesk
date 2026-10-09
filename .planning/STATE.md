@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 5
 current_phase_name: Demo, Docs & Freeze
 status: executing
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-10-09T22:03:56.994Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-10-09T22:08:50.548Z"
 last_activity: 2026-10-10
 last_activity_desc: Phase 5 execution started
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 21
-  completed_plans: 19
+  completed_plans: 20
 state_head: e3b117c2bc3e87967d14f4f0e8bfcac8a30fe0db
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 ## Current Position
 
 Phase: 5 (Demo, Docs & Freeze) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-10-10 — Phase 5 execution started
 
-Progress: [█████████░] 90%
+Progress: [██████████] 95%
 
 ## Performance Metrics
 
@@ -78,6 +78,7 @@ Progress: [█████████░] 90%
 | Phase 04 P05 | 5 | 2 tasks | 5 files |
 | Phase 04 P06 | 21 | 3 tasks | 8 files |
 | Phase 5 P1 | 4 | 3 tasks | 7 files |
+| Phase 5 P02 | 2 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -168,6 +169,10 @@ Recent decisions affecting current work:
 - [Phase 5]: The named approval is a well-formed ApprovalToken incl. approved_at; the graph fills final_colour for approve
 - [Phase 5]: The refusal beat climax is read from the real store row delta (rows added: 0), not hard-coded
 - [Phase 5]: The demo/ edge package is exempted from the core/ TID251 import ban
+- [Phase 5]: The demo runbook links ROADMAP.md for the canonical storyboard and adds only the timing->beat->command->output mapping (DRY: docs link, never restate)
+- [Phase 5]: Expected on-screen output is quoted from a real `uv run triagedesk demo` run, so the runbook points at shipped behaviour, not a hand-written mock
+- [Phase 5]: The runbook grounding test drives the CLI via its public main surface (the console-script entry point), never a private helper
+- [Phase 5]: The runbook documents the bare one-command path and each --beat <name> so a presenter can re-record a single beat
 
 ### Pending Todos
 
@@ -190,6 +195,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T22:03:50.428Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-10-09T22:08:50.533Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None
