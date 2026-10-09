@@ -72,9 +72,9 @@
 
 ### Docs & demo
 
-- [ ] **DOCS-01**: README gets a stranger running in **one command**
+- [x] **DOCS-01**: README gets a stranger running in **one command**
 - [ ] **DOCS-02**: `ARCHITECTURE.md` (one page), `EVALS.md`, and `DESCRIPTION.md` (~300 words) are finalised
-- [ ] **DOCS-03**: CI smoke test runs the demo on the synthetic fixture
+- [x] **DOCS-03**: CI smoke test runs the demo on the synthetic fixture
 - [ ] **DEMO-01**: 3-minute unedited demo video with tool calls on screen, including a failure
 
 ### Engineering standards
@@ -151,9 +151,9 @@ Which phases cover which requirements.
 | EVAL-03 | Phase 4 | Complete |
 | EVAL-04 | Phase 4 | Complete |
 | EVAL-05 | Phase 4 | Complete |
-| DOCS-01 | Phase 5 | Pending |
+| DOCS-01 | Phase 5 | Complete |
 | DOCS-02 | Phase 5 | Pending |
-| DOCS-03 | Phase 5 | Pending |
+| DOCS-03 | Phase 5 | Complete |
 | DEMO-01 | Phase 5 | Pending |
 | QUAL-01 | Phase 1 | Complete |
 | QUAL-02 | Phase 3 | Complete |

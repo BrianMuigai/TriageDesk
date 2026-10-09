@@ -1,20 +1,20 @@
 ---
-gsd_state_version: "1.0"
+gsd_state_version: 1.0
 milestone: v1.0
+milestone_name: milestone
 current_phase: 5
 current_phase_name: Demo, Docs & Freeze
 status: executing
-stopped_at: Completed 04-06-PLAN.md
-last_updated: "2026-10-09T21:55:41.035Z"
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-10-09T22:03:56.994Z"
 last_activity: 2026-10-10
 last_activity_desc: Phase 5 execution started
-state_head: e3b117c2bc3e87967d14f4f0e8bfcac8a30fe0db
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 21
-  completed_plans: 18
-milestone_name: milestone
+  completed_plans: 19
+state_head: e3b117c2bc3e87967d14f4f0e8bfcac8a30fe0db
 ---
 
 # Project State
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 ## Current Position
 
 Phase: 5 (Demo, Docs & Freeze) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 5
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-10-10 — Phase 5 execution started
 
-Progress: [██████████] 100%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
@@ -77,6 +77,7 @@ Progress: [██████████] 100%
 | Phase 04 P04 | 24 | 4 tasks | 8 files |
 | Phase 04 P05 | 5 | 2 tasks | 5 files |
 | Phase 04 P06 | 21 | 3 tasks | 8 files |
+| Phase 5 P1 | 4 | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -162,6 +163,11 @@ Recent decisions affecting current work:
 - [Phase 04]: ABORT_OUTCOME is harness vocabulary in evals/case.py, excluded from declared_outcomes, so a card-less run can never be a valid expected token or a pass (G-2, T-04-26).
 - [Phase 04]: runner._capture reads the graph's own terminal channels (handover/route/attempt); _outcome maps a colour-present-but-not-delivered run to ABORT, so a fail-closed END is never a delivered colour.
 - [Phase 04]: ReportCase.delivered/routes/attempts are sealed in report_digest; analysis names aborted cases on their own and emit_evals renders Gate delivery strictly from the report (EVAL-05, T-04-27/28).
+- [Phase 5]: run_demo reuses evals.runner _capture/_checkpointer rather than re-implementing them (DRY)
+- [Phase 5]: The unapproved resume value is declared once in the demo module; the refusal beat is selected by its manifest name
+- [Phase 5]: The named approval is a well-formed ApprovalToken incl. approved_at; the graph fills final_colour for approve
+- [Phase 5]: The refusal beat climax is read from the real store row delta (rows added: 0), not hard-coded
+- [Phase 5]: The demo/ edge package is exempted from the core/ TID251 import ban
 
 ### Pending Todos
 
@@ -184,6 +190,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T21:19:35.038Z
-Stopped at: Completed 04-06-PLAN.md
+Last session: 2026-10-09T22:03:50.428Z
+Stopped at: Completed 05-01-PLAN.md
 Resume file: None
