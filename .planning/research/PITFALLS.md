@@ -16,7 +16,7 @@ The GSD roadmap has not been created yet. Pitfalls are mapped to the six **capab
 | **P1 — SATS Data & Foundations** | Encode SATS as YAML; scaffold; prove local model emits valid tool calls | Day 1 |
 | **P2 — Deterministic Scorer & Own MCP Server** | `score_priority` + 5 tools; unit-test the scorer | Day 2 |
 | **P3 — Graph, Gate, Audit & Borrowed Server** | LangGraph wiring; approval gate; hash-chained audit; SQLite MCP | Day 3 |
-| **P4 — Evals, Recovery & Honest Failure** | 13 cases × 3 runs; missing-vital recovery; abstention; deterioration; E-09 | Day 4 |
+| **P4 — Evals, Recovery & Honest Failure** | 14 cases × 3 runs; missing-vital recovery; abstention; deterioration; E-09 | Day 4 |
 | **P5 — Demo & Minimal Surface** | Terminal surface; unedited 3-minute demo | Day 5 |
 | **P6 — Docs, Freeze & Submit** | Docs finalised; one-command clone-run; tag; freeze | Day 6 |
 
@@ -255,7 +255,7 @@ Age is treated as an ordinary field with a default. The `out_of_scope` predicate
 ### Pitfall 11: The eval set is curated to pass — by the same author who wrote the scorer
 
 **What goes wrong:**
-The 13 cases and the YAML scorer share one author and one mental model. The expected colours are *derived from published SATS*, not clinician-adjudicated (`EVALS.md` §7, `G-1`), and there is no **held-out** set. So the suite can pass while measuring "did we encode our own rules correctly", not "does the system match independent clinical judgement". Worse, if the YAML is tuned until a case goes green, that is silent **overfitting to the test set** — and the challenge explicitly checks "is the test set honest rather than curated to pass" (JC-4, 15 pts). `EVALS.md` mitigates this well by planning a failure (E-09) and by labelling planned vs measured — the residual risk is the *rest* of the suite.
+The 14 cases and the YAML scorer share one author and one mental model. The expected colours are *derived from published SATS*, not clinician-adjudicated (`EVALS.md` §7, `G-1`), and there is no **held-out** set. So the suite can pass while measuring "did we encode our own rules correctly", not "does the system match independent clinical judgement". Worse, if the YAML is tuned until a case goes green, that is silent **overfitting to the test set** — and the challenge explicitly checks "is the test set honest rather than curated to pass" (JC-4, 15 pts). `EVALS.md` mitigates this well by planning a failure (E-09) and by labelling planned vs measured — the residual risk is the *rest* of the suite.
 
 **Why it happens:**
 Under a deadline, the fastest path is to write cases that match the implementation. The RULES are authored first in this project (a good sign), but the cases and any later rule-tweak still risk convergence.

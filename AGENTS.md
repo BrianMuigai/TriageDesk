@@ -85,7 +85,7 @@ the queue without her approval.** If everything else fails, this must work.
 | `aiosqlite` | `>=0.20` (transitive) | Async SQLite for the checkpointer | Pulled in by `langgraph-checkpoint-sqlite`; not added manually. |
 | `sqlite-vec` | `>=0.1.6` (transitive) | Checkpointer dependency | Transitive only; unused by us. |
 | `rich` | (transitive via `mcp[cli]`) | Readable tool-call/CLI output for the demo | Demo legibility. |
-| `pytest` + `pytest-asyncio` | latest | Test suite incl. the 13 eval cases | Dev-only. One test per tool contract (SOLID Liskov check on return shapes). |
+| `pytest` + `pytest-asyncio` | latest | Test suite incl. the 14 eval cases | Dev-only. One test per tool contract (SOLID Liskov check on return shapes). |
 | `ruff` | latest | Lint + format | Enforce the DRY rule mechanically (flagting duplicated literals outside `data/`). |
 | `mypy` | latest | Static typing | Typed tool contracts; catches return-shape drift (SOLID L). |
 

@@ -83,7 +83,7 @@ defensibility).
 | **Idempotent gated write** | An irreversible write that is safe to retry is a clinical-grade property. | LOW–MEDIUM | `commit_priority` keyed by `case_id` + content hash (SW-3). |
 | **Version pinning + hashing of prompts, model, and scale data** | Reproducibility: any run can be shown to have varied, or reproduced. | LOW–MEDIUM | Audit records model version, prompt hash, YAML hash (SW-5, D-17). |
 | **Extend-by-data extensibility** (add a SATS rule in one line) | Low-resource desks and the live review both need rule changes without a code change. | LOW–MEDIUM | Rules in YAML; new capability = new node + new tool (ST-1, SOLID O). |
-| **Honest evaluation incl. a declared, unfixed failure** | Reliability and defensibility are scored; hiding the failure forfeits them. | MEDIUM | 13 cases, run-to-run variation measured, one expected failure shown in the demo (JC-4, EVALS §6). |
+| **Honest evaluation incl. a declared, unfixed failure** | Reliability and defensibility are scored; hiding the failure forfeits them. | MEDIUM | 14 cases, run-to-run variation measured, one expected failure shown in the demo (JC-4, EVALS §6). |
 | **Throughput / queue-pressure model** | Connects the tool to the actual bottleneck (60–90 min wait) rather than an abstract accuracy claim. | MEDIUM | Assumption-labelled model of the 5-step desk process (JC-3). |
 
 ### Anti-Features (Commonly Requested, Often Problematic)

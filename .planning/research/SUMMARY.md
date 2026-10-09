@@ -198,7 +198,7 @@ executable assertions), Pitfall 14 (one transaction, immutable hash key), M-4/M-
 **Rationale:** Credibility is scored; the harness must be honest and *enforcing*, not decorative, and the
 recovery/abstention/calibration paths are what make the tool defensible. Expected colours must have been
 frozen in Phase 1 (before the scorer existed).
-**Delivers:** `evals/` harness running 13 cases × 3 runs through the same graph interface with fault
+**Delivers:** `evals/` harness running 14 cases × 3 runs through the same graph interface with fault
 injection; per-case coverage/confidence; missing-vital recovery, abstention, deterioration, retry-once +
 deterministic fallback; under- vs over-triage reported separately; ≥2 held-out cases; E-09 as the declared
 failure; `report.json` as the sole source of `EVALS.md` numbers.
