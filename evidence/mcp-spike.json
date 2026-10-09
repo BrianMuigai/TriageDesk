@@ -1,0 +1,50 @@
+{
+  "world_decision": {
+    "world": "A",
+    "adapter": "langchain.mcp.MCPAdapter",
+    "reason": "Both the owned SDK-v2 server and the borrowed legacy SQLite server listed tools and answered one call through separate MCPAdapter contexts (no era collapse). World A adopted (D-04)."
+  },
+  "owned_server": {
+    "tool_list": [
+      "normalize_case"
+    ],
+    "called": {
+      "tool": "normalize_case",
+      "arguments": {
+        "raw_note": "RR 24, HR 118, BP 108/70, temp 38.9, alert, coughing and fast breathing"
+      },
+      "result": [
+        {
+          "type": "text",
+          "text": "{\n  \"case\": {\n    \"age_years\": null,\n    \"height_cm\": null,\n    \"respiratory_rate\": 24,\n    \"heart_rate\": 118,\n    \"systolic_bp\": 108,\n    \"diastolic_bp\": 70,\n    \"temperature_c\": 38.9,\n    \"spo2\": null,\n    \"mobility\": null,\n    \"avpu\": \"alert\",\n    \"trauma\": false,\n    \"complaint\": \"coughing and fast breathing\"\n  },\n  \"matched_discriminator_ids\": [],\n  \"no_discriminator_matched\": true\n}",
+          "id": "lc_f546933e-c22f-4193-ad48-c83e81e2c09f"
+        }
+      ]
+    }
+  },
+  "borrowed_server": {
+    "tool_list": [
+      "db_info",
+      "query",
+      "list_tables",
+      "get_table_schema",
+      "create_record",
+      "read_records",
+      "update_records",
+      "delete_records"
+    ],
+    "launch": "npx -y mcp-sqlite@1.0.9 /home/brian/Desktop/brij/ai/TriageDesk/triage.db",
+    "called": {
+      "tool": "db_info",
+      "arguments": {},
+      "result": [
+        {
+          "type": "text",
+          "text": "{\n  \"dbPath\": \"/home/brian/Desktop/brij/ai/TriageDesk/triage.db\",\n  \"exists\": true,\n  \"size\": 0,\n  \"lastModified\": \"Fri Oct 09 2026 15:46:26 GMT+0300 (East Africa Time)\",\n  \"tableCount\": 0\n}",
+          "id": "lc_674541d0-1416-4fa4-a025-440a847d7b4e"
+        }
+      ]
+    }
+  },
+  "errors": []
+}

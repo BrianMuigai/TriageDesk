@@ -15,12 +15,18 @@ from mcp.server import MCPServer
 from triagedesk.core.schema import ExtractionResult
 from triagedesk.llm.client import extract
 
-server = MCPServer("triagedesk-triage")
+# The owned server. Name is positional; everything else is keyword (SDK v2).
+server = MCPServer("triagedesk-triage", version="0.1.0")
 
 
 @server.tool()
 def normalize_case(raw_note: str) -> ExtractionResult:
-    """Parse a triage note into the typed case schema. Read-only."""
+    """Parse a triage note into the typed case schema. Read-only.
+
+    Single-purpose and contract-typed: it returns the one shared
+    ``ExtractionResult`` schema (D-14), so the server contract and the model
+    contract cannot drift. Read-only — it never writes to the queue (D-06).
+    """
     return extract(raw_note)
 
 
