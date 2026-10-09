@@ -1,20 +1,20 @@
 ---
-gsd_state_version: "1.0"
+gsd_state_version: 1.0
 milestone: v1.0
+milestone_name: milestone
 current_phase: 2
 current_phase_name: Deterministic Scorer & Own MCP Server
 status: executing
-stopped_at: Completed 01-04-PLAN.md
-last_updated: "2026-10-09T14:29:21.667Z"
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-10-09T14:49:35.037Z"
 last_activity: 2026-10-09
 last_activity_desc: Phase 2 execution started
-state_head: 9e91502c4b7bc0be4091f9128e70c7e8ba7d2db4
 progress:
-  total_phases: 5
+  total_phases: 2
   completed_phases: 1
   total_plans: 7
-  completed_plans: 4
-milestone_name: milestone
+  completed_plans: 5
+state_head: 9e91502c4b7bc0be4091f9128e70c7e8ba7d2db4
 ---
 
 # Project State
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 ## Current Position
 
 Phase: 2 (Deterministic Scorer & Own MCP Server) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 2
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-10-09 — Phase 2 execution started
 
-Progress: [██████████] 100%
+Progress: [███████░░░] 71%
 
 ## Performance Metrics
 
@@ -63,6 +63,7 @@ Progress: [██████████] 100%
 | Phase 1 P2 | 13 | 3 tasks | 8 files |
 | Phase 1 P3 | 23 | 3 tasks | 8 files |
 | Phase 1 P4 | 4 | 2 tasks | 5 files |
+| Phase 02 P01 | 16 | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,11 @@ Recent decisions affecting current work:
 - [Phase 1]: Canonical hash = sorted-key compact JSON (UTF-8) then sha256 — the digest is independent of dict insertion order and of YAML comments/whitespace, so only a real content change churns it (SAFE-04, D-17).
 - [Phase 1]: One hashing path: hash_rule_object/hash_prompt/hash_tool_schema all delegate to hash_value; scripts/hash_data.py writes evidence/hashes.json (model tag + data/prompts/schemas digests) and exits non-zero on a missing required input.
 - [Phase 1]: uv.lock was already current (Plan 01-01); uv lock resolved 115 packages with zero diff — no spurious churn. NOTICE licence facts read from installed metadata + npm (mcp-sqlite@1.0.9 = ISC; Qwen tags Apache-2.0 per evidence/model-spike.json).
+- [Phase 02]: score_priority is a thin MCP tool over the pure core function; no model touches the score path (D-02, T-02-01).
+- [Phase 02]: The scorer binds each loaded parameter key to its schema field structurally (temperature -> temperature_c), so a new YAML parameter auto-scores without editing the scorer (SOLID: O).
+- [Phase 02]: Boolean parameters (trauma) map to their highest/lowest-points band by data, so the yes/no tokens are never inlined (DRY guard).
+- [Phase 02]: Gap distances compare with a relative tolerance and resolve ties to the fail-closed higher-points band (temperature 34.95 no longer under-triages).
+- [Phase 02]: Fail-closed safety branches (out-of-scope abstention, missing-vital detection) shipped with the Task-1 tracer as a Rule-2 fix; Task 2 added the proving tests and its TDD RED collapsed to GREEN.
 
 ### Pending Todos
 
@@ -109,6 +115,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T13:05:54.871Z
-Stopped at: Completed 01-04-PLAN.md
+Last session: 2026-10-09T14:49:19.894Z
+Stopped at: Completed 02-01-PLAN.md
 Resume file: None

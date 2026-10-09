@@ -12,23 +12,23 @@
 
 - [ ] **INTAKE-01**: Nurse can enter a case as structured vitals plus a free-text presenting complaint
 - [ ] **INTAKE-02**: System normalizes a case into one validated typed schema (defined once, imported everywhere)
-- [ ] **INTAKE-03**: Missing critical vitals are detected and the nurse is asked to re-measure — no imputation
+- [x] **INTAKE-03**: Missing critical vitals are detected and the nurse is asked to re-measure — no imputation
 - [x] **INTAKE-04**: Adult TEWS bands + colour thresholds live **only** in `data/sats_tews.yaml`
 - [x] **INTAKE-05**: Discriminators + categories live **only** in `data/sats_discriminators.yaml`
 
 ### Scoring (deterministic)
 
-- [ ] **SCORE-01**: TEWS is computed deterministically from typed vitals (no LLM arithmetic)
+- [x] **SCORE-01**: TEWS is computed deterministically from typed vitals (no LLM arithmetic)
 - [ ] **SCORE-02**: Discriminator overrides apply (most-urgent wins) → a colour + target time
-- [ ] **SCORE-03**: Every priority cites the exact rule/vital(s) that produced it (citation invariant)
-- [ ] **SCORE-04**: Paediatric / out-of-scope input is detected, then **abstains + escalates** (predicate fails closed)
-- [ ] **SCORE-05**: Band-edge, boundary, and unit cases are covered by tests
+- [x] **SCORE-03**: Every priority cites the exact rule/vital(s) that produced it (citation invariant)
+- [x] **SCORE-04**: Paediatric / out-of-scope input is detected, then **abstains + escalates** (predicate fails closed)
+- [x] **SCORE-05**: Band-edge, boundary, and unit cases are covered by tests
 
 ### MCP tools
 
 - [ ] **TOOL-01**: Own MCP server exposes `normalize_case`
 - [ ] **TOOL-02**: Own MCP server exposes `match_discriminators`
-- [ ] **TOOL-03**: Own MCP server exposes `score_priority` (acting)
+- [x] **TOOL-03**: Own MCP server exposes `score_priority` (acting)
 - [ ] **TOOL-04**: Own MCP server exposes `raise_recheck_flag` (acting)
 - [ ] **TOOL-05**: Own MCP server exposes `commit_priority` (acting + gated + idempotent)
 - [ ] **TOOL-06**: A **borrowed**, maintained SQLite MCP server provides case/queue storage + audit
@@ -115,17 +115,17 @@ Which phases cover which requirements.
 |-------------|-------|--------|
 | INTAKE-01 | Phase 1 | Pending |
 | INTAKE-02 | Phase 1 | Pending |
-| INTAKE-03 | Phase 2 | Pending |
+| INTAKE-03 | Phase 2 | Complete |
 | INTAKE-04 | Phase 1 | Complete |
 | INTAKE-05 | Phase 1 | Complete |
-| SCORE-01 | Phase 2 | Pending |
+| SCORE-01 | Phase 2 | Complete |
 | SCORE-02 | Phase 2 | Pending |
-| SCORE-03 | Phase 2 | Pending |
-| SCORE-04 | Phase 2 | Pending |
-| SCORE-05 | Phase 2 | Pending |
+| SCORE-03 | Phase 2 | Complete |
+| SCORE-04 | Phase 2 | Complete |
+| SCORE-05 | Phase 2 | Complete |
 | TOOL-01 | Phase 2 | Pending |
 | TOOL-02 | Phase 2 | Pending |
-| TOOL-03 | Phase 2 | Pending |
+| TOOL-03 | Phase 2 | Complete |
 | TOOL-04 | Phase 2 | Pending |
 | TOOL-05 | Phase 2 | Pending |
 | TOOL-06 | Phase 3 | Pending |
