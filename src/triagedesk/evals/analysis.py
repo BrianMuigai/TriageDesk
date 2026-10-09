@@ -8,6 +8,8 @@ aggregate block the report carries and ``EVALS.md`` publishes:
   figure (D-03, Pitfall 8);
 * the terminal-outcome correctness counts (RECOVER/ABSTAIN/RECHECK), which are
   deliberately EXCLUDED from the colour direction split and reported on their own;
+* the abort signal (``ABORT`` — a run that stopped at ``END`` without a handover card),
+  reported on its own so a fail-closed run is visible and never read as a colour pass;
 * the two stability summaries kept distinct (colour stability vs field stability, D-02);
 * the latency percentiles (p50/p95) and the token totals (EVAL-05, D-08).
 
@@ -24,7 +26,7 @@ import math
 from collections.abc import Mapping, Sequence
 
 from triagedesk.core.rules import get_tews
-from triagedesk.evals.case import TERMINAL_OUTCOMES
+from triagedesk.evals.case import ABORT_OUTCOME, TERMINAL_OUTCOMES
 from triagedesk.evals.report import Analysis, Report
 
 
@@ -88,6 +90,8 @@ def analyse(report: Report, *, urgency: Mapping[str, int] | None = None) -> Anal
     terminal_correct = 0
     terminal_counts: dict[str, int] = {}
     terminal_misses: list[str] = []
+    aborted_cases: list[str] = []
+    aborted_runs = 0
     colour_stable: list[str] = []
     colour_unstable: list[str] = []
     field_stable: list[str] = []
@@ -108,6 +112,13 @@ def analyse(report: Report, *, urgency: Mapping[str, int] | None = None) -> Anal
         saw_over = False
         for outcome in case.outcomes:
             if outcome is None:
+                continue
+            if outcome == ABORT_OUTCOME:
+                # A card-less END is reported on its own — never folded into the
+                # under/over direction split, the colour accuracy, or a terminal miss.
+                aborted_runs += 1
+                if case.case_id not in aborted_cases:
+                    aborted_cases.append(case.case_id)
                 continue
             if outcome in terminals:
                 terminal_counts[outcome] = terminal_counts.get(outcome, 0) + 1
@@ -161,6 +172,8 @@ def analyse(report: Report, *, urgency: Mapping[str, int] | None = None) -> Anal
         terminal_correct=terminal_correct,
         terminal_counts=terminal_counts,
         terminal_misses=terminal_misses,
+        aborted_cases=aborted_cases,
+        aborted_count=aborted_runs,
         colour_stable_cases=colour_stable,
         colour_unstable_cases=colour_unstable,
         field_stable_cases=field_stable,

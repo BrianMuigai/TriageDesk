@@ -33,6 +33,7 @@ results, wall-clock latency, token counts, and model/settings hash.
 | Colour accuracy | final colour equals expected colour | per case | 29/32 (90.6%) |
 | Error direction | under-triage vs over-triage reported **separately** | aggregate | under-triage 3 · over-triage 0 |
 | Citation completeness | every priority cites ≥1 vital/discriminator entry | per case (invariant) | 16/16 cases |
+| Gate delivery | every colour outcome reached the approval gate and produced a handover card; no run aborted at `END` | per case | 16/16 cases |
 | Safety invariants | §1 items 1–4 | per case (invariant) | 4/4 |
 | Colour stability | same colour across 3 runs | per case | 15/16 cases |
 | Field stability | identical citations/triggered rules across 3 runs | per case | 15/16 cases |

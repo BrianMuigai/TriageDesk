@@ -17,18 +17,125 @@ priority that lost its citations) used to be reported as a passing colour.
 
 from __future__ import annotations
 
+import importlib.util
 from collections.abc import Mapping
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
+from triagedesk.evals.analysis import analyse
 from triagedesk.evals.case import ABORT_OUTCOME, CaseSpec
-from triagedesk.evals.report import Report, compute_report_digest
+from triagedesk.evals.report import (
+    GateResult,
+    Provenance,
+    Report,
+    ReportCase,
+    compute_report_digest,
+)
 from triagedesk.evals.runner import run_eval
 from triagedesk.evals.tools import ToolMap, build_tools
 from triagedesk.evals.usage import UsageRecorder
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CASES_DIR = REPO_ROOT / "evals" / "cases"
+GENERATOR_PATH = REPO_ROOT / "scripts" / "emit_evals.py"
+
+_ALL_INVARIANTS = {"INV-1": True, "INV-2": True, "INV-3": True, "INV-4": True}
+_COLOURS = {"GREEN", "YELLOW", "ORANGE", "RED"}
+
+
+def _load_generator() -> ModuleType:
+    """Load ``scripts/emit_evals.py`` as a module (it is a script, not a package)."""
+    spec = importlib.util.spec_from_file_location("emit_evals", GENERATOR_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_EMIT = _load_generator()
+
+# A minimal EVALS.md carrying the three tables the generator rewrites, including the
+# hand-written ``Gate delivery`` narrative row the generator fills the Measured cell of.
+_TEMPLATE = """# EVALS — test fixture
+
+## 3. Reliability metrics
+
+| Metric | Definition | How reported |
+| --- | --- | --- |
+| Colour accuracy | x | per case |
+| Error direction | x | aggregate |
+| Citation completeness | x | per case |
+| Gate delivery | x | per case |
+| Safety invariants | x | per case |
+| Colour stability | x | per case |
+| Field stability | x | per case |
+| Latency | x | aggregate |
+| Cost per run | x | aggregate |
+
+## 4. Test cases
+
+| # | Case | Synthetic input | Expected | Pass criteria | Runs (3×) | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| E-08 | No false alarm | input | **GREEN** | criteria | TBD | ⛔ |
+| E-01 | Routine | input | **GREEN** | criteria | TBD | ⛔ |
+
+## 5. Safety invariant checks (every case, every run)
+
+| Invariant | Check | Result |
+| --- | --- | --- |
+| INV-1 | check | TBD |
+| INV-2 | check | TBD |
+| INV-3 | check | TBD |
+| INV-4 | check | TBD |
+"""
+
+
+def _cell(output: str, row_prefix: str, index: int) -> str:
+    """The *index*-th cell (from the right) of the table row starting with *row_prefix*."""
+    row = next(line for line in output.splitlines() if line.startswith(row_prefix))
+    return row.split("|")[index].strip()
+
+
+def _synthetic_case(
+    case_id: str, expected: str, outcomes: list[str], *, passed: bool | None = None
+) -> ReportCase:
+    """A synthetic report case carrying only the facts the analyser/generator read."""
+    return ReportCase(
+        case_id=case_id,
+        expected=expected,
+        runs=len(outcomes),
+        colours=[outcome if outcome in _COLOURS else None for outcome in outcomes],
+        outcomes=list(outcomes),
+        colour_stable=True,
+        field_stable=True,
+        invariants=dict(_ALL_INVARIANTS),
+        invariants_pass=True,
+        passed=passed if passed is not None else all(o == expected for o in outcomes),
+        latency_s=[0.1, 0.2, 0.3],
+        tokens_in=10,
+        tokens_out=5,
+    )
+
+
+def _synthetic_report(cases: list[ReportCase]) -> Report:
+    """A synthetic report wrapping *cases* with a valid provenance block."""
+    return Report(
+        mode="offline",
+        runs=3,
+        cases_dir="evals/cases",
+        provenance=Provenance(
+            model_tag="test-model",
+            ollama_version="test",
+            prompt_hash="prompt",
+            sats_tews_hash="tews",
+            sats_discriminators_hash="discriminators",
+            harness_commit="commit",
+        ),
+        cases=cases,
+        invariants=dict(_ALL_INVARIANTS),
+        gate=GateResult(passed=True),
+    )
 
 
 def _strip_citations_factory(
@@ -121,3 +228,61 @@ async def test_terminal_facts_are_sealed_in_the_digest(tmp_path: Path) -> None:
     tampered_case = case.model_copy(update={"delivered": [True, True, True]})
     tampered = report.model_copy(update={"cases": [tampered_case]})
     assert compute_report_digest(tampered) != report.report_digest
+
+
+# ------------------------------------------- 5. the analyser surfaces the abort signal
+
+
+def test_analysis_surfaces_aborted_cases_and_runs() -> None:
+    """``analyse`` names the aborted case and counts its runs, on their own (G-2)."""
+    report = _synthetic_report(
+        [
+            _synthetic_case("E-08", "GREEN", [ABORT_OUTCOME] * 3, passed=False),
+            _synthetic_case("E-01", "GREEN", ["GREEN"] * 3),
+        ]
+    )
+    analysis = analyse(report)
+
+    assert analysis.aborted_cases == ["E-08"]
+    assert analysis.aborted_count == 3
+    # The abort is NOT folded into the direction split or the colour accuracy figure.
+    assert analysis.under_triage == []
+    assert analysis.over_triage == []
+    assert analysis.colour_runs == 3, "an abort leaked into the colour accuracy figure"
+
+
+# ------------------------------ 6. the generator renders Gate delivery from the report
+
+
+def test_generator_renders_gate_delivery_from_the_report_and_is_idempotent() -> None:
+    """The ``Gate delivery`` cell equals the report's own aborted count; rendering is stable."""
+    report = _synthetic_report(
+        [
+            _synthetic_case("E-08", "GREEN", [ABORT_OUTCOME] * 3, passed=False),
+            _synthetic_case("E-01", "GREEN", ["GREEN"] * 3),
+        ]
+    )
+    sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
+
+    first = _EMIT.render_evals(_TEMPLATE, sealed)
+    second = _EMIT.render_evals(first, sealed)
+    assert first == second, "the generator is not idempotent"
+
+    # 2 cases, 1 of which aborted -> "1/2 cases" — rendered from the report, never typed.
+    assert _cell(first, "| Gate delivery ", -2) == "1/2 cases"
+
+
+# --------------------------------------- 7. an aborted run is rendered failing, not a pass
+
+
+def test_aborted_case_is_rendered_failing() -> None:
+    """A case whose runs aborted is rendered ❌ in §4 — an abort is never a pass (G-2)."""
+    report = _synthetic_report(
+        [_synthetic_case("E-08", "GREEN", [ABORT_OUTCOME] * 3, passed=False)]
+    )
+    sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
+    output = _EMIT.render_evals(_TEMPLATE, sealed)
+
+    assert _cell(output, "| E-08 ", -2) == "\u274c", "an aborted run was rendered as a pass"
+    assert _cell(output, "| Gate delivery ", -2) == "0/1 cases"
+

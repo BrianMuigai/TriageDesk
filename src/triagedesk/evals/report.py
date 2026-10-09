@@ -125,6 +125,10 @@ class Analysis(BaseModel):
     safety-critical miss — an under-triaged most-urgent (RED) case — with its own weight
     so the asymmetry reads explicitly (Pitfall 8). The most-urgent colour is derived from
     the loaded substrate, never a hard-coded literal (CONVENTIONS §1).
+
+    ``aborted_cases`` / ``aborted_count`` report the runs that stopped at ``END`` without a
+    handover card (``ABORT_OUTCOME``) on their own — an abort is never folded into the
+    under/over direction split or the colour accuracy figure (G-2, T-04-26).
     """
 
     colour_runs: int = 0
@@ -138,6 +142,8 @@ class Analysis(BaseModel):
     terminal_correct: int = 0
     terminal_counts: dict[str, int] = Field(default_factory=dict)
     terminal_misses: list[str] = Field(default_factory=list)
+    aborted_cases: list[str] = Field(default_factory=list)
+    aborted_count: int = 0
     colour_stable_cases: list[str] = Field(default_factory=list)
     colour_unstable_cases: list[str] = Field(default_factory=list)
     field_stable_cases: list[str] = Field(default_factory=list)

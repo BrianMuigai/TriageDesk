@@ -8,7 +8,8 @@ fabricated number cannot enter the document (T-04-16, Pitfall 16).
 What the generator writes (and nothing else):
 
 * the §3 reliability-metrics table gains a ``Measured`` column (colour accuracy, the
-  under/over direction split, the invariant/stability counts, latency p50/p95, cost);
+  under/over direction split, the gate-delivery count, the invariant/stability counts,
+  latency p50/p95, cost);
 * the §4 per-case ``Runs (3×)`` and ``Result`` cells;
 * the §5 invariant ``Result`` cells;
 * a generated source line naming the report and its ``report_digest`` so each figure is
@@ -95,6 +96,7 @@ def _measured_metrics(report: Report, analysis: Analysis) -> dict[str, str]:
             f"over-triage {analysis.over_triage_count}"
         ),
         "Citation completeness": f"{citation_ok}/{total} cases",
+        "Gate delivery": f"{total - len(analysis.aborted_cases)}/{total} cases",
         "Safety invariants": f"{invariants_ok}/{len(INVARIANT_IDS)}",
         "Colour stability": f"{len(analysis.colour_stable_cases)}/{total} cases",
         "Field stability": f"{len(analysis.field_stable_cases)}/{total} cases",
