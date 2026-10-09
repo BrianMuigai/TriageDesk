@@ -88,7 +88,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Under-triage and over-triage are reported separately, E-09 ships as a declared unfixed failure, and held-out cases show the failure is bounded rather than universal.
   3. INV-1…4 are executable assertions that non-zero-exit the run and gate CI whenever violated, and a suppression-direction injection case leaves the colour unchanged.
   4. The report carries per-run latency and token cost, is reproducible via recorded hashes, and is the sole source of numbers for `EVALS.md`.
-**Plans**: TBD
+**Plans**: 4 plans
+- [ ] 04-01-PLAN.md — Tracer: one case × 3 runs → measured `report.json` through the real graph interface
+- [ ] 04-02-PLAN.md — The honest 14-case suite + held-out bounding cases for the declared E-09 failure
+- [ ] 04-03-PLAN.md — Executable INV-1…4 gating CI + the E-14 suppression-injection proof
+- [ ] 04-04-PLAN.md — Under/over-triage split, latency/token cost, report as the sole `EVALS.md` source
 
 ### Phase 5: Demo, Docs & Freeze
 **Goal**: A stranger can run the frozen system in one command, the demo video shows a live human-judged run including a failure, and the repository is frozen before the deadline.
@@ -112,5 +116,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. SATS Foundations & Risk Retirement | 4/4 | Complete | 2026-10-09 |
 | 2. Deterministic Scorer & Own MCP Server | 3/3 | Complete | 2026-10-09 |
 | 3. Approval Gate, Gated Commit & Safety Spine | 5/5 | Complete | 2026-10-09 |
-| 4. Evaluation, Recovery & Honest Failure | 0/TBD | Not started | - |
+| 4. Evaluation, Recovery & Honest Failure | 0/4 | Not started | - |
 | 5. Demo, Docs & Freeze | 0/TBD | Not started | - |
