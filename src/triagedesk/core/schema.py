@@ -180,12 +180,13 @@ class ApprovalToken(BaseModel):
 
 
 class CommitResult(BaseModel):
-    """The gated commit stub's contract (D-07).
+    """The gated commit tool's contract (D-05, D-06).
 
     ``refused`` is ``True`` when no well-formed approval token was supplied (or the
-    token was malformed), in which case nothing is written. ``committed`` is only
-    ever ``True`` once the real idempotent commit exists (Phase 3); the Phase-2 stub
-    never sets it, so a caller can never mistake the stub for a queue write.
+    token was malformed, or the decision was ``dismiss``), in which case nothing is
+    written. ``committed`` is ``True`` once the idempotent queue write has run through
+    the injectable store seam; a repeat commit of identical content also returns
+    ``committed=True`` but inserts no second row (GATE-03).
     """
 
     committed: bool = False

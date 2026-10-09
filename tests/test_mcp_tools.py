@@ -2,17 +2,16 @@
 
 Exercises the owned tools over the SDK's IN-MEMORY client (no borrowed server, no
 subprocess, no network). The model call is stubbed so the suite stays offline and
-deterministic.
+deterministic; the store is the shared in-memory double injected by ``conftest``.
 
 Two subsets share this module: the ``normalize`` tests constrain the model-returned
-discriminator ids to the closed set (Task 1), and the ``commit`` tests prove the
-gated ``commit_priority`` stub refuses without a valid approval token (Task 3).
+discriminator ids to the closed set (Task 1), and the ``commit`` tests prove the real
+gated ``commit_priority`` refuses without a valid approval token and commits once —
+idempotently — through the injectable store seam (Plan 03-02, GATE-02/GATE-03).
 """
 
 from __future__ import annotations
 
-import inspect
-import re
 from typing import Any
 
 from mcp import Client
@@ -114,7 +113,7 @@ async def test_commit_priority_refuses_a_malformed_token() -> None:
     assert parsed.committed is False
 
 
-async def test_commit_priority_accepts_a_well_formed_token_without_committing() -> None:
+async def test_commit_priority_commits_once_through_the_injected_store(injected_store) -> None:
     token = {
         "approved_by": "Dr A. Nurse",
         "role": "triage clinician",
@@ -123,28 +122,46 @@ async def test_commit_priority_accepts_a_well_formed_token_without_committing() 
         "final_colour": "RED",
     }
     async with Client(server_module.server) as client:
-        call = await client.call_tool(
+        first = await client.call_tool(
+            "commit_priority",
+            {"case_id": "c-1", "colour": "RED", "approval_token": token},
+        )
+        repeat = await client.call_tool(
             "commit_priority",
             {"case_id": "c-1", "colour": "RED", "approval_token": token},
         )
 
-    parsed = CommitResult.model_validate_json(call.content[0].text)
-    # A valid token is accepted, but the stub NEVER fakes a write — the real
-    # LangGraph gate + idempotent commit is Phase 3 (D-07, GATE-01..04).
-    assert parsed.refused is False
-    assert parsed.committed is False
+    # A valid token now performs the real idempotent write: it commits once, and a
+    # repeat of identical content inserts no second row (GATE-03, D-06).
+    assert CommitResult.model_validate_json(first.content[0].text).committed is True
+    assert CommitResult.model_validate_json(repeat.content[0].text).committed is True
+    assert len(injected_store.rows) == 1
 
 
-def test_commit_priority_path_imports_no_store() -> None:
-    """No path through commit_priority may touch a store: Phase 2 writes nothing.
+async def test_commit_priority_resolves_its_store_through_the_injectable_seam(
+    injected_store,
+) -> None:
+    """The commit path resolves its store through the injectable seam (D-13).
 
-    There is no store dependency on this path — the module imports no ``store``
-    (the real idempotent queue write is Phase 3, GATE-01..04).
+    It depends on the ``Store`` protocol and the injected instance — not on a
+    hard-coded concrete import — so a World-B store swap is a single injection.
     """
-    source = inspect.getsource(server_module)
-    assert not re.search(r"^\s*(from|import)\b.*\bstore\b", source, re.M), (
-        "the commit path must not import a store — Phase 2 performs no queue write"
-    )
+    token = {
+        "approved_by": "Dr A. Nurse",
+        "role": "triage clinician",
+        "decision": "approve",
+        "approved_at": "2026-10-09T15:00:00Z",
+        "final_colour": "RED",
+    }
+    async with Client(server_module.server) as client:
+        await client.call_tool(
+            "commit_priority",
+            {"case_id": "c-1", "colour": "RED", "approval_token": token},
+        )
+
+    # The injected (swapped) store is the one used — its row list holds the write.
+    assert len(injected_store.rows) == 1
+    assert injected_store.rows[0].case_id == "c-1"
 
 
 async def test_commit_priority_is_listed_by_the_owned_server() -> None:
