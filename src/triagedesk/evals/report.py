@@ -52,10 +52,12 @@ class ReportCase(BaseModel):
     (never averaged); the three stability flags are computed SEPARATELY so a stable
     colour with an unstable citation list is visible (Pitfall 6). ``outcomes`` is the
     first-class per-run terminal outcome (a colour or RECOVER/ABSTAIN/RECHECK) read from
-    the graph's own terminal state (ORCH-05). ``passed`` is the accuracy verdict: every
-    run's outcome equals ``expected`` AND colour and matched-set are stable.
-    ``tokens_in``/``tokens_out`` are the case's totals across runs; ``latency_s`` is
-    per-run.
+    the graph's own terminal state (ORCH-05). ``invariants`` is the per-invariant verdict
+    (folded across runs) and ``invariant_reasons`` names WHY a failed invariant broke;
+    ``invariants_pass`` is the fold of that map. ``passed`` is the accuracy verdict: every
+    run's outcome equals ``expected`` AND every invariant holds AND colour and matched-set
+    are stable. ``tokens_in``/``tokens_out`` are the case's totals across runs;
+    ``latency_s`` is per-run.
     """
 
     case_id: str
@@ -68,6 +70,9 @@ class ReportCase(BaseModel):
     colour_stable: bool = False
     matched_set_stable: bool = False
     field_stable: bool = False
+    invariants: dict[str, bool] = Field(default_factory=dict)
+    invariants_pass: bool = False
+    invariant_reasons: dict[str, str] = Field(default_factory=dict)
     passed: bool = False
     latency_s: list[float] = Field(default_factory=list)
     tokens_in: int = 0
@@ -75,11 +80,39 @@ class ReportCase(BaseModel):
     declared_failure: bool = False
 
 
+class GateViolation(BaseModel):
+    """One invariant violation the gate reports (EVAL-03, D-06).
+
+    Names the exact case and invariant (and the reason the predicate gave), so a CI log
+    points at the failing run rather than a bare non-zero exit.
+    """
+
+    case_id: str
+    invariant: str
+    reason: str = ""
+
+
+class GateResult(BaseModel):
+    """The eval gate verdict — the machine-readable reason for the exit code (D-06).
+
+    ``passed`` is ``True`` only when no invariant was violated on any run and no
+    non-declared accuracy miss is present. ``violations`` names every broken invariant
+    (per case) and ``unexpected_failures`` lists the non-declared cases that missed. The
+    single declared failure (E-09) is an allowed miss and never appears here.
+    """
+
+    passed: bool = False
+    violations: list[GateViolation] = Field(default_factory=list)
+    unexpected_failures: list[str] = Field(default_factory=list)
+
+
 class Report(BaseModel):
     """The complete machine-generated report (D-08, EVAL-02).
 
     ``mode`` labels an offline (stubbed-model) run so it can never be presented as a real
-    measured run (T-04-01, Pitfall 16).
+    measured run (T-04-01, Pitfall 16). ``invariants`` is the aggregate per-invariant
+    verdict (folded across every case) and ``gate`` is the enforcement verdict the exit
+    code is derived from.
     """
 
     mode: Mode
@@ -87,6 +120,8 @@ class Report(BaseModel):
     cases_dir: str
     provenance: Provenance
     cases: list[ReportCase] = Field(default_factory=list)
+    invariants: dict[str, bool] = Field(default_factory=dict)
+    gate: GateResult = Field(default_factory=GateResult)
     report_digest: str = ""
 
 
@@ -139,9 +174,9 @@ def _digest_payload(report: Report) -> dict[str, Any]:
     """The non-volatile content the ``report_digest`` seals (D-08, Pitfall 18).
 
     Deliberately EXCLUDES latency, token counts and timestamps: the same behaviour must
-    reproduce the same digest, while a real change (an outcome or a stability flag) does
-    not. Only the case ids, expected/measured outcomes, the stability flags and the
-    provenance block are covered.
+    reproduce the same digest, while a real change (an outcome, a stability flag or an
+    invariant verdict) does not. Only the case ids, expected/measured outcomes, the
+    stability flags, the invariant verdicts, the gate and the provenance block are covered.
     """
     return {
         "provenance": report.provenance.model_dump(mode="json"),
@@ -157,10 +192,14 @@ def _digest_payload(report: Report) -> dict[str, Any]:
                 "colour_stable": case.colour_stable,
                 "matched_set_stable": case.matched_set_stable,
                 "field_stable": case.field_stable,
+                "invariants": case.invariants,
+                "invariants_pass": case.invariants_pass,
                 "declared_failure": case.declared_failure,
             }
             for case in report.cases
         ],
+        "invariants": report.invariants,
+        "gate": report.gate.model_dump(mode="json"),
     }
 
 
@@ -184,6 +223,8 @@ def write_report(path: str | Path, report: Report) -> Report:
 
 
 __all__ = [
+    "GateResult",
+    "GateViolation",
     "Mode",
     "Provenance",
     "Report",

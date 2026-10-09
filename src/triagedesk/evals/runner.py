@@ -25,7 +25,21 @@ from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.types import Command
 
 from triagedesk.evals.case import CaseSpec, load_cases
-from triagedesk.evals.report import Mode, Report, ReportCase, build_provenance, write_report
+from triagedesk.evals.invariants import (
+    INVARIANT_IDS,
+    InvariantReport,
+    RunEvidence,
+    evaluate,
+)
+from triagedesk.evals.report import (
+    GateResult,
+    GateViolation,
+    Mode,
+    Report,
+    ReportCase,
+    build_provenance,
+    write_report,
+)
 from triagedesk.evals.tools import ToolMap, build_tools, recorded_extract_seam
 from triagedesk.evals.usage import UsageRecorder
 from triagedesk.graph.build import _allowed_msgpack_modules, build_graph
@@ -139,13 +153,88 @@ async def _run_once(
     return _capture(result, payload), latency, result
 
 
+def _evidence(
+    case: CaseSpec, result: Any, store: Store, rows_before: int, rows_after: int
+) -> RunEvidence:
+    """Assemble one run's typed evidence for the invariant evaluator (EVAL-03).
+
+    The graph's own terminal channels are read from the final state (``priority``,
+    ``commit_result``, ``handover``, ``escalation``, ``recovery``) — never re-derived — and
+    the eval store plus the queue-row delta are passed through for INV-2.
+    """
+    return RunEvidence(
+        case_id=case.id,
+        expected=case.expected,
+        priority=result.get("priority"),
+        commit_result=result.get("commit_result"),
+        handover=result.get("handover"),
+        escalation=result.get("escalation"),
+        recovery=result.get("recovery"),
+        store=store,
+        rows_added=rows_after - rows_before,
+    )
+
+
+def _fold_invariants(
+    reports: list[InvariantReport],
+) -> tuple[dict[str, bool], dict[str, str]]:
+    """Fold the per-run invariant verdicts into one map plus the failure reasons (D-06).
+
+    An invariant holds for a case only when it held on EVERY run; a failed invariant keeps
+    the reason(s) the predicate gave, so the report names WHY it broke.
+    """
+    results: dict[str, bool] = {}
+    reasons: dict[str, str] = {}
+    for invariant_id in INVARIANT_IDS:
+        failures = [
+            report.reasons.get(invariant_id, "")
+            for report in reports
+            if not report.results.get(invariant_id, False)
+        ]
+        results[invariant_id] = not failures
+        if failures:
+            reasons[invariant_id] = "; ".join(reason for reason in failures if reason)
+    return results, reasons
+
+
+def _build_gate(report_cases: list[ReportCase]) -> GateResult:
+    """Derive the enforcement verdict from the folded case results (D-06, T-04-11).
+
+    A violated invariant is a violation on ANY case (the declared failure included — an
+    invariant break is never excused by an expected accuracy miss); a case that failed
+    accuracy or stability and is not the declared failure is an unexpected failure. The
+    gate passes only when both lists are empty.
+    """
+    violations = [
+        GateViolation(
+            case_id=case.case_id,
+            invariant=invariant_id,
+            reason=case.invariant_reasons.get(invariant_id, ""),
+        )
+        for case in report_cases
+        for invariant_id in INVARIANT_IDS
+        if not case.invariants.get(invariant_id, True)
+    ]
+    unexpected = [
+        case.case_id
+        for case in report_cases
+        if not case.passed and not case.declared_failure
+    ]
+    return GateResult(
+        passed=not violations and not unexpected,
+        violations=violations,
+        unexpected_failures=unexpected,
+    )
+
+
 async def _run_case(
-    case: CaseSpec, *, runs: int, offline: bool, factory: ToolFactory
+    case: CaseSpec, *, runs: int, offline: bool, factory: ToolFactory, store: Store
 ) -> ReportCase:
     """Run one case ``runs`` times and reduce the captures into a :class:`ReportCase`."""
     recorder = UsageRecorder()
     captures: list[dict[str, Any]] = []
     latency_s: list[float] = []
+    invariant_reports: list[InvariantReport] = []
     tokens_in = 0
     tokens_out = 0
 
@@ -153,8 +242,15 @@ async def _run_case(
         recorder.reset()
         tools = factory(case, offline, recorder)
         seam = nullcontext() if offline else recorded_extract_seam(recorder)
+        rows_before = len(await store.read_queue_rows())
         with seam:
-            captured, latency, _ = await _run_once(case, run_index, tools)
+            captured, latency, result = await _run_once(case, run_index, tools)
+        rows_after = len(await store.read_queue_rows())
+        # The invariants run INSIDE this same loop, so the report and the exit code can
+        # never disagree (DRY, EVAL-03).
+        invariant_reports.append(
+            await evaluate(_evidence(case, result, store, rows_before, rows_after))
+        )
         captures.append(captured)
         latency_s.append(latency)
         run_in, run_out = recorder.totals()
@@ -169,6 +265,8 @@ async def _run_case(
 
     colour_stable = len(set(colours)) == 1
     matched_set_stable = len({tuple(ids) for ids in matched}) == 1
+    invariants, invariant_reasons = _fold_invariants(invariant_reports)
+    invariants_pass = all(invariants.values())
 
     return ReportCase(
         case_id=case.id,
@@ -184,8 +282,12 @@ async def _run_case(
             all(citation == citations[0] for citation in citations)
             and all(rules == triggered[0] for rules in triggered)
         ),
+        invariants=invariants,
+        invariants_pass=invariants_pass,
+        invariant_reasons=invariant_reasons,
         passed=(
             all(outcome == case.expected for outcome in outcomes)
+            and invariants_pass
             and colour_stable
             and matched_set_stable
         ),
@@ -213,10 +315,11 @@ async def run_eval(
     mapping (default: the real owned tools, model stubbed offline). Both are seams for
     the proof suite (SOLID: D).
 
-    The exit code is non-zero when any case fails accuracy and is not the declared
-    failure, or when any case's colour or matched-discriminator set is unstable
-    (D-02, T-04-08). The declared failure (E-09) is allowed to fail and keeps the exit
-    code at 0 when it is the only miss; the full invariant gate lands in 04-03.
+    The exit code is the gate (D-06): non-zero when ANY invariant is violated on ANY run
+    or when any case fails accuracy/stability and is not the declared failure. The declared
+    failure (E-09) is an allowed accuracy miss, but an invariant break on ANY case — the
+    declared failure included — still exits non-zero. The machine-readable reason is in the
+    report's ``gate`` object, so a CI log points at the exact case and invariant.
     """
     cases = load_cases(cases_dir)
     if case_filter is not None:
@@ -229,30 +332,32 @@ async def run_eval(
     server_module.set_store(resolved_store)
     try:
         report_cases = [
-            await _run_case(case, runs=runs, offline=offline, factory=factory)
+            await _run_case(
+                case, runs=runs, offline=offline, factory=factory, store=resolved_store
+            )
             for case in cases
         ]
     finally:
         server_module.set_store(None)
 
+    aggregate_invariants = {
+        invariant_id: all(
+            case.invariants.get(invariant_id, False) for case in report_cases
+        )
+        for invariant_id in INVARIANT_IDS
+    }
+    gate = _build_gate(report_cases)
     report = Report(
         mode=mode,
         runs=runs,
         cases_dir=str(cases_dir),
         provenance=build_provenance(mode),
         cases=report_cases,
+        invariants=aggregate_invariants,
+        gate=gate,
     )
     write_report(report_path, report)
-
-    disallowed = [
-        case for case in report_cases if not case.passed and not case.declared_failure
-    ]
-    unstable = [
-        case
-        for case in report_cases
-        if not case.colour_stable or not case.matched_set_stable
-    ]
-    return 1 if disallowed or unstable else 0
+    return 0 if gate.passed else 1
 
 
 __all__ = ["ToolFactory", "run_eval"]
