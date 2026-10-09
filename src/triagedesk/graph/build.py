@@ -18,7 +18,7 @@ for an audit event (D-09).
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Iterable, Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -42,7 +42,9 @@ CHECKPOINTS_DB_PATH = Path("checkpoints.db")
 __all__ = [
     "CHECKPOINTS_DB_PATH",
     "DOMAIN_DB_PATH",
+    "OWNED_TOOL_ALLOWLIST",
     "TRACER_NODES",
+    "assert_tool_allowlist",
     "build_graph",
     "checkpointed_graph",
     "load_graph_tools",
@@ -51,6 +53,36 @@ __all__ = [
     "route_after_verify",
     "run_case",
 ]
+
+# The least-privilege allowlist (SAFE-03, D-12): the graph may call ONLY these owned
+# tools. Declared ONCE here and asserted at both edges (composition and discovery) so
+# a missing or unexpected tool fails loudly instead of silently changing which
+# capabilities the agent can reach (T-03-23).
+OWNED_TOOL_ALLOWLIST: tuple[str, ...] = (
+    "normalize_case",
+    "match_discriminators",
+    "score_priority",
+    "raise_recheck_flag",
+    "commit_priority",
+)
+
+
+def assert_tool_allowlist(tool_names: Iterable[str]) -> None:
+    """Fail loudly unless *tool_names* equals the declared allowlist (SAFE-03, D-12).
+
+    The ONE allowlist check, reused at both the discovery seam and graph composition,
+    so the surface cannot drift: a missing tool or an unexpected tool raises rather
+    than silently changing behaviour (T-03-23).
+    """
+    discovered = set(tool_names)
+    expected = set(OWNED_TOOL_ALLOWLIST)
+    missing = expected - discovered
+    unexpected = discovered - expected
+    if missing or unexpected:
+        raise RuntimeError(
+            "owned tool surface drifted from the allowlist (SAFE-03): "
+            f"missing={sorted(missing)} unexpected={sorted(unexpected)}"
+        )
 
 # The tracer's node set. The proof suite checks a *superset*, so a later plan may
 # add nodes without invalidating the tracer. The recovery/abstention terminals and
@@ -126,7 +158,12 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
     ``verify`` edges are conditional; the recovery/abstention terminals have no edge
     to ``commit``. ``checkpointer`` is injected so the same builder serves both the
     in-memory test graph and the durable SQLite graph (D-09).
+
+    The injected tool surface is asserted against the allowlist FIRST, so a drifted or
+    unexpected tool fails loudly at composition rather than silently reaching the
+    agent (SAFE-03, T-03-23).
     """
+    assert_tool_allowlist(tools.keys())
     nodes = make_nodes(tools)
     graph: StateGraph = StateGraph(TriageState)
     for name in TRACER_NODES:
@@ -169,10 +206,14 @@ async def load_graph_tools() -> ToolMap:
     This is the ONE place the graph meets the concrete adapter: it calls the
     published ``load_tools`` seam and reduces the LangChain tools to the
     ``name -> async callable`` interface the nodes depend on (D-13, SOLID: D).
+
+    The DISCOVERED tool names are asserted against the allowlist before they are
+    reduced, so a drifted owned server fails loudly at startup (SAFE-03, D-12).
     """
     from triagedesk.mcp.adapter import load_tools
 
     owned = await load_tools()
+    assert_tool_allowlist(tool.name for tool in owned)
     return {tool.name: tool.ainvoke for tool in owned}
 
 

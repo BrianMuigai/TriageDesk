@@ -9,6 +9,7 @@ exercised against the fake rather than the borrowed default.
 
 from __future__ import annotations
 
+import ast
 from collections.abc import Callable, Iterator
 from typing import Any
 
@@ -26,6 +27,40 @@ from triagedesk.mcp import server as server_module
 from triagedesk.store import CaseRow, QueueRow
 from triagedesk.store.audit import GENESIS, AuditRecord
 from triagedesk.store.queue import commit_to_queue
+
+
+# -------------------------------------------------------------------- AST guards
+# Shared by the purity/safety guard suites so the import-scanning logic lives in
+# exactly one place (DRY). The model-provider SDK roots that must NEVER appear on the
+# graph path (ORCH-02), declared once.
+NON_LOCAL_MODEL_PROVIDERS = frozenset(
+    {
+        "openai",
+        "anthropic",
+        "google",
+        "cohere",
+        "mistralai",
+        "azure",
+        "boto3",
+        "vertexai",
+    }
+)
+
+
+def imported_modules(source: str) -> list[str]:
+    """Return the absolute dotted module names imported by *source* (the ONE AST helper).
+
+    Relative imports (``from ..llm import x``) are deliberately excluded: the guard
+    suites that use this helper scan external package roots, and the ``core/`` purity
+    guard has its own relative-aware resolver (``tests/test_purity.py``).
+    """
+    modules: list[str] = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            modules.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            modules.append(node.module)
+    return modules
 
 
 class _Memory:

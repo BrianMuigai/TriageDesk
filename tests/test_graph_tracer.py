@@ -13,7 +13,6 @@ MCP subprocess or the model.
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +20,7 @@ import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
-from conftest import build_graph_tools
+from conftest import NON_LOCAL_MODEL_PROVIDERS, build_graph_tools, imported_modules
 from triagedesk.graph import build as build_module
 from triagedesk.graph.build import (
     CHECKPOINTS_DB_PATH,
@@ -38,30 +37,6 @@ NOTE = (
     "40 year old man, walking, alert. RR 24, HR 118, systolic BP 108, "
     "temperature 38.9, no trauma. Presenting with central chest pain."
 )
-
-# Model-provider SDK roots that must NEVER appear on the graph path (ORCH-02).
-_NON_LOCAL_PROVIDERS = {
-    "openai",
-    "anthropic",
-    "google",
-    "cohere",
-    "mistralai",
-    "azure",
-    "boto3",
-    "vertexai",
-}
-
-
-def _imported_modules(source: str) -> list[str]:
-    """Return the absolute dotted module names imported by *source*."""
-    modules: list[str] = []
-    for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.Import):
-            modules.extend(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-            modules.append(node.module)
-    return modules
-
 
 def test_graph_compiles_with_the_tracer_node_set() -> None:
     """The graph compiles and exposes a superset of the full safety-spine nodes (ORCH-01)."""
@@ -112,8 +87,8 @@ def test_graph_imports_no_non_local_model_provider() -> None:
     """The graph path reaches only the local Ollama client (ORCH-02, T-03-03)."""
     offenders: list[tuple[str, str]] = []
     for path in sorted(GRAPH_DIR.rglob("*.py")):
-        for module in _imported_modules(path.read_text(encoding="utf-8")):
-            if module.split(".")[0] in _NON_LOCAL_PROVIDERS:
+        for module in imported_modules(path.read_text(encoding="utf-8")):
+            if module.split(".")[0] in NON_LOCAL_MODEL_PROVIDERS:
                 offenders.append((path.name, module))
             # Any model reference must be the local Ollama wrapper.
             parts = module.split(".")
