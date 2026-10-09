@@ -106,7 +106,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. `ARCHITECTURE.md`, `EVALS.md`, and `DESCRIPTION.md` are finalised, with every EVALS number sourced from `report.json` and the planned-vs-measured distinction preserved.
   3. The 3-minute unedited video shows a live run against the frozen commit with tool calls visible, including a human judging with evidence and a failure.
   4. The repo is tagged and `git log -1` predates the 2026-10-15 deadline; `commit_docs`/CI/hooks are disabled and the remote is audited for post-freeze commits.
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 05-01-PLAN.md — Tracer: `triagedesk demo` one-command run on the synthetic fixture (full storyboard) + CI smoke test
+- [ ] 05-02-PLAN.md — Demo runbook (`docs/DEMO.md`) + scripted entry point grounding (recording declared human)
+- [ ] 05-03-PLAN.md — Docs finalised (ARCHITECTURE/EVALS/DESCRIPTION/README) + repository freeze
 
 ## Progress
 
@@ -119,4 +122,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Deterministic Scorer & Own MCP Server | 3/3 | Complete | 2026-10-09 |
 | 3. Approval Gate, Gated Commit & Safety Spine | 5/5 | Complete | 2026-10-09 |
 | 4. Evaluation, Recovery & Honest Failure | 6/6 | Complete | 2026-10-10 |
-| 5. Demo, Docs & Freeze | 0/TBD | Not started | - |
+| 5. Demo, Docs & Freeze | 0/3 | Not started | - |
