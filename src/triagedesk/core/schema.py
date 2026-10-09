@@ -95,3 +95,18 @@ class PriorityResult(BaseModel):
     out_of_scope: bool = False
     abstained: bool = False
     reason: str | None = None
+
+
+class MatchResult(BaseModel):
+    """The deterministic discriminator matcher's contract (D-05, D-06).
+
+    ``matched_ids`` are always members of the closed discriminator set declared
+    in ``data/sats_discriminators.yaml`` (D-06), sorted so repeated identical
+    input yields an identical list. When nothing matches, ``no_match`` is ``True``
+    and ``warning`` carries the declared coverage-gap warning — the matcher never
+    guesses an id (SAFE-01).
+    """
+
+    matched_ids: list[str] = Field(default_factory=list)
+    no_match: bool = False
+    warning: str | None = None

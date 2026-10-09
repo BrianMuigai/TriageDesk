@@ -12,8 +12,13 @@ from __future__ import annotations
 
 from mcp.server import MCPServer
 
-from triagedesk.core import scorer
-from triagedesk.core.schema import CaseInput, ExtractionResult, PriorityResult
+from triagedesk.core import matcher, scorer
+from triagedesk.core.schema import (
+    CaseInput,
+    ExtractionResult,
+    MatchResult,
+    PriorityResult,
+)
 from triagedesk.llm.client import extract
 
 # The owned server. Name is positional; everything else is keyword (SDK v2).
@@ -44,6 +49,18 @@ def score_priority(
     one citation per triggered rule.
     """
     return scorer.score_priority(case, matched_discriminator_ids)
+
+
+@server.tool()
+def match_discriminators(complaint: str) -> MatchResult:
+    """Match a free-text complaint to closed-set discriminator ids (D-05, D-06).
+
+    A thin, contract-typed adapter over the pure ``core.matcher`` function
+    (SOLID: S/D): a deterministic alias lookup with no model and no fuzzy
+    judgement. It returns ids from the closed discriminator set only, or an
+    explicit ``no_match`` result — never a guessed id (SAFE-01).
+    """
+    return matcher.match_discriminators(complaint)
 
 
 if __name__ == "__main__":
