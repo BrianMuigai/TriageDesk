@@ -23,16 +23,21 @@ class CaseInput(BaseModel):
 
     Every vital is nullable and defaults to ``None`` — a missing vital is
     represented honestly and is never imputed (Roadmap SC2).
+
+    Each field carries a *plausible physiological* range so that an impossible or
+    wrong-unit value is rejected instead of silently scored (T-01-01-03). These
+    bounds are a schema concern and are deliberately distinct from the SATS TEWS
+    scoring bands, which live only in ``data/sats_tews.yaml`` (CONVENTIONS §1).
     """
 
-    age_years: int | None = None
-    height_cm: float | None = None
-    respiratory_rate: int | None = None
-    heart_rate: int | None = None
-    systolic_bp: int | None = None
-    diastolic_bp: int | None = None  # captured, not scored (docs/SATS.md §4.1)
-    temperature_c: float | None = None
-    spo2: int | None = None  # captured, not scored (docs/SATS.md §4.1)
+    age_years: int | None = Field(default=None, ge=0, le=130)
+    height_cm: float | None = Field(default=None, ge=30.0, le=260.0)
+    respiratory_rate: int | None = Field(default=None, ge=0, le=100)
+    heart_rate: int | None = Field(default=None, ge=0, le=350)
+    systolic_bp: int | None = Field(default=None, ge=0, le=400)
+    diastolic_bp: int | None = Field(default=None, ge=0, le=300)  # captured, not scored (§4.1)
+    temperature_c: float | None = Field(default=None, ge=20.0, le=45.0)  # rejects °F magnitudes
+    spo2: int | None = Field(default=None, ge=0, le=100)  # captured, not scored (§4.1)
     mobility: Mobility | None = None
     avpu: AVPU | None = None
     trauma: bool | None = None
