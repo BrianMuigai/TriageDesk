@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 3
 current_phase_name: Approval Gate, Gated Commit & Safety Spine
 status: executing
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-10-09T16:27:09.967Z"
+stopped_at: Completed 03-04-PLAN.md
+last_updated: "2026-10-09T16:51:49.960Z"
 last_activity: 2026-10-09
 last_activity_desc: Phase 3 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 12
-  completed_plans: 9
+  completed_plans: 10
 state_head: a345a0d3af4b3fd5e4f92776f67b71e642e6c252
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 ## Current Position
 
 Phase: 3 (Approval Gate, Gated Commit & Safety Spine) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-10-09 — Phase 3 execution started
 
-Progress: [████████░░] 75%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
@@ -68,6 +68,7 @@ Progress: [████████░░] 75%
 | Phase 02 P03 | 10 | 3 tasks | 8 files |
 | Phase 3 P01 | 11 | 3 tasks | 8 files |
 | Phase 3 P02 | 9 | 3 tasks | 10 files |
+| Phase 3 P04 | 15 | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -116,6 +117,12 @@ Recent decisions affecting current work:
 - [Phase 3]: commit_priority is async; the refusal path returns BEFORE any store call, so no path reaches the store without a valid named approval (GATE-02, T-03-09)
 - [Phase 3]: The committed colour is token.final_colour for an edit and the scored colour for an approve (D-05)
 - [Phase 3]: DOMAIN_DB_PATH is owned by the store package (single source); graph/build.py imports it (DRY)
+- [Phase 3]: The recovery/abstention branch is placed after score on the PriorityResult signals, so the graph never duplicates the scorer's scope/missing logic (DRY) and stays bound to the injected tool interface (SOLID: D)
+- [Phase 3]: The extraction retry is an in-node loop bounded by _EXTRACTION_MAX_ATTEMPTS; the state attempt field remains the verify retry budget (no cross-coupling)
+- [Phase 3]: The deterministic extraction fallback reads already-parsed structured fields (a state case or a structured JSON note) and otherwise escalates — never fabricating a value (ORCH-04, D-02)
+- [Phase 3]: RecoveryRequest/Escalation carry no colour and the recovery/escalation terminals have no edge to commit (ORCH-05, D-03)
+- [Phase 3]: The recheck node stores RecheckFlag in state second_look and HandoverCard.second_look only — never the colour, the priority or the queue (D-07, M-4)
+- [Phase 3]: One shared offline graph tool fake in tests/conftest.py backs all three graph proof suites (DRY)
 
 ### Pending Todos
 
@@ -138,6 +145,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T16:27:03.389Z
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-10-09T16:51:49.948Z
+Stopped at: Completed 03-04-PLAN.md
 Resume file: None
