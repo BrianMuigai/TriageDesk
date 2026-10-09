@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 2
 current_phase_name: Deterministic Scorer & Own MCP Server
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-10-09T14:49:35.037Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-10-09T15:00:34.784Z"
 last_activity: 2026-10-09
 last_activity_desc: Phase 2 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
 state_head: 9e91502c4b7bc0be4091f9128e70c7e8ba7d2db4
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 ## Current Position
 
 Phase: 2 (Deterministic Scorer & Own MCP Server) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-10-09 — Phase 2 execution started
 
-Progress: [███████░░░] 71%
+Progress: [█████████░] 86%
 
 ## Performance Metrics
 
@@ -64,6 +64,7 @@ Progress: [███████░░░] 71%
 | Phase 1 P3 | 23 | 3 tasks | 8 files |
 | Phase 1 P4 | 4 | 2 tasks | 5 files |
 | Phase 02 P01 | 16 | 3 tasks | 8 files |
+| Phase 02 P02 | 6 | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -93,6 +94,10 @@ Recent decisions affecting current work:
 - [Phase 02]: Boolean parameters (trauma) map to their highest/lowest-points band by data, so the yes/no tokens are never inlined (DRY guard).
 - [Phase 02]: Gap distances compare with a relative tolerance and resolve ties to the fail-closed higher-points band (temperature 34.95 no longer under-triages).
 - [Phase 02]: Fail-closed safety branches (out-of-scope abstention, missing-vital detection) shipped with the Task-1 tracer as a Rule-2 fix; Task 2 added the proving tests and its TDD RED collapsed to GREEN.
+- [Phase 02]: Discriminator matching is token-boundary based, not substring: a short alias never fires inside an unrelated word (hypothermia !-> hypo; sobbing !-> sob) (SAFE-01, D-05).
+- [Phase 02]: The override's urgency order is data-derived from the TEWS colour bands' lower bounds, so no colour token is hard-coded in core/ (T-02-08).
+- [Phase 02]: Unknown matched ids are ignored by the scorer, so a caller can never inject a category or colour; an unmatched complaint returns the declared no_match, never a guessed id (D-06).
+- [Phase 02]: The firing discriminator category is recorded as one TriggeredRule (points 0) so citations == triggered_rules holds after the override.
 
 ### Pending Todos
 
@@ -115,6 +120,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T14:49:19.894Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-10-09T15:00:29.716Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None

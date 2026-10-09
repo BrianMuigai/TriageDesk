@@ -19,7 +19,7 @@
 ### Scoring (deterministic)
 
 - [x] **SCORE-01**: TEWS is computed deterministically from typed vitals (no LLM arithmetic)
-- [ ] **SCORE-02**: Discriminator overrides apply (most-urgent wins) → a colour + target time
+- [x] **SCORE-02**: Discriminator overrides apply (most-urgent wins) → a colour + target time
 - [x] **SCORE-03**: Every priority cites the exact rule/vital(s) that produced it (citation invariant)
 - [x] **SCORE-04**: Paediatric / out-of-scope input is detected, then **abstains + escalates** (predicate fails closed)
 - [x] **SCORE-05**: Band-edge, boundary, and unit cases are covered by tests
@@ -27,7 +27,7 @@
 ### MCP tools
 
 - [ ] **TOOL-01**: Own MCP server exposes `normalize_case`
-- [ ] **TOOL-02**: Own MCP server exposes `match_discriminators`
+- [x] **TOOL-02**: Own MCP server exposes `match_discriminators`
 - [x] **TOOL-03**: Own MCP server exposes `score_priority` (acting)
 - [ ] **TOOL-04**: Own MCP server exposes `raise_recheck_flag` (acting)
 - [ ] **TOOL-05**: Own MCP server exposes `commit_priority` (acting + gated + idempotent)
@@ -56,7 +56,7 @@
 
 ### Safety & hardening
 
-- [ ] **SAFE-01**: Free-text complaint is treated as untrusted data — prompt injection cannot set a priority (tested by E-13)
+- [x] **SAFE-01**: Free-text complaint is treated as untrusted data — prompt injection cannot set a priority (tested by E-13)
 - [ ] **SAFE-02**: No diagnosis/prescription output exists and no dx/rx tool is defined
 - [ ] **SAFE-03**: Least privilege — tools are allowlisted; no network/credentials in the agent path
 - [x] **SAFE-04**: Version pinning + hashing for prompts, model, scale data, and tool schemas
@@ -119,12 +119,12 @@ Which phases cover which requirements.
 | INTAKE-04 | Phase 1 | Complete |
 | INTAKE-05 | Phase 1 | Complete |
 | SCORE-01 | Phase 2 | Complete |
-| SCORE-02 | Phase 2 | Pending |
+| SCORE-02 | Phase 2 | Complete |
 | SCORE-03 | Phase 2 | Complete |
 | SCORE-04 | Phase 2 | Complete |
 | SCORE-05 | Phase 2 | Complete |
 | TOOL-01 | Phase 2 | Pending |
-| TOOL-02 | Phase 2 | Pending |
+| TOOL-02 | Phase 2 | Complete |
 | TOOL-03 | Phase 2 | Complete |
 | TOOL-04 | Phase 2 | Pending |
 | TOOL-05 | Phase 2 | Pending |
@@ -141,7 +141,7 @@ Which phases cover which requirements.
 | AUDIT-01 | Phase 3 | Pending |
 | AUDIT-02 | Phase 3 | Pending |
 | AUDIT-03 | Phase 3 | Pending |
-| SAFE-01 | Phase 2 | Pending |
+| SAFE-01 | Phase 2 | Complete |
 | SAFE-02 | Phase 3 | Pending |
 | SAFE-03 | Phase 3 | Pending |
 | SAFE-04 | Phase 1 | Complete |
