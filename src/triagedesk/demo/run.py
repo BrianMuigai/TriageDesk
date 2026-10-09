@@ -131,7 +131,9 @@ def _resume_for(beat: Beat) -> dict[str, Any]:
     return _UNAPPROVED_RESUME if beat.name == REFUSAL_BEAT else _named_approval()
 
 
-def _print_outcome(case: CaseSpec, payload: dict[str, Any] | None, result: Any) -> None:
+def _print_outcome(
+    case: CaseSpec, payload: dict[str, Any] | None, result: Any, *, rows_added: int
+) -> None:
     """Print the beat's sourced outcome — every value read from the graph (T-05-01)."""
     captured = _capture(result, payload)
     priority = result.get("priority")
@@ -149,6 +151,10 @@ def _print_outcome(case: CaseSpec, payload: dict[str, Any] | None, result: Any) 
     commit = result.get("commit_result")
     if commit is not None:
         print(f"  commit       : {commit.reason}")
+    if commit is not None and commit.refused:
+        # The demo's climax (D-07): the gated commit refused and wrote NOTHING. The row
+        # delta is read from the store, so the refusal is shown, not asserted by fiat.
+        print(f"  GATE REFUSED : no queue row written (rows added this beat: {rows_added})")
     second_look = result.get("second_look")
     if second_look is not None:
         print(f"  second look  : {second_look.model_dump_json()}")
@@ -163,7 +169,7 @@ def _print_outcome(case: CaseSpec, payload: dict[str, Any] | None, result: Any) 
 
 
 async def _run_beat(
-    beat: Beat, case: CaseSpec, *, offline: bool, index: int, total: int
+    beat: Beat, case: CaseSpec, *, offline: bool, index: int, total: int, store: Store
 ) -> None:
     """Run one beat through the real graph, tracing tools and resuming past the gate."""
     print("=" * 72)
@@ -179,12 +185,14 @@ async def _run_beat(
     if case.previous_case is not None:
         initial["previous_case"] = case.previous_case
 
+    rows_before = len(await store.read_queue_rows())
     result = await graph.ainvoke(initial, config)
     payload: dict[str, Any] | None = None
     if result.get("__interrupt__"):
         payload = dict(result["__interrupt__"][0].value)
         result = await graph.ainvoke(Command(resume=_resume_for(beat)), config)
-    _print_outcome(case, payload, result)
+    rows_added = len(await store.read_queue_rows()) - rows_before
+    _print_outcome(case, payload, result, rows_added=rows_added)
     print()
 
 
@@ -228,7 +236,12 @@ async def run_demo(
     try:
         for index, beat in enumerate(selected, start=1):
             await _run_beat(
-                beat, cases[beat.case], offline=offline, index=index, total=len(selected)
+                beat,
+                cases[beat.case],
+                offline=offline,
+                index=index,
+                total=len(selected),
+                store=resolved_store,
             )
     finally:
         server_module.set_store(None)
