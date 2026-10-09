@@ -13,7 +13,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from triagedesk.core.rules import get_tews
 
 Mobility = Literal["walking", "with_help", "stretcher"]
 AVPU = Literal["alert", "voice", "pain", "unresponsive"]
@@ -145,18 +147,36 @@ class RecheckFlag(BaseModel):
 
 
 class ApprovalToken(BaseModel):
-    """The named-clinician approval the queue-affecting gate requires (D-07, TOOL-05).
+    """The named-clinician approval the queue-affecting gate requires (D-05, TOOL-05).
 
     A well-formed token names an approver and a role, records a decision in
-    ``approve|edit|dismiss``, and carries a timestamp. The Phase-2 ``commit_priority``
-    stub validates this shape and refuses anything else; the real LangGraph gate is
-    Phase 3.
+    ``approve|edit|dismiss``, carries a timestamp, and states the ``final_colour``
+    the clinician authorised. ``final_colour`` is the ONE place an ``edit`` decision
+    records the colour the clinician chose, so the committed colour is always the
+    approved colour and never a re-derived one (D-05). The value is validated against
+    the colour set read from the loaded substrate (``data/sats_tews.yaml``), never a
+    hard-coded literal (CONVENTIONS §1).
+
+    The Phase-2 ``commit_priority`` stub validates this shape and refuses anything
+    else; the real LangGraph gate is Phase 3.
     """
 
     approved_by: str = Field(min_length=1)
     role: str = Field(min_length=1)
     decision: Literal["approve", "edit", "dismiss"]
     approved_at: datetime
+    final_colour: str = Field(min_length=1)
+
+    @field_validator("final_colour")
+    @classmethod
+    def _final_colour_is_a_declared_colour(cls, value: str) -> str:
+        """Reject any colour not declared by the loaded TEWS substrate (CONVENTIONS §1)."""
+        allowed = {band.colour for band in get_tews().tews_to_colour}
+        if value not in allowed:
+            raise ValueError(
+                f"final_colour {value!r} is not a colour declared by the loaded substrate"
+            )
+        return value
 
 
 class CommitResult(BaseModel):
@@ -171,3 +191,28 @@ class CommitResult(BaseModel):
     committed: bool = False
     refused: bool = False
     reason: str | None = None
+
+
+class HandoverCard(BaseModel):
+    """The clinician-facing handover card (D-11, SAFE-02).
+
+    Renders the structured, sourced facts of one triage decision: the priority, its
+    citations, the missing vitals, the matched discriminators and the named approval.
+    It carries **no** diagnosis, assessment, impression, plan or prescription field —
+    the *absence* of a field is the guard: the schema cannot express a clinical
+    opinion, so the tool can never emit one (D-11). ``second_look`` carries the
+    serial-vitals flag when one exists, and never re-classifies (D-08).
+    """
+
+    case_id: str
+    colour: str | None = None
+    target: str | None = None
+    citations: list[str] = Field(default_factory=list)
+    triggered_rules: list[TriggeredRule] = Field(default_factory=list)
+    missing_vitals: list[str] = Field(default_factory=list)
+    matched_discriminator_ids: list[str] = Field(default_factory=list)
+    no_discriminator_matched: bool = False
+    second_look: RecheckFlag | None = None
+    decision: str | None = None
+    approved_by: str | None = None
+    role: str | None = None

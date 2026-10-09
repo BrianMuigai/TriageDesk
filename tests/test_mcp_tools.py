@@ -120,6 +120,7 @@ async def test_commit_priority_accepts_a_well_formed_token_without_committing() 
         "role": "triage clinician",
         "decision": "approve",
         "approved_at": "2026-10-09T15:00:00Z",
+        "final_colour": "RED",
     }
     async with Client(server_module.server) as client:
         call = await client.call_tool(
