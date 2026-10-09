@@ -13,8 +13,8 @@
 - [ ] **INTAKE-01**: Nurse can enter a case as structured vitals plus a free-text presenting complaint
 - [ ] **INTAKE-02**: System normalizes a case into one validated typed schema (defined once, imported everywhere)
 - [ ] **INTAKE-03**: Missing critical vitals are detected and the nurse is asked to re-measure — no imputation
-- [ ] **INTAKE-04**: Adult TEWS bands + colour thresholds live **only** in `data/sats_tews.yaml`
-- [ ] **INTAKE-05**: Discriminators + categories live **only** in `data/sats_discriminators.yaml`
+- [x] **INTAKE-04**: Adult TEWS bands + colour thresholds live **only** in `data/sats_tews.yaml`
+- [x] **INTAKE-05**: Discriminators + categories live **only** in `data/sats_discriminators.yaml`
 
 ### Scoring (deterministic)
 
@@ -116,8 +116,8 @@ Which phases cover which requirements.
 | INTAKE-01 | Phase 1 | Pending |
 | INTAKE-02 | Phase 1 | Pending |
 | INTAKE-03 | Phase 2 | Pending |
-| INTAKE-04 | Phase 1 | Pending |
-| INTAKE-05 | Phase 1 | Pending |
+| INTAKE-04 | Phase 1 | Complete |
+| INTAKE-05 | Phase 1 | Complete |
 | SCORE-01 | Phase 2 | Pending |
 | SCORE-02 | Phase 2 | Pending |
 | SCORE-03 | Phase 2 | Pending |
@@ -159,6 +159,7 @@ Which phases cover which requirements.
 | QUAL-02 | Phase 3 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 44 total
 - Mapped to phases: 44
 - Unmapped: 0
