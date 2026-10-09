@@ -109,17 +109,60 @@ Deferred to a future release. Tracked but not in the current roadmap.
 
 ## Traceability
 
-Which phases cover which requirements. Populated during roadmap creation.
+Which phases cover which requirements.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| *(to be filled by roadmapper)* | | |
+| INTAKE-01 | Phase 1 | Pending |
+| INTAKE-02 | Phase 1 | Pending |
+| INTAKE-03 | Phase 2 | Pending |
+| INTAKE-04 | Phase 1 | Pending |
+| INTAKE-05 | Phase 1 | Pending |
+| SCORE-01 | Phase 2 | Pending |
+| SCORE-02 | Phase 2 | Pending |
+| SCORE-03 | Phase 2 | Pending |
+| SCORE-04 | Phase 2 | Pending |
+| SCORE-05 | Phase 2 | Pending |
+| TOOL-01 | Phase 2 | Pending |
+| TOOL-02 | Phase 2 | Pending |
+| TOOL-03 | Phase 2 | Pending |
+| TOOL-04 | Phase 2 | Pending |
+| TOOL-05 | Phase 2 | Pending |
+| TOOL-06 | Phase 3 | Pending |
+| ORCH-01 | Phase 3 | Pending |
+| ORCH-02 | Phase 3 | Pending |
+| ORCH-03 | Phase 3 | Pending |
+| ORCH-04 | Phase 3 | Pending |
+| ORCH-05 | Phase 3 | Pending |
+| GATE-01 | Phase 3 | Pending |
+| GATE-02 | Phase 3 | Pending |
+| GATE-03 | Phase 3 | Pending |
+| GATE-04 | Phase 3 | Pending |
+| AUDIT-01 | Phase 3 | Pending |
+| AUDIT-02 | Phase 3 | Pending |
+| AUDIT-03 | Phase 3 | Pending |
+| SAFE-01 | Phase 2 | Pending |
+| SAFE-02 | Phase 3 | Pending |
+| SAFE-03 | Phase 3 | Pending |
+| SAFE-04 | Phase 1 | Pending |
+| SAFE-05 | Phase 4 | Pending |
+| EVAL-01 | Phase 4 | Pending |
+| EVAL-02 | Phase 4 | Pending |
+| EVAL-03 | Phase 4 | Pending |
+| EVAL-04 | Phase 4 | Pending |
+| EVAL-05 | Phase 4 | Pending |
+| DOCS-01 | Phase 5 | Pending |
+| DOCS-02 | Phase 5 | Pending |
+| DOCS-03 | Phase 5 | Pending |
+| DEMO-01 | Phase 5 | Pending |
+| QUAL-01 | Phase 1 | Pending |
+| QUAL-02 | Phase 3 | Pending |
 
 **Coverage:**
-- v1 requirements: 34 total
-- Mapped to phases: (pending)
-- Unmapped: (pending)
+- v1 requirements: 44 total
+- Mapped to phases: 44
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-10-09*
-*Last updated: 2026-10-09 after initial definition*
+*Last updated: 2026-10-09 after roadmap traceability*
