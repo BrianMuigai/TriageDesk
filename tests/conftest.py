@@ -24,8 +24,7 @@ from triagedesk.core.schema import (
     ExtractionResult,
 )
 from triagedesk.mcp import server as server_module
-from triagedesk.store import CaseRow, QueueRow
-from triagedesk.store.audit import GENESIS, AuditRecord
+from triagedesk.store.memory import InMemoryStore
 from triagedesk.store.queue import commit_to_queue
 
 # -------------------------------------------------------------------- AST guards
@@ -62,102 +61,30 @@ def imported_modules(source: str) -> list[str]:
     return modules
 
 
-class _Memory:
-    """The shared backing state of the in-memory store — the "database" a restart reopens.
+class RecordingStore(InMemoryStore):
+    """The shared package store double plus the test-only queue-call recorder (DRY).
 
-    Holding the state in a separate object (rather than on the store handle) lets
-    ``InMemoryStore.restart()`` hand back a *fresh handle over the same data*, which is
-    how the audit suite simulates a process restart without a real SQLite file (M-6).
+    A thin subclass of the ONE in-memory store (``triagedesk.store.memory``): it adds only
+    the ``calls`` list the refusal tests assert on — a refused commit must touch no store —
+    so the harness and the suite share a single implementation (CONVENTIONS §1).
     """
 
-    def __init__(self) -> None:
-        self.rows: list[QueueRow] = []
-        self.cases: dict[str, CaseRow] = {}
-        self.audit_records: list[AuditRecord] = []
-        self.chain_head: str = GENESIS
-
-
-class InMemoryStore:
-    """A minimal in-memory :class:`~triagedesk.store.Store` — the ONE protocol double.
-
-    Records every queue/case protocol call in ``calls`` so a test can assert the refusal
-    path touched no store, and holds ``rows``/``cases`` for committed state. The audit
-    seam (``audit_records``/``chain_head``) is stored alongside, so the fake satisfies
-    the whole protocol — including the audit half — in one place (DRY, D-13).
-    """
-
-    def __init__(self, memory: _Memory | None = None) -> None:
-        self._memory = memory if memory is not None else _Memory()
+    def __init__(self, memory: Any = None) -> None:
+        super().__init__(memory)
         self.calls: list[tuple[str, tuple[object, ...]]] = []
 
-    def restart(self) -> InMemoryStore:
-        """Return a fresh handle over the same backing state — a simulated restart (M-6)."""
-        return InMemoryStore(self._memory)
-
-    @property
-    def rows(self) -> list[QueueRow]:
-        return self._memory.rows
-
-    @property
-    def cases(self) -> dict[str, CaseRow]:
-        return self._memory.cases
-
-    @property
-    def audit_records(self) -> list[AuditRecord]:
-        return self._memory.audit_records
-
-    @property
-    def chain_head(self) -> str:
-        return self._memory.chain_head
-
-    async def ensure_schema(self) -> None:
-        self.calls.append(("ensure_schema", ()))
-
-    async def read_queue_row(self, case_id: str, content_hash: str) -> QueueRow | None:
-        self.calls.append(("read_queue_row", (case_id, content_hash)))
-        for row in self.rows:
-            if row.case_id == case_id and row.content_hash == content_hash:
-                return row
-        return None
-
-    async def next_position(self) -> int:
-        self.calls.append(("next_position", ()))
-        return len(self.rows) + 1
-
-    async def upsert_queue_row(self, row: QueueRow) -> None:
-        self.calls.append(("upsert_queue_row", (row.case_id, row.content_hash)))
-        key = (row.case_id, row.content_hash)
-        if all((existing.case_id, existing.content_hash) != key for existing in self.rows):
-            self.rows.append(row)
-
-    async def read_case(self, case_id: str) -> CaseRow | None:
-        self.calls.append(("read_case", (case_id,)))
-        return self.cases.get(case_id)
-
-    async def read_queue_rows(self) -> list[QueueRow]:
-        return list(self.rows)
-
-    async def read_chain_head(self) -> str:
-        return self._memory.chain_head
-
-    async def write_chain_head(self, head: str) -> None:
-        self._memory.chain_head = head
-
-    async def append_audit_record(self, record: AuditRecord) -> None:
-        self._memory.audit_records.append(record)
-
-    async def read_audit_records(self) -> list[AuditRecord]:
-        return list(self._memory.audit_records)
+    def _note(self, name: str, *args: object) -> None:
+        self.calls.append((name, args))
 
 
 @pytest.fixture
-def memory_store() -> InMemoryStore:
+def memory_store() -> RecordingStore:
     """A fresh in-memory Store for a test (also injected into the server seam)."""
-    return InMemoryStore()
+    return RecordingStore()
 
 
 @pytest.fixture(autouse=True)
-def injected_store(memory_store: InMemoryStore) -> Iterator[InMemoryStore]:
+def injected_store(memory_store: RecordingStore) -> Iterator[RecordingStore]:
     """Inject the shared fake into the owned server's store seam (D-13).
 
     Autouse so EVERY offline server/tool test exercises the injectable seam; the
