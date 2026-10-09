@@ -36,6 +36,13 @@ def disc() -> DiscriminatorRules:
     return get_discriminators()
 
 
+def _band_value(band: Band) -> object:
+    """The probe value for *band*: its discrete value, else its lower (or upper) edge."""
+    if band.value is not None:
+        return band.value
+    return band.min if band.min is not None else band.max
+
+
 def _case_with(pick: Callable[[Parameter], Band]) -> CaseInput:
     """A complete adult case whose every vital sits in the band chosen by *pick*."""
     rules = get_tews()
@@ -43,12 +50,7 @@ def _case_with(pick: Callable[[Parameter], Band]) -> CaseInput:
     for name, param in rules.parameters.items():
         field = scorer.case_field(name)
         band = pick(param)
-        if field == "trauma":
-            values[field] = band.points > 0
-        else:
-            values[field] = (
-                band.value if band.value is not None else (band.min if band.min is not None else band.max)
-            )
+        values[field] = band.points > 0 if field == "trauma" else _band_value(band)
     values["age_years"] = rules.out_of_scope.adult_min_age_years + 1
     return CaseInput(**values)
 
