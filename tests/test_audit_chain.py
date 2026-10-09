@@ -16,6 +16,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from mcp import Client
+
+from triagedesk.core.schema import CaseInput, ExtractionResult
+from triagedesk.mcp import server as server_module
 from triagedesk.store.audit import (
     COMMIT_TOOL,
     GENESIS,
@@ -148,3 +152,100 @@ async def test_reconcile_reports_a_queue_row_without_an_approval_record(memory_s
     after = await reconcile(memory_store)
     assert after.ok is True
     assert after.missing == []
+
+
+# ------------------------------------------- Task 3: the uniform tool interceptor
+
+
+def _token(decision: str = "approve", colour: str = "RED") -> dict[str, str]:
+    """A well-formed approval-token payload (approver + role + decision + colour)."""
+    return {
+        "approved_by": "Dr A. Nurse",
+        "role": "triage clinician",
+        "decision": decision,
+        "approved_at": "2026-10-09T16:00:00Z",
+        "final_colour": colour,
+    }
+
+
+async def test_interceptor_appends_exactly_one_record_per_call(injected_store) -> None:
+    """One owned tool call appends exactly one chained record (AUDIT-01, T-03-15)."""
+    async with Client(server_module.server) as client:
+        await client.call_tool("match_discriminators", {"complaint": "central chest pain"})
+
+    records = injected_store.audit_records
+    assert len(records) == 1
+    assert records[0].tool == "match_discriminators"
+    assert records[0].actor == "agent"
+    assert records[0].hash
+    assert injected_store.chain_head == records[0].hash
+
+
+async def test_interceptor_records_a_refused_commit_as_refused(injected_store) -> None:
+    """A refused commit is recorded as a clinician call that wrote nothing (AUDIT-01)."""
+    async with Client(server_module.server) as client:
+        await client.call_tool("commit_priority", {"case_id": "c-1", "colour": "RED"})
+
+    record = injected_store.audit_records[0]
+    assert record.tool == COMMIT_TOOL
+    assert record.actor == "clinician"
+    assert record.approved_by is None
+    assert injected_store.rows == [], "a refused commit must not write to the queue"
+
+
+async def test_interceptor_records_the_named_approver_on_a_commit(injected_store) -> None:
+    """A committed approval names the approver and role in the audit record (AUDIT-02)."""
+    async with Client(server_module.server) as client:
+        await client.call_tool(
+            "commit_priority",
+            {"case_id": "c-1", "colour": "RED", "approval_token": _token()},
+        )
+
+    record = injected_store.audit_records[0]
+    assert record.approved_by == "Dr A. Nurse"
+    assert record.role == "triage clinician"
+    assert record.actor == "clinician"
+    # The committed row and its approval record agree, so reconciliation is clean.
+    assert (await reconcile(injected_store)).ok is True
+
+
+async def test_every_tool_call_appends_exactly_one_chained_record(
+    monkeypatch, injected_store
+) -> None:
+    """Every owned tool appends one record, forming a single unbroken chain (AUDIT-01/03)."""
+    monkeypatch.setattr(
+        server_module,
+        "extract",
+        lambda note: ExtractionResult(
+            case=CaseInput(respiratory_rate=24), matched_discriminator_ids=[]
+        ),
+    )
+    case = {
+        "respiratory_rate": 24,
+        "heart_rate": 118,
+        "avpu": "alert",
+        "complaint": "central chest pain",
+    }
+    async with Client(server_module.server) as client:
+        await client.call_tool("normalize_case", {"raw_note": "RR 24"})
+        await client.call_tool("score_priority", {"case": case})
+        await client.call_tool("match_discriminators", {"complaint": "central chest pain"})
+        await client.call_tool("raise_recheck_flag", {"previous": case, "current": case})
+        await client.call_tool(
+            "commit_priority",
+            {"case_id": "c-1", "colour": "RED", "approval_token": _token()},
+        )
+
+    records = injected_store.audit_records
+    assert [record.tool for record in records] == [
+        "normalize_case",
+        "score_priority",
+        "match_discriminators",
+        "raise_recheck_flag",
+        COMMIT_TOOL,
+    ]
+    # One chain, no gaps: each record links to the one before it.
+    assert records[0].prev_hash == GENESIS
+    for earlier, later in zip(records, records[1:], strict=False):
+        assert later.prev_hash == earlier.hash
+    assert (await verify(injected_store)).valid is True

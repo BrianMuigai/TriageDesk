@@ -11,12 +11,21 @@ the adapter seam (``mcp/adapter.py``), which launches it as a stdio subprocess.
 validates the approval token, REFUSES (touching no store) when the token is absent,
 malformed or a ``dismiss``, and otherwise performs the idempotent queue write through
 the injectable :class:`~triagedesk.store.Store` seam (D-05, D-06, GATE-02/03).
+
+Every tool is wrapped by ONE uniform interceptor (:func:`audited`) that appends exactly
+one chained audit record per call through ``store/audit.append``, so no owned tool call
+escapes the audit (AUDIT-01, AUDIT-03, D-08).
 """
 
 from __future__ import annotations
 
+import functools
+import inspect
+from collections.abc import Callable, Mapping
+from typing import Any
+
 from mcp.server import MCPServer
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from triagedesk.core import matcher, recheck, scorer
 from triagedesk.core.schema import (
@@ -30,6 +39,7 @@ from triagedesk.core.schema import (
 )
 from triagedesk.llm.client import extract
 from triagedesk.store import Store, default_store
+from triagedesk.store.audit import append
 from triagedesk.store.queue import commit_to_queue
 
 # The owned server. Name is positional; everything else is keyword (SDK v2).
@@ -63,7 +73,89 @@ async def _resolve_store() -> Store:
     return await default_store()
 
 
+def _jsonable(value: Any) -> Any:
+    """Reduce a tool input/output to a plain JSON structure (the ONE normaliser).
+
+    Pydantic contracts are dumped in JSON mode; everything else is passed through
+    unchanged. This keeps untrusted complaint text serialisable through the one
+    canonical path (M-13) without the server restating a serialisation concern.
+    """
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    return value
+
+
+def audited(*, approval: bool = False) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Wrap ONE owned tool so its call appends exactly one chained record (AUDIT-01).
+
+    The single interceptor, applied uniformly to every ``@server.tool()`` (DRY, T-03-15):
+    the tool body stays free of audit code, and no owned tool call escapes the audit
+    (AUDIT-03). The record's ``tool`` is the wrapped function's own name, so the audit
+    name can never drift from the registered tool name.
+
+    The append happens AFTER the tool's own logic, so a refused commit is still recorded
+    as a refused call — the audit never claims a write that did not happen. ``approval``
+    marks the gated commit: the record's actor is the clinician, and on a successful
+    commit it carries the named approver and role from the validated token (AUDIT-02).
+    """
+    def decorate(fn: Callable[..., Any]) -> Callable[..., Any]:
+        tool_name = fn.__name__
+        signature = inspect.signature(fn)
+
+        async def record(
+            args: tuple[Any, ...], kwargs: dict[str, Any], result: Any, error: str | None
+        ) -> None:
+            try:
+                bound = signature.bind(*args, **kwargs)
+                bound.apply_defaults()
+                inputs = {name: _jsonable(value) for name, value in bound.arguments.items()}
+            except TypeError:
+                inputs = {}
+            outputs = _jsonable(result)
+            if error is not None:
+                outputs = {"error": error}
+            elif not isinstance(outputs, dict):
+                outputs = {"result": outputs}
+            approved_by: str | None = None
+            role: str | None = None
+            if approval and bool(getattr(result, "committed", False)):
+                token = inputs.get("approval_token")
+                if isinstance(token, Mapping):
+                    approved_by = token.get("approved_by")
+                    role = token.get("role")
+            store = await _resolve_store()
+            await append(
+                store,
+                {
+                    "case_id": str(inputs.get("case_id") or ""),
+                    "tool": tool_name,
+                    "actor": "clinician" if approval else "agent",
+                    "inputs": inputs,
+                    "outputs": outputs,
+                    "approved_by": approved_by,
+                    "role": role,
+                },
+            )
+
+        @functools.wraps(fn)
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            try:
+                result = fn(*args, **kwargs)
+                if inspect.isawaitable(result):
+                    result = await result
+            except Exception as exc:  # noqa: BLE001 — the tool boundary is external
+                await record(args, kwargs, None, f"{type(exc).__name__}: {exc}")
+                raise
+            await record(args, kwargs, result, None)
+            return result
+
+        return wrapper
+
+    return decorate
+
+
 @server.tool()
+@audited()
 def normalize_case(raw_note: str) -> ExtractionResult:
     """Parse a triage note into the typed case schema. Read-only.
 
@@ -84,6 +176,7 @@ def normalize_case(raw_note: str) -> ExtractionResult:
 
 
 @server.tool()
+@audited()
 def score_priority(
     case: CaseInput,
     matched_discriminator_ids: list[str] | None = None,
@@ -99,6 +192,7 @@ def score_priority(
 
 
 @server.tool()
+@audited()
 def match_discriminators(complaint: str) -> MatchResult:
     """Match a free-text complaint to closed-set discriminator ids (D-05, D-06).
 
@@ -111,6 +205,7 @@ def match_discriminators(complaint: str) -> MatchResult:
 
 
 @server.tool()
+@audited()
 def raise_recheck_flag(previous: CaseInput, current: CaseInput) -> RecheckFlag:
     """Compare serial vitals into a second-look flag — never a re-classification (D-08).
 
@@ -122,6 +217,7 @@ def raise_recheck_flag(previous: CaseInput, current: CaseInput) -> RecheckFlag:
 
 
 @server.tool()
+@audited(approval=True)
 async def commit_priority(
     case_id: str, colour: str, approval_token: dict[str, object] | None = None
 ) -> CommitResult:
