@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 1
 current_phase_name: SATS Foundations & Risk Retirement
-status: executing
-stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-10-09T12:54:18.533Z"
+status: verifying
+stopped_at: Completed 01-04-PLAN.md
+last_updated: "2026-10-09T13:05:54.882Z"
 last_activity: 2026-10-09
 last_activity_desc: Phase 1 execution started
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 state_head: 31399425fb3fc13ff91da78d6ca281e4b354a874
 ---
 
@@ -30,10 +30,10 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 
 Phase: 1 (SATS Foundations & Risk Retirement) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-09 — Phase 1 execution started
 
-Progress: [████████░░] 75%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -62,6 +62,7 @@ Progress: [████████░░] 75%
 | Phase 1 P1 | 64 | 3 tasks | 20 files |
 | Phase 1 P2 | 13 | 3 tasks | 8 files |
 | Phase 1 P3 | 23 | 3 tasks | 8 files |
+| Phase 1 P4 | 4 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,9 @@ Recent decisions affecting current work:
 - [Phase 1]: World A adopted (D-04): langchain.mcp.MCPAdapter listed and called a tool on BOTH the owned SDK-v2 server and the borrowed legacy mcp-sqlite@1.0.9, each in a SEPARATE adapter context (no era collapse); evidence/mcp-spike.json committed.
 - [Phase 1]: DRY guard covers the scoring substrate only; core/schema.py's input-domain enums (mobility/avpu) and plausible-range bounds are exempt by design (input-domain vs scoring-band boundary).
 - [Phase 1]: ruff TID251 banned-api scoped to core/ via per-file-ignores (a global ban would flag legitimate mcp->llm imports); the AST purity test is authoritative.
+- [Phase 1]: Canonical hash = sorted-key compact JSON (UTF-8) then sha256 — the digest is independent of dict insertion order and of YAML comments/whitespace, so only a real content change churns it (SAFE-04, D-17).
+- [Phase 1]: One hashing path: hash_rule_object/hash_prompt/hash_tool_schema all delegate to hash_value; scripts/hash_data.py writes evidence/hashes.json (model tag + data/prompts/schemas digests) and exits non-zero on a missing required input.
+- [Phase 1]: uv.lock was already current (Plan 01-01); uv lock resolved 115 packages with zero diff — no spurious churn. NOTICE licence facts read from installed metadata + npm (mcp-sqlite@1.0.9 = ISC; Qwen tags Apache-2.0 per evidence/model-spike.json).
 
 ### Pending Todos
 
@@ -105,6 +109,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T12:54:18.523Z
-Stopped at: Completed 01-03-PLAN.md
+Last session: 2026-10-09T13:05:54.871Z
+Stopped at: Completed 01-04-PLAN.md
 Resume file: None

@@ -59,7 +59,7 @@
 - [ ] **SAFE-01**: Free-text complaint is treated as untrusted data — prompt injection cannot set a priority (tested by E-13)
 - [ ] **SAFE-02**: No diagnosis/prescription output exists and no dx/rx tool is defined
 - [ ] **SAFE-03**: Least privilege — tools are allowlisted; no network/credentials in the agent path
-- [ ] **SAFE-04**: Version pinning + hashing for prompts, model, scale data, and tool schemas
+- [x] **SAFE-04**: Version pinning + hashing for prompts, model, scale data, and tool schemas
 - [ ] **SAFE-05**: Suppression-direction injection is tested (injection that tries to *hide* a finding)
 
 ### Evaluation
@@ -144,7 +144,7 @@ Which phases cover which requirements.
 | SAFE-01 | Phase 2 | Pending |
 | SAFE-02 | Phase 3 | Pending |
 | SAFE-03 | Phase 3 | Pending |
-| SAFE-04 | Phase 1 | Pending |
+| SAFE-04 | Phase 1 | Complete |
 | SAFE-05 | Phase 4 | Pending |
 | EVAL-01 | Phase 4 | Pending |
 | EVAL-02 | Phase 4 | Pending |
