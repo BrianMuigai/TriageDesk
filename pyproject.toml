@@ -39,7 +39,25 @@ target-version = "py312"
 src = ["src", "tests", "scripts"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = ["E", "F", "I", "UP", "B", "TID"]
+
+# Belt-and-braces for the D-13 purity boundary: a forbidden import is also
+# caught at lint time. The AST test (tests/test_purity.py) is authoritative.
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"triagedesk.llm".msg = "core/ must not depend on the model (D-13)"
+"triagedesk.mcp".msg = "core/ must not depend on MCP (D-13)"
+"triagedesk.store".msg = "core/ must not depend on storage (D-13)"
+
+# TID251 (banned-api) enforces "core/ imports nothing from llm|mcp|store".
+# Other layers may depend on those modules legitimately (e.g. mcp/server.py ->
+# llm/client.py), so the ban is scoped to core/ by disabling TID251 elsewhere.
+[tool.ruff.lint.per-file-ignores]
+"src/triagedesk/llm/**" = ["TID251"]
+"src/triagedesk/mcp/**" = ["TID251"]
+"src/triagedesk/graph/**" = ["TID251"]
+"src/triagedesk/store/**" = ["TID251"]
+"scripts/**" = ["TID251"]
+"tests/**" = ["TID251"]
 
 [tool.mypy]
 python_version = "3.12"
