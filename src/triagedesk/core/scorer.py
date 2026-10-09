@@ -67,14 +67,23 @@ def _match_numeric(param: Parameter, value: float) -> Band:
 
     An inclusive band containing the value wins. If a valid in-range value falls
     in a gap between adjacent bands (no band contains it), the nearest band by
-    edge distance is selected and, on an exact tie, the higher-points band — so
-    an implausible value never under-triages (fail-closed, SCORE-05).
+    edge distance is selected and, on a tie, the higher-points band — so an
+    implausible value never under-triages (fail-closed, SCORE-05).
+
+    Distances are compared with a relative tolerance so that an exact tie
+    (e.g. temperature 34.95, equidistant from 34.9 and 35.0) is not broken by
+    binary floating-point representation — a hair's difference must not let the
+    lower-points band win.
     """
     for band in param.bands:
         low, high = _band_bounds(band)
         if low <= value <= high:
             return band
-    return min(param.bands, key=lambda band: (_edge_distance(band, value), -band.points))
+    distances = [(_edge_distance(band, value), band) for band in param.bands]
+    nearest = min(distance for distance, _ in distances)
+    tolerance = max(abs(nearest), 1.0) * 1e-9
+    tied = [band for distance, band in distances if distance <= nearest + tolerance]
+    return max(tied, key=lambda band: band.points)
 
 
 def _select_band(param: Parameter, value: object) -> Band | None:
