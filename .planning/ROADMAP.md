@@ -38,7 +38,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The installed `qwen3.5:4b` returns valid schema-constrained JSON for the extraction task within this machine's RAM budget (measured), and a smaller-Qwen fallback has been run end-to-end.
   4. The MCP beta adapter lists and calls tools on both an owned-server stub and the borrowed SQLite server, or the pre-defined one-module World-B fallback swap is documented and chosen.
   5. A `uv`-pinned Python 3.12 rebuild is reproducible; dependencies, model tag, prompts, tool schemas, and scale data are pinned and hashed; a NOTICE records every third-party licence.
-**Plans**: TBD
+**Plans**: 4 plans
+- [ ] 01-01-PLAN.md — Tracer: end-to-end note → typed case → owned MCP tool; retire the model RAM/schema unknown
+- [ ] 01-02-PLAN.md — SATS rule substrate in `data/*.yaml`, dual-transcription verified with band-edge tests
+- [ ] 01-03-PLAN.md — MCP adapter / borrowed-server handshake (World A/B) + executable DRY & purity guards
+- [ ] 01-04-PLAN.md — Reproducibility: canonical hashing, committed `uv.lock`, and the `NOTICE`
 
 ### Phase 2: Deterministic Scorer & Own MCP Server
 **Goal**: A pure deterministic scorer converts typed vitals plus matched discriminators into a cited SATS colour and target time, and the owned MCP server exposes the intake and scoring capability as five contracted tools.
@@ -97,7 +101,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. SATS Foundations & Risk Retirement | 0/TBD | Not started | - |
+| 1. SATS Foundations & Risk Retirement | 0/4 | Not started | - |
 | 2. Deterministic Scorer & Own MCP Server | 0/TBD | Not started | - |
 | 3. Approval Gate, Gated Commit & Safety Spine | 0/TBD | Not started | - |
 | 4. Evaluation, Recovery & Honest Failure | 0/TBD | Not started | - |
