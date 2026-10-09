@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 4
 current_phase_name: Evaluation, Recovery & Honest Failure
-status: executing
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-10-09T19:27:57.031Z"
+status: verifying
+stopped_at: Completed 04-04-PLAN.md
+last_updated: "2026-10-09T20:04:06.119Z"
 last_activity: 2026-10-09
-last_activity_desc: Phase 4 execution started
+last_activity_desc: Completed 04-03-PLAN.md
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 16
-  completed_plans: 15
+  completed_plans: 16
 state_head: bad675a53c01366530f0aea27e61b72b45c1f88b
 ---
 
@@ -30,10 +30,10 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 
 Phase: 4 (Evaluation, Recovery & Honest Failure) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-09 — Completed 04-03-PLAN.md
 
-Progress: [█████████░] 94%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -74,6 +74,7 @@ Progress: [█████████░] 94%
 | Phase 04 P01 | 23 | 3 tasks | 13 files |
 | Phase 04 P02 | 7 | 3 tasks | 21 files |
 | Phase 04 P03 | 19 | 3 tasks | 8 files |
+| Phase 04 P04 | 24 | 4 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -149,6 +150,11 @@ Recent decisions affecting current work:
 - [Phase 04]: The exit code is the gate: non-zero on ANY invariant violation on ANY run OR any non-declared accuracy miss; the declared failure E-09 excuses an accuracy miss only, never a safety break (D-06, Pitfall 12)
 - [Phase 04]: The invariant verdicts and the gate are sealed in report_digest, so a hand-edited verdict is detectable while the offline digest stays reproducible (D-08, Pitfall 18)
 - [Phase 04]: INV-1 is scoped to the shipped citation contract (citations==triggered_rules; fired rules must be cited); a TEWS-0 priority fired no rule and has nothing to cite — a pre-existing scorer/verify interaction logged out of scope
+- [Phase 04]: Under-triage and over-triage are reported SEPARATELY with case ids + run counts; terminal outcomes are excluded from the direction split and counted on their own (D-03, Pitfall 8)
+- [Phase 04]: The colour urgency rank is the band's lower TEWS bound from data/sats_tews.yaml; the most-urgent (RED) colour is derived (max rank), never a literal (CONVENTIONS 1)
+- [Phase 04]: evals/results/report.json is a REAL measured run (mode: real, non-zero tokens); the offline report.ci.json stays the CI gate artefact only; the analysis block is excluded from report_digest (volatile cost)
+- [Phase 04]: scripts/emit_evals.py is the ONE writer of EVALS.md result cells, rendered strictly from the report and idempotent; it refuses a report whose digest does not recompute (T-04-16/18)
+- [Phase 04]: The measured run failed the gate honestly (E-04 unstable, E-07 RECHECK->RECOVER, E-13 injection->ABSTAIN beyond the declared E-09); recorded, not tuned (D-04/D-05)
 
 ### Pending Todos
 
@@ -171,6 +177,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T19:27:49.173Z
-Stopped at: Completed 04-03-PLAN.md
+Last session: 2026-10-09T20:04:06.106Z
+Stopped at: Completed 04-04-PLAN.md
 Resume file: None

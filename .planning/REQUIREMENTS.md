@@ -67,8 +67,8 @@
 - [x] **EVAL-01**: 14 eval cases with expected outcomes, including one unfixed failure (E-09)
 - [x] **EVAL-02**: Each case runs 3×; run-to-run variation is measured and reported
 - [x] **EVAL-03**: Safety invariants INV-1…INV-4 are executable assertions on every run
-- [ ] **EVAL-04**: Under-triage and over-triage are reported separately (not hidden behind symmetric accuracy)
-- [ ] **EVAL-05**: Report includes latency + token cost per run and is reproducible via recorded hashes
+- [x] **EVAL-04**: Under-triage and over-triage are reported separately (not hidden behind symmetric accuracy)
+- [x] **EVAL-05**: Report includes latency + token cost per run and is reproducible via recorded hashes
 
 ### Docs & demo
 
@@ -149,8 +149,8 @@ Which phases cover which requirements.
 | EVAL-01 | Phase 4 | Complete |
 | EVAL-02 | Phase 4 | Complete |
 | EVAL-03 | Phase 4 | Complete |
-| EVAL-04 | Phase 4 | Pending |
-| EVAL-05 | Phase 4 | Pending |
+| EVAL-04 | Phase 4 | Complete |
+| EVAL-05 | Phase 4 | Complete |
 | DOCS-01 | Phase 5 | Pending |
 | DOCS-02 | Phase 5 | Pending |
 | DOCS-03 | Phase 5 | Pending |
