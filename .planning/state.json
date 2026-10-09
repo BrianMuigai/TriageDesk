@@ -1,0 +1,38 @@
+{
+  "contract": "1.0.0",
+  "flavor": "core",
+  "milestone": null,
+  "phases": [
+    {
+      "number": "1",
+      "name": "SATS Foundations & Risk Retirement",
+      "status": "pending"
+    },
+    {
+      "number": "2",
+      "name": "Deterministic Scorer & Own MCP Server",
+      "status": "pending"
+    },
+    {
+      "number": "3",
+      "name": "Approval Gate, Gated Commit & Safety Spine",
+      "status": "pending"
+    },
+    {
+      "number": "4",
+      "name": "Evaluation, Recovery & Honest Failure",
+      "status": "pending"
+    },
+    {
+      "number": "5",
+      "name": "Demo, Docs & Freeze",
+      "status": "pending"
+    }
+  ],
+  "next": {
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 1 of 5 · 0% · executing"
+  },
+  "updated_at": "2026-10-09T10:53:59.648Z"
+}
