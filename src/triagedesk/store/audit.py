@@ -72,6 +72,34 @@ def record_digest(record: AuditRecord) -> str:
     return hash_value(record.model_dump(mode="json", exclude={"hash"}))
 
 
+class ChainVerification(BaseModel):
+    """The result of recomputing the audit chain (AUDIT-01, T-03-11).
+
+    ``valid`` is ``True`` when every record's ``prev_hash`` links to its predecessor,
+    every ``hash`` matches the record's recomputed canonical digest, and the persisted
+    chain head equals the last record's hash. On a break, ``broken_at`` names the first
+    offending record's ``seq`` and ``reason`` explains the mismatch.
+    """
+
+    valid: bool
+    broken_at: int | None = None
+    reason: str | None = None
+
+
+class Reconciliation(BaseModel):
+    """The result of cross-checking the queue against the audit (D-09).
+
+    ``missing`` lists the ``case_id`` of every committed queue row that has no matching
+    approval audit record — the narrow queue-write/audit-append window. A divergence is
+    reported (never silently assumed atomic) and can be closed by re-issuing the
+    idempotent commit.
+    """
+
+    ok: bool
+    missing: list[str] = Field(default_factory=list)
+    reason: str | None = None
+
+
 @runtime_checkable
 class AuditStore(Protocol):
     """The narrow audit seam the one helper depends on (SOLID: D, ISP).
@@ -130,12 +158,84 @@ async def append(store: AuditStore, fields: Mapping[str, Any]) -> AuditRecord:
     return sealed
 
 
+async def verify(store: AuditStore) -> ChainVerification:
+    """Recompute the whole chain and report the first break (AUDIT-01, T-03-11).
+
+    Walks the records in order, recomputing each record's digest from its canonical
+    fields plus the previous hash, and reports the first mismatching record's ``seq``
+    (or valid). The chain head is read back from the store and compared to the
+    recomputed tail, so verification resumes from the persisted head after a restart
+    (M-6) and a backfill or a lost in-memory tail cannot silently invalidate the chain.
+    Read-only — this never writes (D-09).
+    """
+    records = await store.read_audit_records()
+    expected_prev = GENESIS
+    for record in records:
+        if record.prev_hash != expected_prev:
+            return ChainVerification(
+                valid=False,
+                broken_at=record.seq,
+                reason="prev_hash does not match the previous record's hash",
+            )
+        if record_digest(record) != record.hash:
+            return ChainVerification(
+                valid=False,
+                broken_at=record.seq,
+                reason="record hash does not match its canonical content",
+            )
+        expected_prev = record.hash
+    head = await store.read_chain_head()
+    if (head or GENESIS) != expected_prev:
+        return ChainVerification(
+            valid=False,
+            broken_at=records[-1].seq if records else None,
+            reason="persisted chain head does not match the recomputed chain",
+        )
+    return ChainVerification(valid=True)
+
+
+async def reconcile(store: AuditStore) -> Reconciliation:
+    """Detect any committed queue row lacking its approval audit record (D-09).
+
+    Cross-checks every committed queue row against the audit records and reports any row
+    without a matching approval record — the narrow queue-write/audit-append window.
+    Read-only; the window is closed by re-issuing the idempotent commit, never by a
+    second write path here.
+    """
+    rows = await store.read_queue_rows()
+    records = await store.read_audit_records()
+    approved = {
+        record.case_id
+        for record in records
+        if record.tool == COMMIT_TOOL and record.approved_by
+    }
+    missing = [
+        str(getattr(row, "case_id", row))
+        for row in rows
+        if str(getattr(row, "case_id", row)) not in approved
+    ]
+    if missing:
+        return Reconciliation(
+            ok=False,
+            missing=missing,
+            reason=(
+                "queue row(s) lack an approval audit record; "
+                "re-issue the idempotent commit to close the window"
+            ),
+        )
+    return Reconciliation(ok=True)
+
+
 __all__ = [
     "GENESIS",
     "COMMIT_TOOL",
     "Actor",
     "AuditRecord",
     "AuditStore",
+    "ChainVerification",
+    "Reconciliation",
     "append",
+    "reconcile",
     "record_digest",
+    "verify",
 ]

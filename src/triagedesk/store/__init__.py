@@ -24,8 +24,12 @@ from triagedesk.store.audit import (
     GENESIS,
     AuditRecord,
     AuditStore,
+    ChainVerification,
+    Reconciliation,
     append,
+    reconcile,
     record_digest,
+    verify,
 )
 
 # The domain store path — the clinical record + audit, via the borrowed MCP (D-09).
@@ -129,9 +133,13 @@ __all__ = [
     "AuditRecord",
     "AuditStore",
     "CaseRow",
+    "ChainVerification",
     "QueueRow",
+    "Reconciliation",
     "Store",
     "append",
     "default_store",
+    "reconcile",
     "record_digest",
+    "verify",
 ]
