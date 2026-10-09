@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 2
 current_phase_name: Deterministic Scorer & Own MCP Server
-status: executing
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-10-09T15:00:34.784Z"
+status: verifying
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-10-09T15:14:26.539Z"
 last_activity: 2026-10-09
 last_activity_desc: Phase 2 execution started
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 state_head: 9e91502c4b7bc0be4091f9128e70c7e8ba7d2db4
 ---
 
@@ -30,10 +30,10 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 
 Phase: 2 (Deterministic Scorer & Own MCP Server) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-09 — Phase 2 execution started
 
-Progress: [█████████░] 86%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -65,6 +65,7 @@ Progress: [█████████░] 86%
 | Phase 1 P4 | 4 | 2 tasks | 5 files |
 | Phase 02 P01 | 16 | 3 tasks | 8 files |
 | Phase 02 P02 | 6 | 3 tasks | 7 files |
+| Phase 02 P03 | 10 | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,9 @@ Recent decisions affecting current work:
 - [Phase 02]: The override's urgency order is data-derived from the TEWS colour bands' lower bounds, so no colour token is hard-coded in core/ (T-02-08).
 - [Phase 02]: Unknown matched ids are ignored by the scorer, so a caller can never inject a category or colour; an unmatched complaint returns the declared no_match, never a guessed id (D-06).
 - [Phase 02]: The firing discriminator category is recorded as one TriggeredRule (points 0) so citations == triggered_rules holds after the override.
+- [Phase 02]: normalize_case constrains model-returned ids through core.matcher.validate_discriminator_ids (the one closed-set authority); unknown ids dropped, missing vitals stay None (TOOL-01, D-09).
+- [Phase 02]: Deterioration direction is data-derived: the serial-vitals recheck compares TEWS band points, reusing core.scorer.band_points() so no threshold is duplicated; RecheckFlag has no colour and never re-classifies (TOOL-04, D-08).
+- [Phase 02]: commit_priority is a gated Phase-2 stub: it validates an ApprovalToken (approver+role+decision+timestamp), refuses without one, and writes nothing; the real LangGraph gate is Phase 3 (TOOL-05, D-07).
 
 ### Pending Todos
 
@@ -120,6 +124,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T15:00:29.716Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-10-09T15:14:26.528Z
+Stopped at: Completed 02-03-PLAN.md
 Resume file: None

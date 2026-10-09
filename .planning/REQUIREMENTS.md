@@ -26,11 +26,11 @@
 
 ### MCP tools
 
-- [ ] **TOOL-01**: Own MCP server exposes `normalize_case`
+- [x] **TOOL-01**: Own MCP server exposes `normalize_case`
 - [x] **TOOL-02**: Own MCP server exposes `match_discriminators`
 - [x] **TOOL-03**: Own MCP server exposes `score_priority` (acting)
-- [ ] **TOOL-04**: Own MCP server exposes `raise_recheck_flag` (acting)
-- [ ] **TOOL-05**: Own MCP server exposes `commit_priority` (acting + gated + idempotent)
+- [x] **TOOL-04**: Own MCP server exposes `raise_recheck_flag` (acting)
+- [x] **TOOL-05**: Own MCP server exposes `commit_priority` (acting + gated + idempotent)
 - [ ] **TOOL-06**: A **borrowed**, maintained SQLite MCP server provides case/queue storage + audit
 
 ### Orchestration
@@ -123,11 +123,11 @@ Which phases cover which requirements.
 | SCORE-03 | Phase 2 | Complete |
 | SCORE-04 | Phase 2 | Complete |
 | SCORE-05 | Phase 2 | Complete |
-| TOOL-01 | Phase 2 | Pending |
+| TOOL-01 | Phase 2 | Complete |
 | TOOL-02 | Phase 2 | Complete |
 | TOOL-03 | Phase 2 | Complete |
-| TOOL-04 | Phase 2 | Pending |
-| TOOL-05 | Phase 2 | Pending |
+| TOOL-04 | Phase 2 | Complete |
+| TOOL-05 | Phase 2 | Complete |
 | TOOL-06 | Phase 3 | Pending |
 | ORCH-01 | Phase 3 | Pending |
 | ORCH-02 | Phase 3 | Pending |
