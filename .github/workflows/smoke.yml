@@ -5,11 +5,13 @@
 # broken one-command path therefore fails the build rather than sitting in a document. The
 # setup mirrors `eval-gate.yml` and adds NO dependency; the offline demo is fully
 # in-process, so the borrowed `npx mcp-sqlite` server is never launched (T-05-10, T-05-SC).
+#
+# FROZEN (D-08): after the `v1.0-submission` freeze this workflow is workflow_dispatch-only,
+# so a post-freeze push cannot start a run.
 name: smoke
 
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   smoke:

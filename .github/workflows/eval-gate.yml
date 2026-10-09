@@ -8,11 +8,13 @@
 # The offline report named here is the deterministic CI gate artefact (a stubbed-model
 # run), NOT the measured report: the real local-model report is produced separately and is
 # never dressed up as a CI result (T-04-01, Pitfall 16).
+#
+# FROZEN (D-08): after the `v1.0-submission` freeze this workflow is workflow_dispatch-only,
+# so a post-freeze push cannot start a run.
 name: eval-gate
 
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   eval-gate:

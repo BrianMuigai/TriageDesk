@@ -1,6 +1,6 @@
 {
   "model_profile": "inherit",
-  "commit_docs": true,
+  "commit_docs": false,
   "parallelization": true,
   "search_gitignored": false,
   "brave_search": false,
@@ -54,7 +54,7 @@
     "pr_body_sections": []
   },
   "hooks": {
-    "context_warnings": true
+    "context_warnings": false
   },
   "project_code": null,
   "phase_naming": "sequential",
