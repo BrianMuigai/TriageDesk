@@ -17,6 +17,7 @@ from triagedesk.core.schema import (
     Escalation,
     HandoverCard,
     PriorityResult,
+    RecheckFlag,
     RecoveryRequest,
 )
 
@@ -46,3 +47,6 @@ class TriageState(TypedDict, total=False):
     # Safe terminals (ORCH-05, D-03): a typed recovery/escalation the graph stops on.
     recovery: RecoveryRequest | None
     escalation: Escalation | None
+    # Serial-vitals second look (GATE-04, D-07): the previous case and the flag it raises.
+    previous_case: CaseInput | None
+    second_look: RecheckFlag | None

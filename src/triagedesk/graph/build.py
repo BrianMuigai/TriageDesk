@@ -29,6 +29,7 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 
 from triagedesk.core import schema as schema_module
+from triagedesk.core.schema import CaseInput
 from triagedesk.graph.nodes import ToolMap, make_nodes
 from triagedesk.graph.state import TriageState
 from triagedesk.store import DOMAIN_DB_PATH
@@ -52,14 +53,15 @@ __all__ = [
 ]
 
 # The tracer's node set. The proof suite checks a *superset*, so a later plan may
-# add nodes without invalidating the tracer. The recovery/abstention terminals are
-# part of the full safety spine (Plan 03-04).
+# add nodes without invalidating the tracer. The recovery/abstention terminals and
+# the serial-vitals recheck are part of the full safety spine (Plan 03-04).
 TRACER_NODES: tuple[str, ...] = (
     "ingest",
     "normalize",
     "retrieve",
     "score",
     "verify",
+    "recheck",
     "approval_gate",
     "commit",
     "handover",
@@ -104,12 +106,12 @@ def route_after_score(state: TriageState) -> str:
 def route_after_verify(state: TriageState) -> str:
     """Choose the next node after ``verify`` — the bounded retry edge (T-03-05).
 
-    ``ok`` routes to the gate; a failed check re-scores while the attempt budget
-    lasts, and otherwise stops (``END``) — a fail-closed stop that never reaches
-    the gate or the commit.
+    ``ok`` routes to the second look and then the gate; a failed check re-scores
+    while the attempt budget lasts, and otherwise stops (``END``) — a fail-closed
+    stop that never reaches the gate or the commit.
     """
     if state.get("route") == "ok":
-        return "approval_gate"
+        return "recheck"
     if int(state.get("attempt") or 0) < _MAX_ATTEMPTS:
         return "score"
     return END
@@ -119,11 +121,11 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
     """Compile the tracer graph over the injected ``tools`` mapping (D-01, D-13).
 
     ``START -> ingest -> normalize -> (retrieve -> score | escalate) ->
-    (verify -> approval_gate -> commit -> handover | request_missing_info |
-    escalate) -> END``. The ``normalize``, ``score`` and ``verify`` edges are
-    conditional; the recovery/abstention terminals have no edge to ``commit``.
-    ``checkpointer`` is injected so the same builder serves both the in-memory test
-    graph and the durable SQLite graph (D-09).
+    (verify -> recheck -> approval_gate -> commit -> handover |
+    request_missing_info | escalate) -> END``. The ``normalize``, ``score`` and
+    ``verify`` edges are conditional; the recovery/abstention terminals have no edge
+    to ``commit``. ``checkpointer`` is injected so the same builder serves both the
+    in-memory test graph and the durable SQLite graph (D-09).
     """
     nodes = make_nodes(tools)
     graph: StateGraph = StateGraph(TriageState)
@@ -150,8 +152,9 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
     graph.add_conditional_edges(
         "verify",
         route_after_verify,
-        {"approval_gate": "approval_gate", "score": "score", END: END},
+        {"recheck": "recheck", "score": "score", END: END},
     )
+    graph.add_edge("recheck", "approval_gate")
     graph.add_edge("approval_gate", "commit")
     graph.add_edge("commit", "handover")
     graph.add_edge("handover", END)
@@ -177,16 +180,22 @@ async def run_case(
     raw_note: str,
     tools: ToolMap | None = None,
     config: Mapping[str, Any] | None = None,
+    previous_case: CaseInput | None = None,
 ) -> Mapping[str, Any]:
     """Run one case through the graph, resolving tools from the owned server by default.
 
     A thin entry point: ``tools`` defaults to the owned server's mapping (the DIP
     seam); the caller supplies a ``config`` (a ``thread_id``) when a checkpointer is
-    in use so a paused run can be resumed.
+    in use so a paused run can be resumed. ``previous_case`` is the optional earlier
+    serial case: when present it seeds the state so the recheck node can raise a
+    second-look flag against the current vitals (GATE-04, D-07).
     """
     resolved = tools if tools is not None else await load_graph_tools()
     graph = build_graph(resolved)
-    return await graph.ainvoke({"raw_note": raw_note}, dict(config or {}))
+    initial: dict[str, Any] = {"raw_note": raw_note}
+    if previous_case is not None:
+        initial["previous_case"] = previous_case
+    return await graph.ainvoke(initial, dict(config or {}))
 
 
 @asynccontextmanager

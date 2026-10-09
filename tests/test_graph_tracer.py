@@ -20,10 +20,8 @@ from typing import Any
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
-from pydantic import ValidationError
 
-from triagedesk.core import matcher, scorer
-from triagedesk.core.schema import ApprovalToken, CaseInput, CommitResult, ExtractionResult
+from conftest import build_graph_tools
 from triagedesk.graph import build as build_module
 from triagedesk.graph.build import (
     CHECKPOINTS_DB_PATH,
@@ -41,20 +39,6 @@ NOTE = (
     "temperature 38.9, no trauma. Presenting with central chest pain."
 )
 
-# A fixed extraction the fake ``normalize_case`` returns — complete adult vitals
-# that fire several TEWS rules, so the priority is cited.
-_FIXED_CASE = CaseInput(
-    age_years=40,
-    mobility="walking",
-    avpu="alert",
-    respiratory_rate=24,
-    heart_rate=118,
-    systolic_bp=108,
-    temperature_c=38.9,
-    trauma=False,
-    complaint="central chest pain",
-)
-
 # Model-provider SDK roots that must NEVER appear on the graph path (ORCH-02).
 _NON_LOCAL_PROVIDERS = {
     "openai",
@@ -66,50 +50,6 @@ _NON_LOCAL_PROVIDERS = {
     "boto3",
     "vertexai",
 }
-
-
-def _fake_tools(
-    calls: list[tuple[str, Any]] | None = None,
-    writes: list[Any] | None = None,
-) -> dict[str, Any]:
-    """Build the injected tool mapping: async callables, fully offline."""
-    calls = calls if calls is not None else []
-    writes = writes if writes is not None else []
-
-    async def normalize_case(inp: dict[str, Any]) -> ExtractionResult:
-        calls.append(("normalize_case", inp))
-        return ExtractionResult(case=_FIXED_CASE, matched_discriminator_ids=[])
-
-    async def match_discriminators(inp: dict[str, Any]) -> Any:
-        calls.append(("match_discriminators", inp))
-        return matcher.match_discriminators(inp["complaint"])
-
-    async def score_priority(inp: dict[str, Any]) -> Any:
-        calls.append(("score_priority", inp))
-        case = CaseInput.model_validate(inp["case"])
-        return scorer.score_priority(case, inp.get("matched_discriminator_ids"))
-
-    async def commit_priority(inp: dict[str, Any]) -> CommitResult:
-        calls.append(("commit_priority", inp))
-        token = inp.get("approval_token")
-        if token is None:
-            return CommitResult(refused=True, reason="no approval token supplied")
-        try:
-            ApprovalToken.model_validate(token)
-        except ValidationError:
-            return CommitResult(refused=True, reason="approval token is malformed")
-        # A valid token WOULD write (the real idempotent commit is a later plan);
-        # recording it here means a bug that lets an unapproved token through
-        # would surface as a non-empty ``writes`` list.
-        writes.append(inp)
-        return CommitResult(refused=False, committed=False, reason="accepted")
-
-    return {
-        "normalize_case": normalize_case,
-        "match_discriminators": match_discriminators,
-        "score_priority": score_priority,
-        "commit_priority": commit_priority,
-    }
 
 
 def _imported_modules(source: str) -> list[str]:
@@ -124,17 +64,18 @@ def _imported_modules(source: str) -> list[str]:
 
 
 def test_graph_compiles_with_the_tracer_node_set() -> None:
-    """The graph compiles and exposes a superset of the eight tracer nodes (ORCH-01)."""
-    graph = build_graph(_fake_tools())
+    """The graph compiles and exposes a superset of the full safety-spine nodes (ORCH-01)."""
+    graph = build_graph(build_graph_tools())
     node_names = set(graph.get_graph().nodes)
-    missing = set(TRACER_NODES) - node_names
+    expected = set(TRACER_NODES) | {"recheck", "request_missing_info", "escalate"}
+    missing = expected - node_names
     assert not missing, f"tracer nodes missing from the compiled graph: {missing}"
 
 
 async def test_run_reaches_the_gate_without_committing() -> None:
     """A run reaches the interrupt with a cited priority; no commit precedes it (GATE-01, D-04)."""
     calls: list[tuple[str, Any]] = []
-    app = build_graph(_fake_tools(calls), checkpointer=InMemorySaver())
+    app = build_graph(build_graph_tools(calls=calls), checkpointer=InMemorySaver())
     config = {"configurable": {"thread_id": "case-gate"}}
 
     result = await app.ainvoke({"raw_note": NOTE}, config)
@@ -153,7 +94,7 @@ async def test_unapproved_resume_is_refused_and_writes_nothing() -> None:
     """An absent/malformed approval is refused and performs no write (GATE-02, D-05)."""
     calls: list[tuple[str, Any]] = []
     writes: list[Any] = []
-    app = build_graph(_fake_tools(calls, writes), checkpointer=InMemorySaver())
+    app = build_graph(build_graph_tools(calls=calls, writes=writes), checkpointer=InMemorySaver())
     config = {"configurable": {"thread_id": "case-refuse"}}
 
     await app.ainvoke({"raw_note": NOTE}, config)
@@ -191,7 +132,7 @@ def test_checkpointer_and_domain_store_are_separate_files() -> None:
 async def test_checkpoint_survives_a_fresh_saver(tmp_path: Path) -> None:
     """A paused thread re-loaded from a fresh saver still reports the interrupt (D-09, M-6)."""
     db_path = tmp_path / "checkpoints.db"
-    tools = _fake_tools()
+    tools = build_graph_tools()
     config = {"configurable": {"thread_id": "case-checkpoint"}}
 
     async with checkpointed_graph(tools, db_path) as graph:
@@ -211,4 +152,4 @@ def test_route_after_verify_is_bounded(attempt: int) -> None:
     retry_state: dict[str, Any] = {"route": "retry", "attempt": attempt}
     expected = "score" if attempt < build_module._MAX_ATTEMPTS else "__end__"
     assert build_module.route_after_verify(retry_state) == expected
-    assert build_module.route_after_verify({"route": "ok"}) == "approval_gate"
+    assert build_module.route_after_verify({"route": "ok"}) == "recheck"

@@ -34,6 +34,7 @@ from triagedesk.core.schema import (
     HandoverCard,
     MatchResult,
     PriorityResult,
+    RecheckFlag,
     RecoveryRequest,
 )
 from triagedesk.graph.state import TriageState
@@ -224,6 +225,33 @@ def escalate(state: TriageState) -> dict[str, Any]:
     }
 
 
+def _make_recheck(tools: ToolMap) -> NodeFn:
+    """Build the ``recheck`` node over the injected tool mapping (GATE-04, D-07)."""
+
+    async def recheck(state: TriageState) -> dict[str, Any]:
+        """Raise a non-mutating second-look flag from serial vitals (GATE-04, M-4).
+
+        With a ``previous_case`` present, the owned ``raise_recheck_flag`` tool
+        compares the previous and current vitals and the returned flag is stored in
+        ``second_look`` for the gate and the handover card. The flag carries only
+        before/after values — no colour — so this node never re-scores, reorders or
+        writes to the queue (D-07, M-4).
+        """
+        previous = state.get("previous_case")
+        current = state.get("case")
+        if previous is None or current is None:
+            return {"second_look": None}
+        flag = parse_tool_result(
+            RecheckFlag,
+            await tools["raise_recheck_flag"](
+                {"previous": previous.model_dump(), "current": current.model_dump()}
+            ),
+        )
+        return {"second_look": flag}
+
+    return recheck
+
+
 def approval_gate(state: TriageState) -> dict[str, Any]:
     """Pause for a named clinician's decision — NO side effect before the gate (D-04).
 
@@ -234,6 +262,7 @@ def approval_gate(state: TriageState) -> dict[str, Any]:
     ``approval`` for the commit node to validate.
     """
     priority = state["priority"]
+    second_look = state.get("second_look")
     payload = {
         "case_id": case_id_for(state["raw_note"]),
         "colour": priority.colour,
@@ -243,6 +272,7 @@ def approval_gate(state: TriageState) -> dict[str, Any]:
         "missing_vitals": list(priority.missing_vitals),
         "matched_ids": list(state.get("matched_ids") or []),
         "no_match": bool(state.get("no_match")),
+        "second_look": second_look.model_dump(mode="json") if second_look is not None else None,
     }
     approval = interrupt(payload)
     return {"approval": approval}
@@ -310,7 +340,7 @@ def handover(state: TriageState) -> dict[str, Any]:
         missing_vitals=list(priority.missing_vitals),
         matched_discriminator_ids=list(state.get("matched_ids") or []),
         no_discriminator_matched=bool(state.get("no_match")),
-        second_look=None,
+        second_look=state.get("second_look"),
         decision=approval.get("decision"),
         approved_by=approval.get("approved_by"),
         role=approval.get("role"),
@@ -331,6 +361,7 @@ def make_nodes(tools: ToolMap) -> dict[str, NodeFn]:
         "retrieve": _make_retrieve(tools),
         "score": _make_score(tools),
         "verify": verify,
+        "recheck": _make_recheck(tools),
         "approval_gate": approval_gate,
         "commit": _make_commit(tools),
         "handover": handover,

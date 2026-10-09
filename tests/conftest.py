@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from triagedesk.core import matcher, scorer
+from triagedesk.core import matcher, recheck, scorer
 from triagedesk.core.schema import (
     ApprovalToken,
     CaseInput,
@@ -135,6 +135,12 @@ def build_graph_tools(
         parsed = CaseInput.model_validate(inp["case"])
         return scorer.score_priority(parsed, inp.get("matched_discriminator_ids"))
 
+    async def raise_recheck_flag(inp: dict[str, Any]) -> Any:
+        calls.append(("raise_recheck_flag", inp))
+        previous = CaseInput.model_validate(inp["previous"])
+        current = CaseInput.model_validate(inp["current"])
+        return recheck.compare_vitals(previous, current)
+
     async def commit_priority(inp: dict[str, Any]) -> CommitResult:
         calls.append(("commit_priority", inp))
         token = inp.get("approval_token")
@@ -158,5 +164,6 @@ def build_graph_tools(
         "normalize_case": normalize_case,
         "match_discriminators": match_discriminators,
         "score_priority": score_priority,
+        "raise_recheck_flag": raise_recheck_flag,
         "commit_priority": commit_priority,
     }
