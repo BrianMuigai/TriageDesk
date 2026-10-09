@@ -84,6 +84,7 @@ def assert_tool_allowlist(tool_names: Iterable[str]) -> None:
             f"missing={sorted(missing)} unexpected={sorted(unexpected)}"
         )
 
+
 # The tracer's node set. The proof suite checks a *superset*, so a later plan may
 # add nodes without invalidating the tracer. The recovery/abstention terminals and
 # the serial-vitals recheck are part of the full safety spine (Plan 03-04).

@@ -38,6 +38,7 @@ NOTE = (
     "temperature 38.9, no trauma. Presenting with central chest pain."
 )
 
+
 def test_graph_compiles_with_the_tracer_node_set() -> None:
     """The graph compiles and exposes a superset of the full safety-spine nodes (ORCH-01)."""
     graph = build_graph(build_graph_tools())

@@ -28,7 +28,6 @@ from triagedesk.store import CaseRow, QueueRow
 from triagedesk.store.audit import GENESIS, AuditRecord
 from triagedesk.store.queue import commit_to_queue
 
-
 # -------------------------------------------------------------------- AST guards
 # Shared by the purity/safety guard suites so the import-scanning logic lives in
 # exactly one place (DRY). The model-provider SDK roots that must NEVER appear on the
