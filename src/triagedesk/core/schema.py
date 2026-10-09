@@ -11,9 +11,9 @@ closed set — it never computes a TEWS score or a colour (D-03).
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import ClassVar, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from triagedesk.core.rules import get_tews
 
@@ -228,7 +228,29 @@ class HandoverCard(BaseModel):
     the *absence* of a field is the guard: the schema cannot express a clinical
     opinion, so the tool can never emit one (D-11). ``second_look`` carries the
     serial-vitals flag when one exists, and never re-classifies (D-08).
+
+    The field set is **locked** two ways: ``extra="forbid"`` rejects any undeclared
+    field at construction (a prose field cannot be smuggled onto the card), and
+    ``FORBIDDEN_FIELD_TOKENS`` names the assessment-prose vocabulary that no field
+    may contain. The guard test reads that ONE tuple, so the token list is not
+    restated in the suite (DRY).
     """
+
+    # An undeclared field is rejected rather than silently carried (SAFE-02, D-11).
+    model_config = ConfigDict(extra="forbid")
+
+    # The assessment-prose tokens no HandoverCard field may contain. Declared HERE,
+    # the ONE source the guard test reads (SAFE-02, D-11, CONVENTIONS §1).
+    FORBIDDEN_FIELD_TOKENS: ClassVar[tuple[str, ...]] = (
+        "summary",
+        "assessment",
+        "impression",
+        "plan",
+        "diagnosis",
+        "prescription",
+        "dx",
+        "rx",
+    )
 
     case_id: str
     colour: str | None = None

@@ -322,15 +322,20 @@ def _make_commit(tools: ToolMap) -> NodeFn:
 
 
 def handover(state: TriageState) -> dict[str, Any]:
-    """Render the clinician-facing card from the priority + commit — deterministic (D-11).
+    """Render the clinician-facing card from the priority + approval — deterministic (D-11).
 
-    A pure template over already-typed facts: no model, no new information. The
-    card carries only sourced fields and the named approval; it has no field for a
-    diagnosis, assessment, impression, plan or prescription (SAFE-02).
+    A pure template over already-typed facts: no model, no new information, and no
+    free text beyond the nurse's own structured fields. The card carries only sourced
+    fields and the named approval; ``HandoverCard`` locks its field set
+    (``extra="forbid"`` + ``FORBIDDEN_FIELD_TOKENS``), so there is no field for a
+    diagnosis, assessment, impression, plan or prescription and no way to smuggle
+    one in (SAFE-02, D-11, Pitfall 9).
     """
     priority = state["priority"]
     approval = state.get("approval")
     approval = approval if isinstance(approval, Mapping) else {}
+    # Only the declared, structured fields are passed — the card's field set is
+    # exactly the schema's; an extra field would be rejected by ``extra="forbid"``.
     card = HandoverCard(
         case_id=case_id_for(state["raw_note"]),
         colour=priority.colour,
