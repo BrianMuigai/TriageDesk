@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from triagedesk.store import CaseRow, QueueRow, Store
+from triagedesk.store.audit import GENESIS, AuditRecord
 
 # The borrowed server's tool surface, pinned to what Phase 1 verified
 # (evidence/mcp-spike.json). Declared once; the wiring reads these names, never
@@ -48,6 +49,11 @@ EXPECTED_TOOLS: tuple[str, ...] = (
 # The two domain tables the borrowed server owns (D-09: clinical record, not runtime).
 QUEUE_TABLE = "queue"
 CASES_TABLE = "cases"
+# The audit chain lives in the SAME authoritative store as the queue, so the queue and
+# the audit never diverge (D-09, AUDIT-03). ``audit_head`` holds the single persisted
+# chain head, so verification survives a restart (M-6).
+AUDIT_TABLE = "audit"
+AUDIT_HEAD_TABLE = "audit_head"
 
 # The one async-tool interface the borrowed wiring depends on (SOLID: D): the same
 # shape ``mcp/adapter`` supplies (``tool.name -> tool.ainvoke``).
@@ -70,6 +76,30 @@ _CASES_DDL = (
     f"CREATE TABLE IF NOT EXISTS {CASES_TABLE} ("
     "case_id TEXT PRIMARY KEY, "
     "payload TEXT NOT NULL)"
+)
+
+# The audit chain: one row per record, ordered by ``seq``. ``inputs``/``outputs`` are
+# stored as canonical JSON text so untrusted complaint text can never break parsing
+# (M-13). ``audit_head`` is a single-row table holding the persisted chain head (M-6).
+_AUDIT_DDL = (
+    f"CREATE TABLE IF NOT EXISTS {AUDIT_TABLE} ("
+    "seq INTEGER PRIMARY KEY, "
+    "ts TEXT NOT NULL, "
+    "case_id TEXT NOT NULL, "
+    "tool TEXT NOT NULL, "
+    "actor TEXT NOT NULL, "
+    "inputs TEXT NOT NULL, "
+    "outputs TEXT NOT NULL, "
+    "approved_by TEXT, "
+    "role TEXT, "
+    "prev_hash TEXT NOT NULL, "
+    "hash TEXT NOT NULL)"
+)
+
+_AUDIT_HEAD_DDL = (
+    f"CREATE TABLE IF NOT EXISTS {AUDIT_HEAD_TABLE} ("
+    "id INTEGER PRIMARY KEY CHECK (id = 1), "
+    "head TEXT NOT NULL)"
 )
 
 _ROW_KEYS = ("rows", "records", "results", "data")
@@ -128,9 +158,11 @@ class BorrowedStore:
         return await self._tools[name](dict(arguments))
 
     async def ensure_schema(self) -> None:
-        """Create the case/queue tables if absent, via the borrowed ``query`` tool."""
+        """Create the case/queue and audit tables if absent, via the borrowed ``query`` tool."""
         await self._call(TOOL_QUERY, {"sql": _QUEUE_DDL})
         await self._call(TOOL_QUERY, {"sql": _CASES_DDL})
+        await self._call(TOOL_QUERY, {"sql": _AUDIT_DDL})
+        await self._call(TOOL_QUERY, {"sql": _AUDIT_HEAD_DDL})
 
     async def read_queue_row(self, case_id: str, content_hash: str) -> QueueRow | None:
         """Return the row for the idempotency key, or ``None`` (borrowed ``query``)."""
@@ -202,6 +234,92 @@ class BorrowedStore:
         data = json.loads(payload) if isinstance(payload, str) else (payload or {})
         return CaseRow(case_id=str(rows[0]["case_id"]), payload=dict(data))
 
+    async def read_queue_rows(self) -> list[QueueRow]:
+        """Return every committed queue row, ordered by position (for reconciliation)."""
+        rows = _rows(
+            await self._call(
+                TOOL_QUERY,
+                {
+                    "sql": (
+                        "SELECT case_id, content_hash, colour, target, position, created_at "
+                        f"FROM {QUEUE_TABLE} ORDER BY position"
+                    )
+                },
+            )
+        )
+        return [QueueRow.model_validate(row) for row in rows]
+
+    async def read_chain_head(self) -> str:
+        """Return the persisted chain head, or :data:`GENESIS` when the chain is empty (M-6)."""
+        rows = _rows(
+            await self._call(
+                TOOL_QUERY,
+                {"sql": f"SELECT head FROM {AUDIT_HEAD_TABLE} WHERE id = 1"},
+            )
+        )
+        return str(rows[0]["head"]) if rows else GENESIS
+
+    async def write_chain_head(self, head: str) -> None:
+        """Persist the chain head in its single-row table (M-6)."""
+        await self._call(
+            TOOL_QUERY,
+            {
+                "sql": (
+                    f"INSERT OR REPLACE INTO {AUDIT_HEAD_TABLE} (id, head) VALUES (1, ?)"
+                ),
+                "values": [head],
+            },
+        )
+
+    async def append_audit_record(self, record: AuditRecord) -> None:
+        """Insert one audit record; the ``seq`` PRIMARY KEY makes a replay a no-op."""
+        await self._call(
+            TOOL_QUERY,
+            {
+                "sql": (
+                    f"INSERT OR IGNORE INTO {AUDIT_TABLE} "
+                    "(seq, ts, case_id, tool, actor, inputs, outputs, approved_by, role, "
+                    "prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                ),
+                "values": [
+                    record.seq,
+                    record.ts.isoformat(),
+                    record.case_id,
+                    record.tool,
+                    record.actor,
+                    json.dumps(record.inputs),
+                    json.dumps(record.outputs),
+                    record.approved_by,
+                    record.role,
+                    record.prev_hash,
+                    record.hash,
+                ],
+            },
+        )
+
+    async def read_audit_records(self) -> list[AuditRecord]:
+        """Return the records in chain order, decoding the JSON text columns."""
+        rows = _rows(
+            await self._call(
+                TOOL_QUERY,
+                {
+                    "sql": (
+                        "SELECT seq, ts, case_id, tool, actor, inputs, outputs, "
+                        "approved_by, role, prev_hash, hash "
+                        f"FROM {AUDIT_TABLE} ORDER BY seq"
+                    )
+                },
+            )
+        )
+        records: list[AuditRecord] = []
+        for row in rows:
+            data = dict(row)
+            for column in ("inputs", "outputs"):
+                value = data.get(column)
+                data[column] = json.loads(value) if isinstance(value, str) else (value or {})
+            records.append(AuditRecord.model_validate(data))
+        return records
+
 
 async def open_borrowed_store(db_path: Path) -> Store:
     """Open the borrowed store: load its tools in their own context, ensure schema.
@@ -221,6 +339,8 @@ async def open_borrowed_store(db_path: Path) -> Store:
 
 
 __all__ = [
+    "AUDIT_HEAD_TABLE",
+    "AUDIT_TABLE",
     "CASES_TABLE",
     "EXPECTED_TOOLS",
     "QUEUE_TABLE",

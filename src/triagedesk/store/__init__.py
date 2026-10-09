@@ -19,6 +19,15 @@ from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
+from triagedesk.store.audit import (
+    COMMIT_TOOL,
+    GENESIS,
+    AuditRecord,
+    AuditStore,
+    append,
+    record_digest,
+)
+
 # The domain store path — the clinical record + audit, via the borrowed MCP (D-09).
 # Named once here so no caller inlines the filename (DRY).
 DOMAIN_DB_PATH = Path("triage.db")
@@ -77,6 +86,29 @@ class Store(Protocol):
         """Return the stored case payload, or ``None``."""
         ...
 
+    async def read_queue_rows(self) -> list[QueueRow]:
+        """Return every committed queue row (for the audit reconciliation, D-09)."""
+        ...
+
+    # -- Audit seam (AUDIT-01, D-08): the same store holds the queue and the chain, so
+    #    the two never diverge (D-09). The one audit helper (``store/audit.append``)
+    #    is the only writer; these methods are the narrow read/write surface it needs.
+    async def read_chain_head(self) -> str:
+        """Return the persisted chain head, or the genesis value when empty (M-6)."""
+        ...
+
+    async def write_chain_head(self, head: str) -> None:
+        """Persist the chain head so verification survives a restart (M-6)."""
+        ...
+
+    async def append_audit_record(self, record: AuditRecord) -> None:
+        """Append one chained audit record (written only by ``store/audit.append``)."""
+        ...
+
+    async def read_audit_records(self) -> list[AuditRecord]:
+        """Return the audit records in chain order (ascending ``seq``)."""
+        ...
+
 
 async def default_store(db_path: Path | None = None) -> Store:
     """Build the default store — the borrowed SQLite MCP server (D-10).
@@ -91,9 +123,15 @@ async def default_store(db_path: Path | None = None) -> Store:
 
 
 __all__ = [
+    "COMMIT_TOOL",
     "DOMAIN_DB_PATH",
+    "GENESIS",
+    "AuditRecord",
+    "AuditStore",
     "CaseRow",
     "QueueRow",
     "Store",
+    "append",
     "default_store",
+    "record_digest",
 ]

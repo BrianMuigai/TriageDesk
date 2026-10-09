@@ -24,20 +24,57 @@ from triagedesk.core.schema import (
 )
 from triagedesk.mcp import server as server_module
 from triagedesk.store import CaseRow, QueueRow
+from triagedesk.store.audit import GENESIS, AuditRecord
 from triagedesk.store.queue import commit_to_queue
 
 
-class InMemoryStore:
-    """A minimal in-memory :class:`~triagedesk.store.Store` — the ONE protocol double.
+class _Memory:
+    """The shared backing state of the in-memory store — the "database" a restart reopens.
 
-    Records every protocol call in ``calls`` so a test can assert the refusal path
-    touched no store, and holds ``rows``/``cases`` for committed state.
+    Holding the state in a separate object (rather than on the store handle) lets
+    ``InMemoryStore.restart()`` hand back a *fresh handle over the same data*, which is
+    how the audit suite simulates a process restart without a real SQLite file (M-6).
     """
 
     def __init__(self) -> None:
         self.rows: list[QueueRow] = []
         self.cases: dict[str, CaseRow] = {}
+        self.audit_records: list[AuditRecord] = []
+        self.chain_head: str = GENESIS
+
+
+class InMemoryStore:
+    """A minimal in-memory :class:`~triagedesk.store.Store` — the ONE protocol double.
+
+    Records every queue/case protocol call in ``calls`` so a test can assert the refusal
+    path touched no store, and holds ``rows``/``cases`` for committed state. The audit
+    seam (``audit_records``/``chain_head``) is stored alongside, so the fake satisfies
+    the whole protocol — including the audit half — in one place (DRY, D-13).
+    """
+
+    def __init__(self, memory: _Memory | None = None) -> None:
+        self._memory = memory if memory is not None else _Memory()
         self.calls: list[tuple[str, tuple[object, ...]]] = []
+
+    def restart(self) -> InMemoryStore:
+        """Return a fresh handle over the same backing state — a simulated restart (M-6)."""
+        return InMemoryStore(self._memory)
+
+    @property
+    def rows(self) -> list[QueueRow]:
+        return self._memory.rows
+
+    @property
+    def cases(self) -> dict[str, CaseRow]:
+        return self._memory.cases
+
+    @property
+    def audit_records(self) -> list[AuditRecord]:
+        return self._memory.audit_records
+
+    @property
+    def chain_head(self) -> str:
+        return self._memory.chain_head
 
     async def ensure_schema(self) -> None:
         self.calls.append(("ensure_schema", ()))
@@ -62,6 +99,21 @@ class InMemoryStore:
     async def read_case(self, case_id: str) -> CaseRow | None:
         self.calls.append(("read_case", (case_id,)))
         return self.cases.get(case_id)
+
+    async def read_queue_rows(self) -> list[QueueRow]:
+        return list(self.rows)
+
+    async def read_chain_head(self) -> str:
+        return self._memory.chain_head
+
+    async def write_chain_head(self, head: str) -> None:
+        self._memory.chain_head = head
+
+    async def append_audit_record(self, record: AuditRecord) -> None:
+        self._memory.audit_records.append(record)
+
+    async def read_audit_records(self) -> list[AuditRecord]:
+        return list(self._memory.audit_records)
 
 
 @pytest.fixture
