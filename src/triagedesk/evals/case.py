@@ -27,6 +27,12 @@ from triagedesk.core.schema import CaseInput
 # second look. Harness vocabulary — not SATS values (CONVENTIONS §1).
 TERMINAL_OUTCOMES: tuple[str, ...] = ("RECOVER", "ABSTAIN", "RECHECK")
 
+# The first-class ABORT terminal: a run that stopped at END WITHOUT delivering a handover
+# card through the approval gate (a fail-closed ``verify``). It is harness vocabulary, but
+# deliberately NOT a valid ``expected`` token — a card-less run can never be a pass — so it
+# is excluded from :func:`declared_outcomes` (G-2, T-04-26).
+ABORT_OUTCOME = "ABORT"
+
 
 def declared_outcomes() -> set[str]:
     """The accepted ``expected`` tokens: the loaded colour set plus the terminals.
@@ -101,6 +107,7 @@ def load_cases(directory: str | Path) -> list[CaseSpec]:
 
 
 __all__ = [
+    "ABORT_OUTCOME",
     "TERMINAL_OUTCOMES",
     "CaseSpec",
     "FaultInjection",

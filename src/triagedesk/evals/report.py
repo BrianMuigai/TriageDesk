@@ -51,13 +51,15 @@ class ReportCase(BaseModel):
     ``colours``, ``matched_discriminators`` and ``citations`` are the per-run captures
     (never averaged); the three stability flags are computed SEPARATELY so a stable
     colour with an unstable citation list is visible (Pitfall 6). ``outcomes`` is the
-    first-class per-run terminal outcome (a colour or RECOVER/ABSTAIN/RECHECK) read from
-    the graph's own terminal state (ORCH-05). ``invariants`` is the per-invariant verdict
-    (folded across runs) and ``invariant_reasons`` names WHY a failed invariant broke;
-    ``invariants_pass`` is the fold of that map. ``passed`` is the accuracy verdict: every
-    run's outcome equals ``expected`` AND every invariant holds AND colour and matched-set
-    are stable. ``tokens_in``/``tokens_out`` are the case's totals across runs;
-    ``latency_s`` is per-run.
+    first-class per-run terminal outcome (a colour or RECOVER/ABSTAIN/RECHECK/ABORT) read
+    from the graph's own terminal state (ORCH-05). ``delivered``/``routes``/``attempts``
+    are the run's terminal facts — whether a handover card was produced through the gate,
+    and the graph's own routing channel — so a card-less abort is distinguishable from a
+    delivered colour (G-2). ``invariants`` is the per-invariant verdict (folded across
+    runs) and ``invariant_reasons`` names WHY a failed invariant broke; ``invariants_pass``
+    is the fold of that map. ``passed`` is the accuracy verdict: every run's outcome equals
+    ``expected`` AND every invariant holds AND colour and matched-set are stable.
+    ``tokens_in``/``tokens_out`` are the case's totals across runs; ``latency_s`` is per-run.
     """
 
     case_id: str
@@ -67,6 +69,9 @@ class ReportCase(BaseModel):
     outcomes: list[str | None] = Field(default_factory=list)
     matched_discriminators: list[list[str]] = Field(default_factory=list)
     citations: list[list[str]] = Field(default_factory=list)
+    delivered: list[bool] = Field(default_factory=list)
+    routes: list[str | None] = Field(default_factory=list)
+    attempts: list[int] = Field(default_factory=list)
     colour_stable: bool = False
     matched_set_stable: bool = False
     field_stable: bool = False
@@ -232,6 +237,9 @@ def _digest_payload(report: Report) -> dict[str, Any]:
                 "outcomes": case.outcomes,
                 "matched_discriminators": case.matched_discriminators,
                 "citations": case.citations,
+                "delivered": case.delivered,
+                "routes": case.routes,
+                "attempts": case.attempts,
                 "colour_stable": case.colour_stable,
                 "matched_set_stable": case.matched_set_stable,
                 "field_stable": case.field_stable,

@@ -25,7 +25,7 @@ from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.types import Command
 
 from triagedesk.evals.analysis import analyse
-from triagedesk.evals.case import CaseSpec, load_cases
+from triagedesk.evals.case import ABORT_OUTCOME, CaseSpec, load_cases
 from triagedesk.evals.invariants import (
     INVARIANT_IDS,
     InvariantReport,
@@ -70,6 +70,11 @@ def _capture(result: Any, payload: dict[str, Any] | None) -> dict[str, Any]:
     clinician saw); otherwise the terminal state is read directly. The graph's terminal
     channels (``recovery``/``escalation``/``second_look``) are captured too, so the runner
     can map a first-class outcome without re-deriving one (ORCH-05).
+
+    The graph's own TERMINAL facts are captured here as well: ``delivered`` is True only
+    when the run produced a ``handover`` card (i.e. it reached the approval gate), and
+    ``route``/``attempt`` are the graph's own routing channels. They distinguish a run
+    delivered THROUGH the gate from one that aborted at ``END`` — never re-derived (G-2).
     """
     recovery = result.get("recovery")
     escalation = result.get("escalation")
@@ -99,6 +104,9 @@ def _capture(result: Any, payload: dict[str, Any] | None) -> dict[str, Any]:
         "second_look": (
             second_look.model_dump(mode="json") if second_look is not None else None
         ),
+        "delivered": result.get("handover") is not None,
+        "route": result.get("route"),
+        "attempt": int(result.get("attempt") or 0),
     }
 
 
@@ -107,8 +115,11 @@ def _outcome(captured: dict[str, Any], expected: str) -> str | None:
 
     Precedence, reading the graph's own terminals — never a re-derived colour: a set
     ``escalation`` -> ``ABSTAIN``; a set ``recovery`` -> ``RECOVER``; a set ``second_look``
-    flag for a case whose declared expectation is ``RECHECK`` -> ``RECHECK``; otherwise the
-    scored colour from the gate payload.
+    flag for a case whose declared expectation is ``RECHECK`` -> ``RECHECK``; otherwise a
+    colour is recorded ONLY when the run DELIVERED a handover card through the gate. A run
+    that ended at ``END`` without a card (a fail-closed ``verify``) is the declared
+    :data:`ABORT_OUTCOME` — a card-less colour is never reported as a delivered terminal,
+    so it can never be counted as a pass (G-2, T-04-26).
     """
     if captured["escalation"]:
         return "ABSTAIN"
@@ -118,6 +129,8 @@ def _outcome(captured: dict[str, Any], expected: str) -> str | None:
     if second_look is not None and second_look.get("flag") and expected == "RECHECK":
         return "RECHECK"
     colour: str | None = captured["colour"]
+    if colour is not None and not captured["delivered"]:
+        return ABORT_OUTCOME
     return colour
 
 
@@ -263,6 +276,9 @@ async def _run_case(
     matched = [sorted(captured["matched_ids"]) for captured in captures]
     citations = [captured["citations"] for captured in captures]
     triggered = [captured["triggered_rules"] for captured in captures]
+    delivered = [captured["delivered"] for captured in captures]
+    routes = [captured["route"] for captured in captures]
+    attempts = [captured["attempt"] for captured in captures]
 
     colour_stable = len(set(colours)) == 1
     matched_set_stable = len({tuple(ids) for ids in matched}) == 1
@@ -277,6 +293,9 @@ async def _run_case(
         outcomes=outcomes,
         matched_discriminators=matched,
         citations=citations,
+        delivered=delivered,
+        routes=routes,
+        attempts=attempts,
         colour_stable=colour_stable,
         matched_set_stable=matched_set_stable,
         field_stable=(
