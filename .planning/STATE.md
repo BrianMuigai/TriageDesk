@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 4
 current_phase_name: Evaluation, Recovery & Honest Failure
 status: verifying
-stopped_at: Completed 04-04-PLAN.md
-last_updated: "2026-10-09T20:04:06.119Z"
+stopped_at: Completed 04-05-PLAN.md
+last_updated: "2026-10-09T20:52:08.657Z"
 last_activity: 2026-10-09
 last_activity_desc: Completed 04-03-PLAN.md
 progress:
   total_phases: 4
-  completed_phases: 4
-  total_plans: 16
-  completed_plans: 16
+  completed_phases: 3
+  total_plans: 18
+  completed_plans: 17
 state_head: bad675a53c01366530f0aea27e61b72b45c1f88b
 ---
 
@@ -33,7 +33,7 @@ Plan: 4 of 4
 Status: Phase complete — ready for verification
 Last activity: 2026-10-09 — Completed 04-03-PLAN.md
 
-Progress: [██████████] 100%
+Progress: [█████████░] 94%
 
 ## Performance Metrics
 
@@ -75,6 +75,7 @@ Progress: [██████████] 100%
 | Phase 04 P02 | 7 | 3 tasks | 21 files |
 | Phase 04 P03 | 19 | 3 tasks | 8 files |
 | Phase 04 P04 | 24 | 4 tasks | 8 files |
+| Phase 04 P05 | 5 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -155,6 +156,8 @@ Recent decisions affecting current work:
 - [Phase 04]: evals/results/report.json is a REAL measured run (mode: real, non-zero tokens); the offline report.ci.json stays the CI gate artefact only; the analysis block is excluded from report_digest (volatile cost)
 - [Phase 04]: scripts/emit_evals.py is the ONE writer of EVALS.md result cells, rendered strictly from the report and idempotent; it refuses a report whose digest does not recompute (T-04-16/18)
 - [Phase 04]: The measured run failed the gate honestly (E-04 unstable, E-07 RECHECK->RECOVER, E-13 injection->ABSTAIN beyond the declared E-09); recorded, not tuned (D-04/D-05)
+- [Phase 04]: The TEWS-0 baseline citation is data-driven (data/sats_tews.yaml baseline_citation) and formatted through the ONE citation helper; the baseline rule is emitted only when no rule/override fired and a parameter was used, so a real finding is never displaced (G-1, T-04-22)
+- [Phase 04]: INV-1 now fails a scored priority carrying zero citations; graph/nodes.verify is unchanged, so a genuinely uncited priority still fail-closes (T-04-23, EVAL-03)
 
 ### Pending Todos
 
@@ -177,6 +180,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T20:04:06.106Z
-Stopped at: Completed 04-04-PLAN.md
+Last session: 2026-10-09T20:52:08.643Z
+Stopped at: Completed 04-05-PLAN.md
 Resume file: None
