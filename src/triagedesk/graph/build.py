@@ -18,13 +18,23 @@ for an audit event (D-09).
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
+from pydantic import BaseModel
 
+from triagedesk.core import schema as schema_module
 from triagedesk.graph.nodes import ToolMap, make_nodes
 from triagedesk.graph.state import TriageState
+
+# The two persistence paths, named once so no caller inlines a filename (D-09).
+DOMAIN_DB_PATH = Path("triage.db")
+CHECKPOINTS_DB_PATH = Path("checkpoints.db")
 
 # The tracer's node set. A later plan may add recovery / recheck / escalation
 # nodes; the proof suite checks a *superset*, so those additions do not
@@ -115,4 +125,40 @@ async def run_case(
     resolved = tools if tools is not None else await load_graph_tools()
     graph = build_graph(resolved)
     return await graph.ainvoke({"raw_note": raw_note}, dict(config or {}))
+
+
+@asynccontextmanager
+async def checkpointed_graph(
+    tools: ToolMap, db_path: Path = CHECKPOINTS_DB_PATH
+) -> AsyncIterator[Any]:
+    """Compile the graph over the durable SQLite checkpointer (D-09, M-6).
+
+    Opens ``AsyncSqliteSaver`` over *db_path* (``checkpoints.db`` by default — a
+    file separate from the domain store) and yields the compiled graph. The paused
+    state survives a process restart: reopening the same file with a fresh saver
+    still reports the pending interrupt.
+
+    The saver's serializer is given an explicit allowlist of the schema types the
+    state carries — so custom contracts (``CaseInput``, ``PriorityResult``, ...) are
+    registered deliberately rather than tripping the future strict-msgpack block.
+    """
+    async with AsyncSqliteSaver.from_conn_string(str(db_path)) as saver:
+        saver.serde = JsonPlusSerializer(allowed_msgpack_modules=_allowed_msgpack_modules())
+        yield build_graph(tools, checkpointer=saver)
+
+
+def _allowed_msgpack_modules() -> list[tuple[str, str]]:
+    """The ONE allowlist of state types the checkpointer may (de)serialise.
+
+    Derived from the schema module rather than hand-listed, so a new state contract
+    is covered automatically (DRY). An allowlist — never ``True`` — so the
+    checkpointer cannot deserialise an arbitrary type from a tampered checkpoint.
+    """
+    return [
+        (schema_module.__name__, name)
+        for name, obj in vars(schema_module).items()
+        if isinstance(obj, type)
+        and issubclass(obj, BaseModel)
+        and obj.__module__ == schema_module.__name__
+    ]
 

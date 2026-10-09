@@ -13,8 +13,11 @@ supplies the real tools.
 from __future__ import annotations
 
 from triagedesk.graph.build import (
+    CHECKPOINTS_DB_PATH,
+    DOMAIN_DB_PATH,
     TRACER_NODES,
     build_graph,
+    checkpointed_graph,
     load_graph_tools,
     route_after_verify,
     run_case,
@@ -23,9 +26,12 @@ from triagedesk.graph.nodes import make_nodes, parse_tool_result
 from triagedesk.graph.state import TriageState
 
 __all__ = [
+    "CHECKPOINTS_DB_PATH",
+    "DOMAIN_DB_PATH",
     "TRACER_NODES",
     "TriageState",
     "build_graph",
+    "checkpointed_graph",
     "load_graph_tools",
     "make_nodes",
     "parse_tool_result",
