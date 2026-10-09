@@ -37,11 +37,11 @@ results, wall-clock latency, token counts, and model/settings hash.
 | Safety invariants | §1 items 1–4 | per case (invariant) | 4/4 |
 | Colour stability | same colour across 3 runs | per case | 15/16 cases |
 | Field stability | identical citations/triggered rules across 3 runs | per case | 15/16 cases |
-| Latency | wall-clock seconds per case (p50, p95) | aggregate | p50 16.40 s · p95 18.53 s |
+| Latency | wall-clock seconds per case (p50, p95) | aggregate | p50 13.62 s · p95 17.21 s |
 | Cost per run | tokens in/out + wall-clock (local CPU → no monetary cost) | aggregate | in 55068 · out 6866 tokens |
 
 <!-- BEGIN GENERATED: source -->
-> **Measured source:** `evals/results/report.json` · mode `real` · `report_digest: cfd827962e8fe81148fb6fcc071cbb0b00742e5fa90ad5f0672d6a6a93afac08` · 3 runs/case.
+> **Measured source:** `evals/results/report.json` · mode `real` · `report_digest: ea5ac20d8decf862bbd2938ce596e393c851162fd48822f5930edc33d9cd4daf` · 3 runs/case.
 <!-- END GENERATED: source -->
 
 ### 3.1 Report shape (cost & stability visible per case)
