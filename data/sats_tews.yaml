@@ -1,0 +1,95 @@
+# Adult TEWS rule substrate — the machine authority (D-08, INTAKE-04).
+#
+# Source: SATS Training Manual 2012, Emergency Medicine Society of South Africa
+# (EMSSA) — <https://emssa.org.za>. Bands are INCLUSIVE [min, max]; a band with
+# only `max` means "<= max", a band with only `min` means ">= min".
+#
+# This file is the single source of truth for TEWS bands and colour thresholds.
+# It is read ONLY through `src/triagedesk/core/rules.py`; no band, threshold or
+# citation may be inlined in code (CONVENTIONS §1).
+#
+# Transcription is re-verified verbatim against the manual in Plan 01-02 (D-10).
+version: 1
+citation: "SATS Training Manual 2012 (EMSSA), adult TEWS"
+
+parameters:
+  mobility:
+    unit: null
+    bands:
+      - {points: 0, value: walking}
+      - {points: 1, value: with_help}
+      - {points: 2, value: stretcher}
+
+  respiratory_rate:
+    unit: breaths/min
+    bands:
+      - {points: 0, min: 9, max: 14}
+      - {points: 1, min: 15, max: 20}
+      - {points: 2, min: 21, max: 29}
+      - {points: 3, max: 8}      # < 9
+      - {points: 3, min: 30}     # >= 30
+
+  heart_rate:
+    unit: bpm
+    bands:
+      - {points: 0, min: 51, max: 100}
+      - {points: 1, min: 41, max: 50}
+      - {points: 1, min: 101, max: 110}
+      - {points: 2, min: 111, max: 129}
+      - {points: 3, max: 40}     # < 41
+      - {points: 3, min: 130}    # >= 130
+
+  systolic_bp:
+    unit: mmHg
+    bands:
+      - {points: 0, min: 101, max: 199}
+      - {points: 1, min: 81, max: 100}
+      - {points: 2, min: 71, max: 80}
+      - {points: 3, max: 70}     # < 71
+      - {points: 3, min: 200}    # >= 200
+
+  temperature:
+    unit: celsius
+    bands:
+      # NOTE: the 1-point band is EMPTY in the manual (docs/SATS.md §4) — a
+      # transcription risk re-verified verbatim in Plan 01-02 (Pitfall 3).
+      - {points: 0, min: 35.0, max: 38.4}
+      - {points: 2, max: 34.9}   # < 35
+      - {points: 2, min: 38.5}   # > 38.4
+
+  avpu:
+    unit: null
+    bands:
+      - {points: 0, value: alert}
+      - {points: 1, value: voice}
+      - {points: 2, value: pain}
+      - {points: 3, value: unresponsive}
+
+  trauma:
+    unit: null
+    bands:
+      - {points: 0, value: "no"}
+      - {points: 1, value: "yes"}
+
+# TEWS total -> colour (docs/SATS.md §4, "TEWS → colour").
+tews_to_colour:
+  - {colour: GREEN, min: 0, max: 2}
+  - {colour: YELLOW, min: 3, max: 4}
+  - {colour: ORANGE, min: 5, max: 6}
+  - {colour: RED, min: 7}
+
+# Priority -> target time and destination (docs/SATS.md §3, Table 3).
+target_times:
+  RED: {target: "Immediate", destination: "Resuscitation room"}
+  ORANGE: {target: "< 10 min", destination: "Majors"}
+  YELLOW: {target: "< 1 hour", destination: "Majors"}
+  GREEN: {target: "< 4 hours", destination: "Designated area"}
+  BLUE: {target: "< 2 hours", destination: "Doctor for certification"}
+
+# Out-of-scope predicate as data (D-09, fail-closed).
+# Adult = age > 12 years OR height > 150 cm. A missing age ABSTAINS — it never
+# defaults to adult (Roadmap SC2 / Phase-2 SC2).
+out_of_scope:
+  adult_min_age_years: 12
+  adult_min_height_cm: 150
+  on_missing_age: abstain
