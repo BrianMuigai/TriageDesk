@@ -8,8 +8,10 @@ report is the sole record of a run — reproducible, not retyped (D-08).
 
 from __future__ import annotations
 
+from triagedesk.evals.analysis import analyse, colour_urgency
 from triagedesk.evals.case import TERMINAL_OUTCOMES, CaseSpec, declared_outcomes, load_cases
 from triagedesk.evals.report import (
+    Analysis,
     Provenance,
     Report,
     ReportCase,
@@ -23,14 +25,17 @@ from triagedesk.evals.usage import UsageRecorder, recorded_extract
 
 __all__ = [
     "TERMINAL_OUTCOMES",
+    "Analysis",
     "CaseSpec",
     "Provenance",
     "Report",
     "ReportCase",
     "ToolMap",
     "UsageRecorder",
+    "analyse",
     "build_provenance",
     "build_tools",
+    "colour_urgency",
     "compute_report_digest",
     "declared_outcomes",
     "load_cases",

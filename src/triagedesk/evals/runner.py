@@ -24,6 +24,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.types import Command
 
+from triagedesk.evals.analysis import analyse
 from triagedesk.evals.case import CaseSpec, load_cases
 from triagedesk.evals.invariants import (
     INVARIANT_IDS,
@@ -356,6 +357,9 @@ async def run_eval(
         invariants=aggregate_invariants,
         gate=gate,
     )
+    # Populate the self-contained aggregate block from the SAME report, so the measured
+    # run carries its own under/over split, stability and cost (EVAL-04, EVAL-05).
+    report = report.model_copy(update={"analysis": analyse(report)})
     write_report(report_path, report)
     return 0 if gate.passed else 1
 

@@ -106,13 +106,55 @@ class GateResult(BaseModel):
     unexpected_failures: list[str] = Field(default_factory=list)
 
 
+class Analysis(BaseModel):
+    """The safety-relevant aggregate block over a report (EVAL-04, EVAL-05, D-03).
+
+    Under-triage and over-triage are carried SEPARATELY (``under_triage`` /
+    ``over_triage``: the offending case ids, with the per-run counts), never collapsed
+    into one symmetric accuracy figure (D-03, Pitfall 8). ``terminal_*`` reports the
+    RECOVER/ABSTAIN/RECHECK correctness on its own — those outcomes are excluded from the
+    colour direction split. The two stability summaries are kept distinct and the
+    latency/token figures make the measured cost visible (D-02, EVAL-05).
+
+    ``red_expected_count`` / ``red_miss_count`` / ``red_miss_cases`` surface the
+    safety-critical miss — an under-triaged most-urgent (RED) case — with its own weight
+    so the asymmetry reads explicitly (Pitfall 8). The most-urgent colour is derived from
+    the loaded substrate, never a hard-coded literal (CONVENTIONS §1).
+    """
+
+    colour_runs: int = 0
+    colour_correct: int = 0
+    colour_accuracy: float = 0.0
+    under_triage: list[str] = Field(default_factory=list)
+    under_triage_count: int = 0
+    over_triage: list[str] = Field(default_factory=list)
+    over_triage_count: int = 0
+    terminal_runs: int = 0
+    terminal_correct: int = 0
+    terminal_counts: dict[str, int] = Field(default_factory=dict)
+    terminal_misses: list[str] = Field(default_factory=list)
+    colour_stable_cases: list[str] = Field(default_factory=list)
+    colour_unstable_cases: list[str] = Field(default_factory=list)
+    field_stable_cases: list[str] = Field(default_factory=list)
+    field_unstable_cases: list[str] = Field(default_factory=list)
+    latency_p50: float = 0.0
+    latency_p95: float = 0.0
+    tokens_in: int = 0
+    tokens_out: int = 0
+    red_expected_count: int = 0
+    red_miss_count: int = 0
+    red_miss_cases: list[str] = Field(default_factory=list)
+
+
 class Report(BaseModel):
     """The complete machine-generated report (D-08, EVAL-02).
 
     ``mode`` labels an offline (stubbed-model) run so it can never be presented as a real
     measured run (T-04-01, Pitfall 16). ``invariants`` is the aggregate per-invariant
     verdict (folded across every case) and ``gate`` is the enforcement verdict the exit
-    code is derived from.
+    code is derived from. ``analysis`` is the self-contained aggregate block
+    (EVAL-04/EVAL-05) — it is NOT sealed in ``report_digest`` because it carries the
+    volatile latency/token totals (D-08).
     """
 
     mode: Mode
@@ -122,6 +164,7 @@ class Report(BaseModel):
     cases: list[ReportCase] = Field(default_factory=list)
     invariants: dict[str, bool] = Field(default_factory=dict)
     gate: GateResult = Field(default_factory=GateResult)
+    analysis: Analysis = Field(default_factory=Analysis)
     report_digest: str = ""
 
 
@@ -223,6 +266,7 @@ def write_report(path: str | Path, report: Report) -> Report:
 
 
 __all__ = [
+    "Analysis",
     "GateResult",
     "GateViolation",
     "Mode",
