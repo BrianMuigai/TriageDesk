@@ -12,12 +12,20 @@ is a config change behind this wrapper (SOLID: D).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import ollama
 
 from triagedesk.core.schema import ExtractionResult
 from triagedesk.llm.prompts import EXTRACTION_PROMPT
+
+# The injectable usage seam (D-08, Pitfall 16): a caller may supply a sink that is
+# handed ``(prompt_eval_count, eval_count)`` read from the SAME ``ollama.generate``
+# response the extraction already consumes — never a second model call. The default
+# ``None`` keeps every existing caller (e.g. ``mcp.server.normalize_case``) unchanged
+# (Liskov; SOLID: D — an injected dependency, no global state).
+UsageSink = Callable[[int, int], None]
 
 # Model tags are config values here: a model swap is a config change behind this
 # wrapper (SOLID: D). The Phase-1 spike measures RAM/latency for both and selects
@@ -47,13 +55,34 @@ def _response_text(response: Any) -> str:
     return str(getattr(response, "response", ""))
 
 
+def _response_usage(response: Any) -> tuple[int, int]:
+    """Read ``(prompt_eval_count, eval_count)`` from an ollama response (the ONE reader).
+
+    The counts come from the SAME response object the extraction consumes — the local
+    model reports its own token usage, so accounting never costs a second call and a
+    missing count degrades honestly to 0 rather than a guessed value (D-08, Pitfall 16).
+    """
+    def _get(name: str) -> Any:
+        if isinstance(response, dict):
+            return response.get(name)
+        return getattr(response, name, None)
+
+    return int(_get("prompt_eval_count") or 0), int(_get("eval_count") or 0)
+
+
 def extract(
     note: str,
     *,
     model: str = DEFAULT_MODEL,
     discriminator_ids: list[str] | None = None,
+    usage_sink: UsageSink | None = None,
 ) -> ExtractionResult:
     """Extract a validated :class:`ExtractionResult` from a free-text triage note.
+
+    When *usage_sink* is supplied it is invoked with the response's
+    ``(prompt_eval_count, eval_count)`` — read from the one response below, before the
+    payload is parsed, so even a malformed response records its true cost. The return
+    type is unchanged, so existing callers are untouched (Liskov; SOLID: D).
 
     Raises :class:`ExtractionError` on an empty or unparsable response — it never
     returns unvalidated data.
@@ -71,6 +100,8 @@ def extract(
         think=False,  # REQUIRED for qwen3.5:4b — else `response` is empty
         options=OPTIONS,
     )
+    if usage_sink is not None:
+        usage_sink(*_response_usage(response))
     raw = _response_text(response)
     if not raw.strip():
         raise ExtractionError(

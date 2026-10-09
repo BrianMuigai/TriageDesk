@@ -1,0 +1,24 @@
+# Eval case E-02 — TEWS escalation (EVALS.md §4).
+# Expected frozen from EVALS.md §4 applied to the golden case through the published
+# substrate (data/sats_tews.yaml): RR 24 -> 2, HR 118 -> 2, SBP 108 -> 0, T 38.9 -> 2,
+# mobility walking -> 0, AVPU alert -> 0, no trauma -> 0 => TEWS 6 => ORANGE.
+# Never derived from the system's current output (D-05, Pitfall 11).
+id: E-02
+description: "TEWS escalation"
+note: >-
+  45 year old man, walking, alert, no trauma. RR 24, HR 118, systolic BP 108,
+  temperature 38.9. Complaint: cough, fast breathing.
+case:
+  age_years: 45
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 24
+  heart_rate: 118
+  systolic_bp: 108
+  temperature_c: 38.9
+  trauma: false
+  complaint: "cough, fast breathing"
+expected: ORANGE
+pass_criteria: "colour=ORANGE; cites RR + T bands"
+source: "EVALS.md §4 E-02"
+declared_failure: false
