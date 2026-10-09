@@ -35,7 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Success Criteria** (what must be TRUE):
   1. Every TEWS band, colour threshold, discriminator, and category lives in exactly one `data/*.yaml` file (re-verified verbatim against the SATS manual) and appears nowhere else.
   2. A case — structured vitals plus a free-text complaint — is represented by one validated typed schema that rejects missing or implausible values instead of imputing them.
-  3. A local open-weights model (1.5B vs 3B, chosen on measured evidence) returns valid schema-constrained JSON for the extraction task on this machine, and the 1.5B fallback has been run end-to-end.
+  3. The installed `qwen3.5:4b` returns valid schema-constrained JSON for the extraction task within this machine's RAM budget (measured), and a smaller-Qwen fallback has been run end-to-end.
   4. The MCP beta adapter lists and calls tools on both an owned-server stub and the borrowed SQLite server, or the pre-defined one-module World-B fallback swap is documented and chosen.
   5. A `uv`-pinned Python 3.12 rebuild is reproducible; dependencies, model tag, prompts, tool schemas, and scale data are pinned and hashed; a NOTICE records every third-party licence.
 **Plans**: TBD

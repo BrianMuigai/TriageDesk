@@ -63,8 +63,8 @@ _(Not monetized. This is a challenge submission; delete this section if it becom
   Triage Scale (SATS)** (TEWS vitals score + clinical discriminator overrides → 5 colours).
 - **Prior work**: eleven design docs already exist at the repo root (vision, compliance matrix,
   architecture, evals, decisions, security, SATS domain model). These are deep context, not scratch.
-- **Environment**: host has ~6.9 GB RAM (~1.4 GB free) → a 7B model will not fit; target a 3B quantised
-  model with a 1.5B fallback. Host Python is 3.14 → pin 3.12 via `uv`.
+- **Environment**: host has ~6.9 GB RAM with low headroom → use the installed **`qwen3.5:4b`**; Phase 1
+  measures RAM fit and keeps a smaller-Qwen fallback. Host Python is 3.14 → pin 3.12 via `uv`.
 - **Known gap**: no guaranteed access to a triage nurse/clinician during the build window.
 
 ## Constraints

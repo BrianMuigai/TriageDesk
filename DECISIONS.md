@@ -22,17 +22,17 @@ straightforward to encode. MTS is licensed (proprietary), which conflicts with a
 **Consequence:** adult SATS in scope; paediatric SATS de-scoped (see D6). Source: SATS Training Manual
 2012 (EMSSA), <https://emssa.org.za>.
 
-### D3 — Local open-weights model: Qwen2.5, RAM-constrained
-**Decision:** run the agent loop on **Qwen2.5-Instruct (Q4) via Ollama**, with the **1.5B** variant as
-primary and the **3B** opt-in only if it is measured to fit; frontier models optional and never
-required to run. Extraction uses **structured JSON output** (`format=<schema>`), not native tool-calling.
+### D3 — Local open-weights model: qwen3.5:4b, RAM-constrained
+**Decision:** run the agent loop on the locally installed **`qwen3.5:4b`** (3.3 GB) via Ollama; a
+**smaller Qwen is the documented fallback** if Phase 1's RAM measurement shows the 4B cannot run within
+budget. Frontier models optional and never required to run. Extraction uses **structured JSON output**
+(`format=<schema>`), not native tool-calling.
 **Why:** eligibility requires a full task on an open-weights model, and patient data must not leave the
-country. Qwen2.5 has strong instruction-following and structured-output behaviour for its size.
-**Constraint discovered:** the host has **~6.9 GB RAM total, and only ~1–2 GB free** — even a 3B model is
-marginal, so **1.5B is the primary**. Small context window + structured decoding.
-**Consequence:** possible latency pressure (documented in `REQUIREMENTS.md` G-2); a beefier machine may
-be needed for the demo — recorded honestly. Licence note: 1.5B is Apache-2.0; 3B/72B ship under the
-Qwen licence (disclosed).
+country; the 4B is already installed and gives better extraction than a 1.5B.
+**Constraint discovered:** the host has **~6.9 GB RAM total and as little as ~0.8 GB free** — the 4B
+needs ~3.3 GB, so the demo machine must free memory; the fallback keeps the demo runnable otherwise.
+**Consequence:** possible latency/swap pressure (documented in `REQUIREMENTS.md` G-2); measured in
+Phase 1 and recorded honestly. Record the `qwen3.5:4b` licence in the NOTICE.
 
 ### D4 — LangGraph for orchestration
 **Decision:** LangGraph.
@@ -152,6 +152,6 @@ capability means a **new** tool + **new** node, leaving existing code untouched.
 | LangGraph | LangChain (open source) | MIT |
 | MCP client adapter | `langchain.mcp` namespace | current; replaces archived `langchain-mcp-adapters` |
 | Ollama | Ollama (open source) | MIT; runtime only |
-| Qwen2.5-Instruct | Alibaba (open weights) | 1.5B Apache-2.0; 3B/72B Qwen licence |
+| qwen3.5:4b | Alibaba (open weights) | record licence in NOTICE; installed locally |
 | SQLite MCP server | maintained community (`jparkerweb/mcp-sqlite` / `rusq/mcp-sqlite`) | official reference server is archived |
 | SATS manual | EMSSA | clinical content; cited, not redistributed wholesale |

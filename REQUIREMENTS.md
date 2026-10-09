@@ -143,7 +143,7 @@ Not required by the brief, tracked because the agent touches a clinical queue. F
 | # | Gap / risk | Impact | Mitigation | Owner |
 | --- | --- | --- | --- | --- |
 | G-1 | **No clinician interview** | Loses part of JC-3 (20 pts) | Ground in published SATS/OPD workflow; declare the gap in README + EVALS; attempt one call before Day 5 | build |
-| G-2 | **RAM ceiling (6.9 GB, ~1.4 GB free)** — 7B model will not fit | BW-5 at risk | Target 3B quantised; 1.5B fallback; small context; documented in DECISIONS.md D3 | build |
+| G-2 | **RAM ceiling (~6.9 GB total, low headroom)** — a 4B may not fit without freeing memory | BW-5 at risk | Use the installed `qwen3.5:4b`; Phase-1 **measured** RAM check; smaller-Qwen fallback; small context; documented in DECISIONS.md D3 | build |
 | G-3 | **Host Python is 3.14** | Dependency wheels may be missing | Pin Python 3.12 via `uv` | build |
 | G-4 | **Borrowed MCP server availability** (reference SQLite server may be archived) | BW-3 at risk | **Confirmed (Oct 2026):** maintained SQLite MCP servers exist (Node.js `npx` + Python SDK). Verify current MCP spec (2026-07-28) compatibility before Day 2 | build |
 | G-5 | **Multi-step tool-calling reliability on a small CPU model** | JC-1 at risk | Explicit graph instead of free ReAct; structured/constrained output | build |

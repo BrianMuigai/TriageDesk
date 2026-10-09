@@ -128,7 +128,7 @@ Each maps to a judging criterion (see `REQUIREMENTS.md` → Judging criteria).
 | --- | --- | --- |
 | Team | **Solo** | Scope discipline is a scored skill; no parallel workstreams. |
 | Window | **~6 days** (today Oct 9 → deadline Oct 15) | Aggressive front-loading; freeze early. |
-| Compute | **Local CPU, ~6.9 GB total RAM, ~1.4 GB free** | A 7B model will **not** fit. Target a 3B quantised model; 1.5B fallback. |
+| Compute | **Local CPU, ~6.9 GB total RAM, low headroom** | Use the installed **`qwen3.5:4b`**; Phase 1 measures RAM fit; smaller Qwen fallback otherwise. |
 | Runtime | Python 3.12 (interpreter managed by `uv`) | Avoids wheel gaps on the host's Python 3.14. |
 | Languages | English only | Keeps prompt/eval surface small. |
 | Clinical access | **Not guaranteed** | Fit-to-desk validated from literature; gap declared honestly. |

@@ -146,9 +146,9 @@ independent.
 | Choice | Value | Note |
 | --- | --- | --- |
 | Orchestration | **LangGraph** | Open source; `interrupt()` maps to the gate |
-| Model | **Qwen2.5-1.5B-Instruct (Q4)** via Ollama | Primary (fits ~6.9 GB RAM); 3B opt-in only if measured to fit |
+| Model | **`qwen3.5:4b`** via Ollama (installed) | Phase 1 measures RAM fit; smaller Qwen fallback otherwise |
 | Runner | `uv`, Python 3.12 | Avoids host Python 3.14 wheel gaps |
-| Output contract | structured JSON via Ollama `format=<schema>` | More reliable than native tool-calling at 1.5B–3B on CPU |
+| Output contract | structured JSON via Ollama `format=<schema>` | More reliable than native tool-calling on small CPU models |
 
 See `DECISIONS.md` for rationale on every choice above.
 
