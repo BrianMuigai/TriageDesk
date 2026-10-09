@@ -1,19 +1,20 @@
 ---
-gsd_state_version: "1.0"
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
 current_phase: 1
 current_phase_name: SATS Foundations & Risk Retirement
 status: executing
-stopped_at: Phase 1 context gathered
-last_updated: "2026-10-09T10:53:59.632Z"
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-10-09T12:01:20.805Z"
 last_activity: 2026-10-09
 last_activity_desc: Phase 1 execution started
-state_head: 31399425fb3fc13ff91da78d6ca281e4b354a874
 progress:
-  total_phases: 5
+  total_phases: 1
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+state_head: 31399425fb3fc13ff91da78d6ca281e4b354a874
 ---
 
 # Project State
@@ -28,15 +29,16 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 ## Current Position
 
 Phase: 1 (SATS Foundations & Risk Retirement) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 1
+Plan: 2 of 4
+Status: Ready to execute
 Last activity: 2026-10-09 — Phase 1 execution started
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 25%
 
 ## Performance Metrics
 
 **Velocity:**
+
 - Total plans completed: 0
 - Average duration: —
 - Total execution time: 0.0 hours
@@ -48,10 +50,16 @@ Progress: [░░░░░░░░░░] 0%
 | - | - | - | - |
 
 **Recent Trend:**
+
 - Last 5 plans: —
 - Trend: —
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 1 P1 | 64 | 3 tasks | 20 files |
 
 ## Accumulated Context
 
@@ -64,6 +72,9 @@ Recent decisions affecting current work:
 - [Roadmap]: The approval gate is protected as Phase 3's phase goal — not a sub-task of graph wiring.
 - [Roadmap]: Phase 1 owns retirement of both Day-1 risks (local-model structured output; MCP beta-adapter / borrowed-server handshake).
 - [Roadmap]: Deterministic scorer/owned tools (Phase 2) split from graph + safety wiring (Phase 3) so the scorer is proven before anything calls it.
+- [Phase 1]: Model default: qwen2.5:1.5b selected on measured evidence (qwen3.5:4b left ~600MB available RAM, warm 43.0s vs 14.8s); qwen3.5:4b is the verified fallback and both ran end-to-end (SC3).
+- [Phase 1]: MCP adapter target must be a Path, not a bare string (a string is parsed as a URL and refuses to launch the owned stdio server).
+- [Phase 1]: Schema plausible-range bounds are distinct from SATS TEWS bands; the latter live only in data/sats_tews.yaml (CONVENTIONS 1).
 
 ### Pending Todos
 
@@ -86,6 +97,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T08:28:28.857Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-sats-foundations-risk-retirement/01-CONTEXT.md
+Last session: 2026-10-09T12:01:20.792Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None
