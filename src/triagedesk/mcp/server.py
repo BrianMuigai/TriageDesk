@@ -32,8 +32,17 @@ def normalize_case(raw_note: str) -> ExtractionResult:
     Single-purpose and contract-typed: it returns the one shared
     ``ExtractionResult`` schema (D-14), so the server contract and the model
     contract cannot drift. Read-only — it never writes to the queue (D-06).
+
+    The model may only *structure* a note; it may not choose a discriminator
+    outside the closed set. Model-returned ids are therefore filtered to the
+    declared set (unknown ids dropped) and ``no_discriminator_matched`` is set
+    when nothing survives (T-02-11). Missing vitals stay ``None`` — never imputed.
     """
-    return extract(raw_note)
+    result = extract(raw_note)
+    ids = matcher.validate_discriminator_ids(result.matched_discriminator_ids)
+    return result.model_copy(
+        update={"matched_discriminator_ids": ids, "no_discriminator_matched": not ids}
+    )
 
 
 @server.tool()

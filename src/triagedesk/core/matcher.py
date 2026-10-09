@@ -73,3 +73,17 @@ def match_discriminators(complaint: str) -> MatchResult:
             warning=substrate.no_match.warning,
         )
     return MatchResult(matched_ids=sorted(matched), no_match=False, warning=None)
+
+
+def validate_discriminator_ids(ids: list[str]) -> list[str]:
+    """Filter *ids* to the closed discriminator set, dropping any unknown id (D-06).
+
+    The ONE authority for constraining model-returned ids: a caller (e.g. the
+    owned ``normalize_case`` tool) may not trust the model's id list, so ids that
+    are not declared in ``data/sats_discriminators.yaml`` are dropped rather than
+    passed downstream (T-02-11). The result is deduplicated and sorted, so
+    repeated identical model output yields an identical constrained list — the
+    matcher never invents an id.
+    """
+    closed = {discriminator.id for discriminator in get_discriminators().discriminators}
+    return sorted({id_ for id_ in ids if id_ in closed})
