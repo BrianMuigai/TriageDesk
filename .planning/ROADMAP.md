@@ -19,7 +19,7 @@ phases, coarse granularity, each one a vertical slice verifiable on its own.
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: SATS Foundations & Risk Retirement** - Rule substrate, typed schema, scaffold; retire the model and MCP unknowns on evidence
+- [x] **Phase 1: SATS Foundations & Risk Retirement** - Rule substrate, typed schema, scaffold; retire the model and MCP unknowns on evidence
 - [ ] **Phase 2: Deterministic Scorer & Own MCP Server** - Pure cited scorer + the five contracted owned tools
 - [ ] **Phase 3: Approval Gate, Gated Commit & Safety Spine** - The gate that refuses to commit without a named approver, plus audit and borrowed persistence
 - [ ] **Phase 4: Evaluation, Recovery & Honest Failure** - Enforcing 14-case × 3-run evaluation with one declared failure
@@ -101,7 +101,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. SATS Foundations & Risk Retirement | 0/4 | Not started | - |
+| 1. SATS Foundations & Risk Retirement | 4/4 | Complete | 2026-10-09 |
 | 2. Deterministic Scorer & Own MCP Server | 0/TBD | Not started | - |
 | 3. Approval Gate, Gated Commit & Safety Spine | 0/TBD | Not started | - |
 | 4. Evaluation, Recovery & Honest Failure | 0/TBD | Not started | - |
