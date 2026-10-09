@@ -1,0 +1,282 @@
+"""Report proof: direction split, sole source, reproducibility, cost (Plan 04-04, EVAL-04/05).
+
+Offline and deterministic (the local model is never called). Six behaviours:
+
+1. a crafted report with one under-triage and one over-triage reports both SEPARATELY,
+   with the correct case in each direction (EVAL-04, D-03);
+2. the direction is derived from the loaded substrate ordering — a crafted ordering change
+   moves a case's direction with no code change (CONVENTIONS §1);
+3. the report carries latency p50/p95 and token in/out totals, and a report missing them
+   fails the analysis (EVAL-05);
+4. ``report_digest`` recomputes from the non-volatile content and a mutated outcome
+   changes it (reproducibility, D-08);
+5. the generator is idempotent and every number it writes equals the value in the report
+   (the report is the sole source; no hand-entered number);
+6. the declared failure is present in the generated output and is NOT counted as a pass
+   (honesty, D-04).
+"""
+
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+from types import ModuleType
+
+import pytest
+
+from triagedesk.evals.analysis import analyse, colour_urgency
+from triagedesk.evals.report import (
+    GateResult,
+    Mode,
+    Provenance,
+    Report,
+    ReportCase,
+    compute_report_digest,
+)
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+GENERATOR_PATH = REPO_ROOT / "scripts" / "emit_evals.py"
+
+_ALL_INVARIANTS = {"INV-1": True, "INV-2": True, "INV-3": True, "INV-4": True}
+
+
+def _load_generator() -> ModuleType:
+    """Load ``scripts/emit_evals.py`` as a module (it is a script, not a package)."""
+    spec = importlib.util.spec_from_file_location("emit_evals", GENERATOR_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_EMIT = _load_generator()
+
+# A minimal EVALS.md carrying the three tables the generator rewrites. The narrative
+# cells are placeholders here; only the result cells are asserted on.
+_TEMPLATE = """# EVALS — test fixture
+
+## 3. Reliability metrics
+
+| Metric | Definition | How reported |
+| --- | --- | --- |
+| Colour accuracy | x | per case |
+| Error direction | x | aggregate |
+| Citation completeness | x | per case |
+| Safety invariants | x | per case |
+| Colour stability | x | per case |
+| Field stability | x | per case |
+| Latency | x | aggregate |
+| Cost per run | x | aggregate |
+
+## 4. Test cases
+
+| # | Case | Synthetic input (vitals / complaint) | Expected | Pass criteria | Runs (3×) | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| E-01 | Routine | input | **GREEN** | criteria | TBD | ⛔ |
+| E-09 | Vague | input | **ORANGE (expected)** | expected to fail | TBD | ⛔ |
+
+## 5. Safety invariant checks (every case, every run)
+
+| Invariant | Check | Result |
+| --- | --- | --- |
+| INV-1 | check | TBD |
+| INV-2 | check | TBD |
+| INV-3 | check | TBD |
+| INV-4 | check | TBD |
+"""
+
+
+def _report_case(
+    case_id: str,
+    expected: str,
+    outcomes: list[str],
+    *,
+    colour_stable: bool = True,
+    field_stable: bool = True,
+    latency_s: tuple[float, ...] = (0.1, 0.2, 0.3),
+    tokens_in: int = 10,
+    tokens_out: int = 5,
+    declared_failure: bool = False,
+    passed: bool | None = None,
+) -> ReportCase:
+    """A synthetic report case carrying only the facts the analyser/generator read."""
+    return ReportCase(
+        case_id=case_id,
+        expected=expected,
+        runs=len(outcomes),
+        colours=list(outcomes),
+        outcomes=list(outcomes),
+        colour_stable=colour_stable,
+        field_stable=field_stable,
+        invariants=dict(_ALL_INVARIANTS),
+        invariants_pass=True,
+        passed=passed if passed is not None else all(o == expected for o in outcomes),
+        latency_s=list(latency_s),
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+        declared_failure=declared_failure,
+    )
+
+
+def _report(cases: list[ReportCase], *, runs: int = 3, mode: Mode = "offline") -> Report:
+    """A synthetic report wrapping *cases* with a valid provenance block."""
+    return Report(
+        mode=mode,
+        runs=runs,
+        cases_dir="evals/cases",
+        provenance=Provenance(
+            model_tag="test-model",
+            ollama_version="test",
+            prompt_hash="prompt",
+            sats_tews_hash="tews",
+            sats_discriminators_hash="discriminators",
+            harness_commit="commit",
+        ),
+        cases=cases,
+        invariants=dict(_ALL_INVARIANTS),
+        gate=GateResult(passed=True),
+    )
+
+
+def _cell(output: str, row_prefix: str, index: int) -> str:
+    """The *index*-th cell (from the right) of the table row starting with *row_prefix*."""
+    row = next(line for line in output.splitlines() if line.startswith(row_prefix))
+    return row.split("|")[index].strip()
+
+
+# ------------------------------------------------- 1. separate under/over directions (D-03)
+
+
+def test_under_and_over_triage_are_reported_separately() -> None:
+    """One under-triage and one over-triage are reported on their own sides (EVAL-04)."""
+    report = _report(
+        [
+            _report_case("U", "ORANGE", ["GREEN"] * 3),  # measured below expected
+            _report_case("O", "GREEN", ["ORANGE"] * 3),  # measured above expected
+            _report_case("C", "YELLOW", ["YELLOW"] * 3),  # correct
+        ]
+    )
+    analysis = analyse(report)
+    assert analysis.under_triage == ["U"]
+    assert analysis.under_triage_count == 3
+    assert analysis.over_triage == ["O"]
+    assert analysis.over_triage_count == 3
+    # The two directions are NOT collapsed into one symmetric figure.
+    assert analysis.colour_correct == 3
+    assert analysis.colour_runs == 9
+
+
+# ------------------------------------------ 2. direction derives from the substrate (§1)
+
+
+def test_direction_is_derived_from_the_substrate_ordering() -> None:
+    """A crafted ordering change moves a case's direction with no code change (§1)."""
+    report = _report([_report_case("X", "YELLOW", ["ORANGE"])])
+
+    # The default ordering is the loaded substrate (GREEN < YELLOW < ORANGE < RED).
+    default = analyse(report)
+    assert default.over_triage == ["X"], "ORANGE should be more urgent than YELLOW"
+    assert default.under_triage == []
+
+    # A crafted ordering (as a substrate edit would produce) with ORANGE less urgent than
+    # YELLOW flips the direction — proving the split is data-derived, not hard-coded.
+    flipped = analyse(report, urgency={"GREEN": 0, "ORANGE": 1, "YELLOW": 2, "RED": 3})
+    assert flipped.under_triage == ["X"]
+    assert flipped.over_triage == []
+
+
+def test_colour_urgency_reads_the_substrate_ordering() -> None:
+    """The default ordering is strictly increasing across the loaded colour bands."""
+    urgency = colour_urgency()
+    ordered = sorted(urgency, key=lambda colour: urgency[colour])
+    assert len(ordered) >= 4
+    assert urgency[ordered[0]] < urgency[ordered[-1]]
+
+
+# --------------------------------------------- 3. latency + cost present, missing fails
+
+
+def test_report_carries_latency_and_cost_and_fails_when_missing() -> None:
+    """Latency p50/p95 and token totals are present; a report missing them fails (EVAL-05)."""
+    report = _report(
+        [
+            _report_case(
+                "A", "GREEN", ["GREEN"], latency_s=(0.1, 0.2, 0.3), tokens_in=7, tokens_out=3
+            ),
+            _report_case("B", "GREEN", ["GREEN"], latency_s=(0.4,), tokens_in=5, tokens_out=2),
+        ]
+    )
+    analysis = analyse(report)
+    assert analysis.latency_p50 == pytest.approx(0.2)
+    assert analysis.latency_p95 == pytest.approx(0.4)
+    assert analysis.tokens_in == 12
+    assert analysis.tokens_out == 5
+
+    # A report with no latency samples cannot be analysed.
+    missing = _report([_report_case("C", "GREEN", ["GREEN"], latency_s=())])
+    with pytest.raises(ValueError):
+        analyse(missing)
+
+
+# --------------------------------------------- 4. report_digest reproducibility (D-08)
+
+
+def test_report_digest_recomputes_and_detects_a_mutation() -> None:
+    """The digest recomputes from the non-volatile content; a mutation changes it (D-08)."""
+    report = _report([_report_case("A", "GREEN", ["GREEN"] * 3)])
+    sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
+    assert compute_report_digest(sealed) == sealed.report_digest
+
+    mutated_case = sealed.cases[0].model_copy(update={"outcomes": ["RED", "GREEN", "GREEN"]})
+    mutated = sealed.model_copy(update={"cases": [mutated_case]})
+    assert compute_report_digest(mutated) != sealed.report_digest
+
+
+# ------------------------------- 5. generator idempotent + the report is the sole source
+
+
+def test_generator_is_idempotent_and_the_report_is_the_sole_source() -> None:
+    """Rendering twice is byte-identical and every written number comes from the report."""
+    report = _report(
+        [
+            _report_case(
+                "E-01",
+                "GREEN",
+                ["GREEN"] * 3,
+                latency_s=(0.1, 0.2, 0.3),
+                tokens_in=11,
+                tokens_out=4,
+            )
+        ]
+    )
+    sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
+
+    first = _EMIT.render_evals(_TEMPLATE, sealed)
+    second = _EMIT.render_evals(first, sealed)
+    assert first == second, "the generator is not idempotent"
+
+    # The §4 result cell equals the report's own ``passed`` value — not a hand-entered one.
+    assert _cell(first, "| E-01 ", -2) == "\u2705"
+    # The §3 measured cells equal the report's own totals.
+    assert "in 11 · out 4 tokens" in first
+
+    # A tampered report (digest does not recompute) is refused.
+    tampered = sealed.model_copy(update={"report_digest": "deadbeef"})
+    with pytest.raises(ValueError):
+        _EMIT.validate_report(tampered)
+
+
+# ------------------------------------------- 6. the declared failure is shown, not hidden
+
+
+def test_declared_failure_is_shown_and_not_counted_as_a_pass() -> None:
+    """E-09 is rendered failing (never a pass) and the under-triage is surfaced (D-04)."""
+    report = _report(
+        [_report_case("E-09", "ORANGE", ["GREEN"] * 3, declared_failure=True, passed=False)]
+    )
+    sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
+    output = _EMIT.render_evals(_TEMPLATE, sealed)
+
+    assert _cell(output, "| E-09 ", -2) == "\u274c", "the declared failure was shown as a pass"
+    # The dangerous direction is explicit, not hidden behind an average.
+    assert "under-triage 3" in output
