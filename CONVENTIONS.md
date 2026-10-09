@@ -17,7 +17,11 @@
 | Tool contracts | one declaration per tool | MCP server + graph share it |
 | Design detail | this file + root docs | `.planning/` and root docs **link**, never duplicate |
 
-Any TEWS threshold, discriminator string, or citation that appears in more than one place is a defect.
+Any TEWS threshold, discriminator string, or citation that appears in more than one place **in code or at
+runtime** is a defect. This rule is scoped to code + runtime: `data/*.yaml` is the machine authority and no
+SATS value may be re-derived or inlined under `src/`. `docs/SATS.md` is the human-readable transcription
+reference derived from the same manual; it is never imported at runtime and is excluded from this gate by
+design.
 
 ## 2. SOLID — applied to this codebase
 
@@ -41,12 +45,12 @@ Any TEWS threshold, discriminator string, or citation that appears in more than 
 | --- | --- |
 | **plan-check** | Every plan cites how it respects DRY/SOLID; reject plans that duplicate logic or create god-nodes. |
 | **code review** | Flag duplicated logic, responsibility leaks, and hard-coded SATS values outside `data/`. |
-| **verifier** | Confirm no SATS band/discriminator/citation appears outside its single source of truth. |
+| **verifier** | Confirm no SATS band/discriminator/citation appears outside its single source of truth **in code or at runtime** (`data/*.yaml` is authoritative; `docs/SATS.md` is the human-readable reference and is excluded by design). |
 | **transition** | A violation is a blocker, not a nit. |
 
 ## 4. Rejected anti-patterns
 
-- Duplicated TEWS thresholds or colour bands anywhere outside `data/`.
+- Duplicated TEWS thresholds or colour bands anywhere in code or at runtime outside `data/` (`docs/SATS.md` is the human-readable reference, not a code source).
 - A "god" graph node that normalizes, scores, gates, and writes.
 - A tool that both scores **and** writes to the queue (violates SRP **and** the safety gate).
 - Copy-pasted citation strings instead of the shared helper.

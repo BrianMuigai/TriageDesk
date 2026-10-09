@@ -123,6 +123,11 @@ paediatric or otherwise out-of-scope presentation it **abstains and escalates to
 The **deterministic scorer** (`score_priority`) reads the YAML and returns, for any case, the colour,
 the TEWS total, the list of triggered rules, and a citation per rule. The model never overrides these.
 
+> **Scope note.** This file is the **human-readable transcription reference** for the tables above, derived
+> from the same SATS manual. It is **never imported at runtime**; `data/*.yaml` is the machine authority.
+> The "single source of truth" gate (CONVENTIONS §1) is scoped to **code + runtime**, so this reference and
+> the YAML are the same clinical facts in human/machine form — not a duplication defect.
+
 ## 8. Citations
 
 - SATS Training Manual 2012, Emergency Medicine Society of South Africa (EMSSA).

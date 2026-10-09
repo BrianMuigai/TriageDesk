@@ -697,27 +697,38 @@ Budget ~1 day (`STACK.md:153`).
 **Note:** A4 is `[CITED: github.com/jparkerweb/mcp-sqlite README]` but not confirmed against the running
 server this session — verify in the spike.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Is the 4B within budget, or must the fallback be pulled?**
+All four questions below are resolved by the Phase-1 plans; each carries its resolution and the plan/task
+that implements it.
+
+1. **Is the 4B within budget, or must the fallback be pulled?** — **RESOLVED (Plan 01, task 2).** The plan
+   implements this as an **in-plan measurement gate**: `scripts/spike_model.py` measures RAM/latency on
+   `qwen3.5:4b`, and the smaller-Qwen fallback is pulled and run end-to-end **unconditionally** as Plan-B
+   evidence, so Roadmap SC3 is satisfied regardless of the gate's outcome. The gate only decides which model
+   is the *default*.
    - What we know: warm ~21 s, ~0.5 GB available with the model loaded, server dropped a connection under load.
-   - What's unclear: whether a lighter `num_ctx` or freeing background RAM restores headroom; whether the
-     fallback model even fits better.
-   - Recommendation: run `scripts/spike_model.py` first; treat the result as a **gate**; if it fails,
-     `ollama pull` a smaller Qwen and re-run before writing the plan's model decision.
+   - Recommendation adopted: run `scripts/spike_model.py` first; treat the result as a **gate**; the fallback
+     is run end-to-end either way.
 
-2. **Which protocol era does the borrowed server speak, and does one `MCPConfig` work?**
+2. **Which protocol era does the borrowed server speak, and does one `MCPConfig` work?** — **RESOLVED
+   (Plan 03, spike task).** The plan spikes **two separate adapter contexts** (never one merged `MCPConfig`),
+   which keeps the modern owned server and the legacy borrowed server on their own protocol eras and avoids
+   era collapse. If the borrowed handshake still fails after the `rusq/mcp-sqlite` alternative, the documented
+   one-module World-B fallback is triggered.
    - What we know: `MCPConfig` collapses the fleet to one era; `ClientGroup` keeps them separate.
-   - What's unclear: whether `mcp-sqlite@1.0.9` negotiates cleanly at all with FastMCP 4.
-   - Recommendation: spike both wiring shapes; prefer **two adapters / `ClientGroup`** to avoid era collapse.
+   - Recommendation adopted: two adapters; prefer **two adapters / `ClientGroup`** to avoid era collapse.
 
-3. **Does the Phase-1 spike need `create_agent`, or only `list_tools` + a tool call?**
-   - What we know: D-07 requires "tool-list + one tool call"; `create_agent` needs a LangChain chat model.
-   - Recommendation: scope to `list_tools` + direct tool call; defer `create_agent`/`langchain-ollama` to Phase 3.
+3. **Does the Phase-1 spike need `create_agent`, or only `list_tools` + a tool call?** — **RESOLVED
+   (Plans 01 + 03).** The plans scope the spike to `list_tools` + direct tool invocation; `create_agent` and
+   `langchain-ollama` are deferred to Phase 3, matching D-07 ("tool-list + one tool call").
+   - Recommendation adopted: scope to `list_tools` + direct tool call.
 
-4. **What is the canonical key order for the SATS `data/*.yaml` hashes (SAFE-04)?**
-   - Recommendation: one `core/hashing.py` using `json.dumps(..., sort_keys=True)` + UTF-8 bytes; hash the
-     loader's *normalised* output, not the raw file bytes, so comments/whitespace edits don't churn hashes.
+4. **What is the canonical key order for the SATS `data/*.yaml` hashes (SAFE-04)?** — **RESOLVED (Plan 04,
+   task 1).** `core/hashing.py` serialises the loader's *normalised* output with `sort_keys=True` + a fixed
+   UTF-8 encoding before `sha256`; raw file bytes are never hashed, so comment/whitespace edits do not churn
+   the hash.
+   - Recommendation adopted: one `core/hashing.py` using `json.dumps(..., sort_keys=True)` + UTF-8 bytes.
 
 ## Environment Availability
 
