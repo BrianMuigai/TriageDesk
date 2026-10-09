@@ -19,7 +19,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from triagedesk.core.schema import CaseInput, ExtractionResult
-from triagedesk.evals.case import CaseSpec
+from triagedesk.evals.case import CaseSpec, FaultInjection
 from triagedesk.evals.usage import UsageRecorder, recorded_extract
 from triagedesk.mcp import server as server_module
 
@@ -50,6 +50,30 @@ def recorded_extract_seam(recorder: UsageRecorder) -> Iterator[None]:
         namespace["extract"] = original
 
 
+def _injected_normalize(
+    inner: Callable[[Mapping[str, Any]], Awaitable[Any]], inject: FaultInjection
+) -> Callable[[Mapping[str, Any]], Awaitable[Any]]:
+    """Wrap a ``normalize_case`` callable with the declared E-12 fault (Pitfall 13).
+
+    The wrapper is built fresh inside :func:`build_tools` for one case and one run, so
+    the injected fault is torn down with that case's tool mapping and can never leak into
+    another case (T-04-09). When declared, the FIRST call raises a timeout and the NEXT
+    returns unparseable text, so the graph's bounded retry is exhausted and its
+    deterministic fallback is exercised — the real retry path, not a simulation.
+    """
+    state = {"calls": 0}
+
+    async def injected(inp: Mapping[str, Any]) -> Any:
+        state["calls"] += 1
+        if inject.tool_timeout and state["calls"] == 1:
+            raise TimeoutError("injected tool timeout")
+        if inject.malformed_json:
+            return "{malformed json"
+        return await inner(inp)
+
+    return injected
+
+
 def build_tools(case: CaseSpec, *, offline: bool, recorder: UsageRecorder) -> dict[str, Any]:
     """Build the harness tool mapping for one case (D-13).
 
@@ -58,6 +82,9 @@ def build_tools(case: CaseSpec, *, offline: bool, recorder: UsageRecorder) -> di
     call). The injected ``recorder`` is unused here directly — the caller patches the
     server's ``extract`` with it via :func:`recorded_extract_seam` — but it is threaded
     through so the mapping is built from the same per-run recorder the seam uses.
+
+    When the case declares ``inject``, the ``normalize_case`` callable is wrapped with
+    the fault (T-04-09) so the graph's real bounded retry and deterministic fallback run.
     """
     del recorder  # the seam is applied by the caller; kept in the signature for symmetry
 
@@ -67,6 +94,12 @@ def build_tools(case: CaseSpec, *, offline: bool, recorder: UsageRecorder) -> di
         if offline:
             return ExtractionResult(case=case.case, matched_discriminator_ids=[])
         return await server_module.normalize_case(str(inp["raw_note"]))
+
+    normalize = (
+        normalize_case
+        if case.inject is None
+        else _injected_normalize(normalize_case, case.inject)
+    )
 
     async def match_discriminators(inp: Mapping[str, Any]) -> Any:
         return await server_module.match_discriminators(str(inp["complaint"]))
@@ -88,7 +121,7 @@ def build_tools(case: CaseSpec, *, offline: bool, recorder: UsageRecorder) -> di
         )
 
     return {
-        "normalize_case": normalize_case,
+        "normalize_case": normalize,
         "match_discriminators": match_discriminators,
         "score_priority": score_priority,
         "raise_recheck_flag": raise_recheck_flag,

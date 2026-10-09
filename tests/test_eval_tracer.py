@@ -65,8 +65,13 @@ def _alternating_factory(mutate: Mutator) -> ToolFactory:
     return factory
 
 
-async def _run_e02(tmp_path: Path, **kwargs: Any) -> Report:
-    """Run the E-02 fixture offline and return the parsed report."""
+async def _run_e02(tmp_path: Path, *, expect_code: int = 0, **kwargs: Any) -> Report:
+    """Run the E-02 fixture offline and return the parsed report.
+
+    ``expect_code`` is the runner's exit code the caller expects: a stable pass is 0,
+    while an injected colour/matched-set instability is a non-zero recorded failure
+    (D-02, T-04-08).
+    """
     report_path = tmp_path / "report.json"
     code = await run_eval(
         cases_dir=CASES_DIR,
@@ -76,7 +81,7 @@ async def _run_e02(tmp_path: Path, **kwargs: Any) -> Report:
         case_filter="E-02",
         **kwargs,
     )
-    assert code == 0
+    assert code == expect_code
     return Report.model_validate_json(report_path.read_text(encoding="utf-8"))
 
 
@@ -110,10 +115,12 @@ async def test_unstable_colour_is_recorded_not_averaged(tmp_path: Path) -> None:
     factory = _alternating_factory(
         lambda result, _run: result.model_copy(update={"colour": "GREEN"})
     )
-    report = await _run_e02(tmp_path, tool_factory=factory)
+    # An unstable colour is a recorded failure, so the run exits non-zero (T-04-08).
+    report = await _run_e02(tmp_path, expect_code=1, tool_factory=factory)
     case = report.cases[0]
 
     assert case.colour_stable is False
+    assert case.passed is False
     # All three colours are preserved — the odd one out is not hidden behind a majority.
     assert case.colours == ["ORANGE", "ORANGE", "GREEN"]
     assert len(set(case.colours)) == 2

@@ -52,27 +52,58 @@ def _capture(result: Any, payload: dict[str, Any] | None) -> dict[str, Any]:
 
     Reads the graph's own channels — never re-derives a colour or re-scores. When the run
     paused at the gate, the payload is the source (the colour and the evidence the
-    clinician saw); otherwise the terminal state is read directly.
+    clinician saw); otherwise the terminal state is read directly. The graph's terminal
+    channels (``recovery``/``escalation``/``second_look``) are captured too, so the runner
+    can map a first-class outcome without re-deriving one (ORCH-05).
     """
+    recovery = result.get("recovery")
+    escalation = result.get("escalation")
+    second_look = result.get("second_look")
     if payload is not None:
-        return {
-            "colour": payload.get("colour"),
-            "citations": list(payload.get("citations") or []),
-            "triggered_rules": list(payload.get("triggered_rules") or []),
-            "matched_ids": list(payload.get("matched_ids") or []),
-        }
-    priority = result.get("priority")
-    triggered = (
-        [rule.model_dump(mode="json") for rule in priority.triggered_rules]
-        if priority is not None
-        else []
-    )
+        colour = payload.get("colour")
+        citations = list(payload.get("citations") or [])
+        triggered = list(payload.get("triggered_rules") or [])
+        matched = list(payload.get("matched_ids") or [])
+    else:
+        priority = result.get("priority")
+        triggered = (
+            [rule.model_dump(mode="json") for rule in priority.triggered_rules]
+            if priority is not None
+            else []
+        )
+        colour = priority.colour if priority is not None else None
+        citations = list(priority.citations) if priority is not None else []
+        matched = list(result.get("matched_ids") or [])
     return {
-        "colour": priority.colour if priority is not None else None,
-        "citations": list(priority.citations) if priority is not None else [],
+        "colour": colour,
+        "citations": citations,
         "triggered_rules": triggered,
-        "matched_ids": list(result.get("matched_ids") or []),
+        "matched_ids": matched,
+        "recovery": recovery is not None,
+        "escalation": escalation is not None,
+        "second_look": (
+            second_look.model_dump(mode="json") if second_look is not None else None
+        ),
     }
+
+
+def _outcome(captured: dict[str, Any], expected: str) -> str | None:
+    """Map one run's graph terminal state to a first-class outcome (EVALS §4).
+
+    Precedence, reading the graph's own terminals — never a re-derived colour: a set
+    ``escalation`` -> ``ABSTAIN``; a set ``recovery`` -> ``RECOVER``; a set ``second_look``
+    flag for a case whose declared expectation is ``RECHECK`` -> ``RECHECK``; otherwise the
+    scored colour from the gate payload.
+    """
+    if captured["escalation"]:
+        return "ABSTAIN"
+    if captured["recovery"]:
+        return "RECOVER"
+    second_look = captured["second_look"]
+    if second_look is not None and second_look.get("flag") and expected == "RECHECK":
+        return "RECHECK"
+    colour: str | None = captured["colour"]
+    return colour
 
 
 def _checkpointer() -> InMemorySaver:
@@ -131,22 +162,32 @@ async def _run_case(
         tokens_out += run_out
 
     colours = [captured["colour"] for captured in captures]
+    outcomes = [_outcome(captured, case.expected) for captured in captures]
     matched = [sorted(captured["matched_ids"]) for captured in captures]
     citations = [captured["citations"] for captured in captures]
     triggered = [captured["triggered_rules"] for captured in captures]
+
+    colour_stable = len(set(colours)) == 1
+    matched_set_stable = len({tuple(ids) for ids in matched}) == 1
 
     return ReportCase(
         case_id=case.id,
         expected=case.expected,
         runs=runs,
         colours=colours,
+        outcomes=outcomes,
         matched_discriminators=matched,
         citations=citations,
-        colour_stable=len(set(colours)) == 1,
-        matched_set_stable=len({tuple(ids) for ids in matched}) == 1,
+        colour_stable=colour_stable,
+        matched_set_stable=matched_set_stable,
         field_stable=(
             all(citation == citations[0] for citation in citations)
             and all(rules == triggered[0] for rules in triggered)
+        ),
+        passed=(
+            all(outcome == case.expected for outcome in outcomes)
+            and colour_stable
+            and matched_set_stable
         ),
         latency_s=latency_s,
         tokens_in=tokens_in,
@@ -170,8 +211,12 @@ async def run_eval(
     ``store`` injects the store the gated commit resolves (default: a fresh in-memory
     store, so no borrowed subprocess is launched); ``tool_factory`` injects the tool
     mapping (default: the real owned tools, model stubbed offline). Both are seams for
-    the proof suite (SOLID: D). For this plan the exit code is always 0; the invariant
-    gate is expanded in a later plan.
+    the proof suite (SOLID: D).
+
+    The exit code is non-zero when any case fails accuracy and is not the declared
+    failure, or when any case's colour or matched-discriminator set is unstable
+    (D-02, T-04-08). The declared failure (E-09) is allowed to fail and keeps the exit
+    code at 0 when it is the only miss; the full invariant gate lands in 04-03.
     """
     cases = load_cases(cases_dir)
     if case_filter is not None:
@@ -198,7 +243,16 @@ async def run_eval(
         cases=report_cases,
     )
     write_report(report_path, report)
-    return 0
+
+    disallowed = [
+        case for case in report_cases if not case.passed and not case.declared_failure
+    ]
+    unstable = [
+        case
+        for case in report_cases
+        if not case.colour_stable or not case.matched_set_stable
+    ]
+    return 1 if disallowed or unstable else 0
 
 
 __all__ = ["ToolFactory", "run_eval"]

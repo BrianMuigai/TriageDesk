@@ -50,19 +50,25 @@ class ReportCase(BaseModel):
 
     ``colours``, ``matched_discriminators`` and ``citations`` are the per-run captures
     (never averaged); the three stability flags are computed SEPARATELY so a stable
-    colour with an unstable citation list is visible (Pitfall 6). ``tokens_in``/
-    ``tokens_out`` are the case's totals across runs; ``latency_s`` is per-run.
+    colour with an unstable citation list is visible (Pitfall 6). ``outcomes`` is the
+    first-class per-run terminal outcome (a colour or RECOVER/ABSTAIN/RECHECK) read from
+    the graph's own terminal state (ORCH-05). ``passed`` is the accuracy verdict: every
+    run's outcome equals ``expected`` AND colour and matched-set are stable.
+    ``tokens_in``/``tokens_out`` are the case's totals across runs; ``latency_s`` is
+    per-run.
     """
 
     case_id: str
     expected: str
     runs: int
     colours: list[str | None] = Field(default_factory=list)
+    outcomes: list[str | None] = Field(default_factory=list)
     matched_discriminators: list[list[str]] = Field(default_factory=list)
     citations: list[list[str]] = Field(default_factory=list)
     colour_stable: bool = False
     matched_set_stable: bool = False
     field_stable: bool = False
+    passed: bool = False
     latency_s: list[float] = Field(default_factory=list)
     tokens_in: int = 0
     tokens_out: int = 0
@@ -145,6 +151,7 @@ def _digest_payload(report: Report) -> dict[str, Any]:
                 "expected": case.expected,
                 "runs": case.runs,
                 "colours": case.colours,
+                "outcomes": case.outcomes,
                 "matched_discriminators": case.matched_discriminators,
                 "citations": case.citations,
                 "colour_stable": case.colour_stable,
