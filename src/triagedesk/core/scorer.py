@@ -18,7 +18,14 @@ from __future__ import annotations
 import math
 
 from triagedesk.core.citations import format_citation
-from triagedesk.core.rules import Band, Parameter, TewsRules, get_tews
+from triagedesk.core.rules import (
+    Band,
+    DiscriminatorCategory,
+    Parameter,
+    TewsRules,
+    get_discriminators,
+    get_tews,
+)
 from triagedesk.core.schema import CaseInput, PriorityResult, TriggeredRule
 
 
@@ -126,6 +133,37 @@ def _colour_for(rules: TewsRules, total: int) -> str:
     raise ValueError(f"no colour band covers TEWS total {total}")
 
 
+def _colour_urgency(rules: TewsRules) -> dict[str, float]:
+    """Map each colour to a data-derived urgency rank (D-01, T-02-08).
+
+    The rank is the colour band's lower TEWS bound from ``data/sats_tews.yaml``:
+    a colour that begins at a higher TEWS total is more urgent (RED > ORANGE >
+    YELLOW > GREEN). The order is derived from the data — no colour token is
+    hard-coded here (CONVENTIONS §1).
+    """
+    return {band.colour: float(band.min) for band in rules.tews_to_colour}
+
+
+def _most_urgent_category(
+    matched_ids: list[str] | None, tews: TewsRules
+) -> tuple[str, DiscriminatorCategory] | None:
+    """The most-urgent discriminator category present among *matched_ids* (D-01).
+
+    Urgency is data-derived (see ``_colour_urgency``), so the most-urgent category
+    present wins independent of input order. Ids that are not in the closed set
+    are ignored, so a caller can never inject a category or a colour (T-02-08).
+    Returns ``None`` when no valid id matched.
+    """
+    disc = get_discriminators()
+    category_of = {d.id: d.category for d in disc.discriminators}
+    present = {category_of[id_] for id_ in (matched_ids or []) if id_ in category_of}
+    if not present:
+        return None
+    urgency = _colour_urgency(tews)
+    winner = max(present, key=lambda name: urgency[disc.categories[name].colour])
+    return winner, disc.categories[winner]
+
+
 def case_field(name: str) -> str:
     """Bind a data parameter key to its schema field name.
 
@@ -186,6 +224,20 @@ def score_priority(
             )
 
     colour = _colour_for(rules, tews)
+    override = _most_urgent_category(matched_discriminator_ids, rules)
+    if override is not None:
+        category_name, category = override
+        urgency = _colour_urgency(rules)
+        if urgency[category.colour] > urgency[colour]:
+            colour = category.colour
+            triggered.append(
+                TriggeredRule(
+                    rule_id=category_name,
+                    detail=f"discriminator override: {category_name} -> {category.colour}",
+                    points=0,
+                    citation=format_citation(category.citation_ref, get_discriminators().citation),
+                )
+            )
     target_time = rules.target_times[colour]
     return PriorityResult(
         colour=colour,
