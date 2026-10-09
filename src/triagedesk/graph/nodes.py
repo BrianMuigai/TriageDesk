@@ -23,10 +23,11 @@ from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
 from langgraph.types import interrupt
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from triagedesk.core.hashing import hash_value
 from triagedesk.core.schema import (
+    CaseInput,
     CommitResult,
     Escalation,
     ExtractionResult,
@@ -45,10 +46,17 @@ ToolMap = Mapping[str, Callable[[Mapping[str, Any]], Awaitable[Any]]]
 # accepts both; the tool-calling nodes are async).
 NodeFn = Callable[[TriageState], Any]
 
+# The bounded extraction retry (ORCH-04, D-03, Pitfall 13): the first attempt plus
+# exactly ONE retry, after which the graph takes the deterministic, model-free path.
+_EXTRACTION_MAX_ATTEMPTS = 2
+
 # The terminal reasons — named once so the recovery/escalation text is not inlined
 # at each call site (DRY).
 _RECOVERY_REASON = "a scored vital is missing; re-measure before scoring"
 _ESCALATION_REASON = "case could not be safely scored; escalating for human review"
+_EXTRACTION_FAILED_REASON = (
+    "extraction failed after the bounded retry and no structured fields were available"
+)
 
 
 def parse_tool_result[ModelT: BaseModel](model: type[ModelT], payload: Any) -> ModelT:
@@ -93,16 +101,50 @@ def ingest(state: TriageState) -> dict[str, Any]:
     return {"raw_note": note, "attempt": 0, "error": None}
 
 
+def _structured_case(state: TriageState) -> CaseInput | None:
+    """Recover a typed case from already-parsed structured fields — no model (D-02).
+
+    The deterministic fallback reads a case that the caller already supplied in the
+    state (``case``), or a raw note that is itself structured JSON. Nothing is
+    invented: if neither is available the caller routes to a safe terminal instead.
+    """
+    existing = state.get("case")
+    if isinstance(existing, CaseInput):
+        return existing
+    raw_note = str(state.get("raw_note") or "")
+    if not raw_note:
+        return None
+    try:
+        return CaseInput.model_validate_json(raw_note)
+    except (ValidationError, ValueError):
+        return None
+
+
 def _make_normalize(tools: ToolMap) -> NodeFn:
-    """Build the ``normalize`` node over the injected tool mapping (D-02)."""
+    """Build the ``normalize`` node over the injected tool mapping (D-02, ORCH-04)."""
 
     async def normalize(state: TriageState) -> dict[str, Any]:
-        """Structure the note through the owned ``normalize_case`` tool (D-02)."""
-        result = parse_tool_result(
-            ExtractionResult,
-            await tools["normalize_case"]({"raw_note": state["raw_note"]}),
-        )
-        return {"case": result.case}
+        """Structure the note through the owned ``normalize_case`` tool (D-02).
+
+        Extraction is bounded: a raised or schema-invalid result is retried exactly
+        once (``_EXTRACTION_MAX_ATTEMPTS``), then the deterministic path takes over —
+        the caller's structured fields if present, else a safe escalation terminal.
+        No path fabricates a value or emits an uncited priority (ORCH-04, Pitfall 13).
+        """
+        raw_note = state["raw_note"]
+        for _ in range(_EXTRACTION_MAX_ATTEMPTS):
+            try:
+                result = parse_tool_result(
+                    ExtractionResult,
+                    await tools["normalize_case"]({"raw_note": raw_note}),
+                )
+            except Exception:  # noqa: BLE001 — the tool boundary is external (model/MCP)
+                continue
+            return {"case": result.case}
+        case = _structured_case(state)
+        if case is not None:
+            return {"case": case}
+        return {"route": "escalate", "error": _EXTRACTION_FAILED_REASON}
 
     return normalize
 

@@ -21,7 +21,8 @@ from typing import Any
 from langgraph.checkpoint.memory import InMemorySaver
 
 from conftest import COMPLETE_CASE, build_graph_tools
-from triagedesk.core.schema import RecoveryRequest
+from triagedesk.core.schema import CaseInput, RecoveryRequest
+from triagedesk.graph import nodes as nodes_module
 from triagedesk.graph.build import build_graph
 
 NOTE = (
@@ -97,3 +98,82 @@ async def test_neither_terminal_calls_commit_priority() -> None:
 
         assert "commit_priority" not in [name for name, _ in calls], thread
         assert result.get("commit_result") is None, thread
+
+
+# ------------------------------------------------------- bounded retry + fallback
+
+
+def _always_failing_normalize(inp: dict[str, Any]) -> Any:
+    """An extraction that always raises — exercises the bounded retry."""
+    raise RuntimeError("extraction tool unavailable")
+
+
+async def test_bounded_extraction_retries_exactly_once() -> None:
+    """A failing extraction is attempted exactly twice (one retry), then bounded (ORCH-04)."""
+    calls: list[tuple[str, Any]] = []
+    tools = build_graph_tools(normalize_impl=_always_failing_normalize, calls=calls)
+    app = build_graph(tools, checkpointer=InMemorySaver())
+
+    await app.ainvoke({"raw_note": NOTE}, _config("retry-once"))
+
+    attempts = [name for name, _ in calls if name == "normalize_case"]
+    assert len(attempts) == nodes_module._EXTRACTION_MAX_ATTEMPTS
+    assert nodes_module._EXTRACTION_MAX_ATTEMPTS == 2, "the retry bound is one retry"
+
+
+async def test_second_invalid_result_uses_the_fallback() -> None:
+    """After the bounded retry, an already-parsed case is scored deterministically (ORCH-04)."""
+    calls: list[tuple[str, Any]] = []
+    tools = build_graph_tools(normalize_impl=_always_failing_normalize, calls=calls)
+    app = build_graph(tools, checkpointer=InMemorySaver())
+
+    # The caller already holds the structured case (the model is unavailable).
+    result = await app.ainvoke(
+        {"raw_note": NOTE, "case": COMPLETE_CASE}, _config("fallback-structured")
+    )
+
+    assert result.get("__interrupt__"), "the fallback did not reach the gate"
+    payload = result["__interrupt__"][0].value
+    assert payload["colour"] is not None
+    assert payload["citations"], "the fallback emitted an uncited priority"
+    assert len(payload["citations"]) == len(payload["triggered_rules"])
+
+
+async def test_fallback_parses_a_structured_raw_note_without_the_model() -> None:
+    """A structured JSON note is parsed deterministically when extraction fails (ORCH-04)."""
+    tools = build_graph_tools(normalize_impl=_always_failing_normalize)
+    app = build_graph(tools, checkpointer=InMemorySaver())
+
+    result = await app.ainvoke(
+        {"raw_note": COMPLETE_CASE.model_dump_json()}, _config("fallback-json")
+    )
+
+    assert result.get("__interrupt__"), "the JSON fallback did not reach the gate"
+
+
+async def test_exhausted_retry_without_a_fallback_escalates() -> None:
+    """A stubborn failure with no structured fallback terminates safely — no priority (ORCH-04)."""
+    calls: list[tuple[str, Any]] = []
+    tools = build_graph_tools(normalize_impl=_always_failing_normalize, calls=calls)
+    app = build_graph(tools, checkpointer=InMemorySaver())
+
+    result = await app.ainvoke({"raw_note": NOTE}, _config("fallback-escalate"))
+
+    assert result.get("escalation") is not None, "did not reach a safe terminal"
+    assert result.get("priority") is None, "no priority may be produced from a failed extraction"
+    assert result.get("commit_result") is None
+    assert "commit_priority" not in [name for name, _ in calls]
+
+
+def test_deterministic_fallback_is_model_free() -> None:
+    """The fallback never imports the model — it reads only typed structured fields (D-02)."""
+    case = nodes_module._structured_case({"case": COMPLETE_CASE})
+    assert case is not None and case.complaint == COMPLETE_CASE.complaint
+    # A non-structured note has no recoverable fields, so the caller must escalate.
+    assert nodes_module._structured_case({"raw_note": NOTE}) is None
+
+
+def test_fallback_case_type_is_the_shared_contract() -> None:
+    """The recovered fallback is the ONE ``CaseInput`` contract (D-14)."""
+    parsed = nodes_module._structured_case({"raw_note": COMPLETE_CASE.model_dump_json()})
+    assert isinstance(parsed, CaseInput)
