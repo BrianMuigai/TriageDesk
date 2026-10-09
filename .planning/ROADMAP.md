@@ -55,7 +55,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The owned MCP server exposes `normalize_case`, `match_discriminators`, `score_priority`, `raise_recheck_flag`, and a gated `commit_priority` stub, each validated against one shared contract.
   4. Every TEWS band edge on both sides, plus unit and boundary cases, is covered by tests; a missing vital is detected and never imputed (score inputs ⊆ nurse-provided fields).
   5. Discriminator matching is a deterministic data lookup with aliases in YAML and an explicit "no match" result, so injected or omitted complaint text cannot change the colour.
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 02-01-PLAN.md — Tracer: typed case → cited score through the owned `score_priority` tool; fail-closed out-of-scope, missing-vital detection, band-edge tests
+- [ ] 02-02-PLAN.md — Deterministic alias matcher (`match_discriminators`) + most-urgent-wins discriminator override; injection/determinism tests
+- [ ] 02-03-PLAN.md — Remaining owned tools: contract-validated `normalize_case`, pure `raise_recheck_flag`, gated `commit_priority` stub
 
 ### Phase 3: Approval Gate, Gated Commit & Safety Spine
 **Goal**: The gate physically refuses to place a patient in the queue without a named clinician's approval — enforced by a LangGraph `interrupt()`, an idempotent approval-keyed commit, a single hash-chained audit interceptor, and borrowed SQLite persistence.
@@ -102,7 +105,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. SATS Foundations & Risk Retirement | 4/4 | Complete | 2026-10-09 |
-| 2. Deterministic Scorer & Own MCP Server | 0/TBD | Not started | - |
+| 2. Deterministic Scorer & Own MCP Server | 0/3 | Planned | - |
 | 3. Approval Gate, Gated Commit & Safety Spine | 0/TBD | Not started | - |
 | 4. Evaluation, Recovery & Honest Failure | 0/TBD | Not started | - |
 | 5. Demo, Docs & Freeze | 0/TBD | Not started | - |
