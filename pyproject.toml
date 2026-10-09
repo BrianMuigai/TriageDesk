@@ -56,6 +56,9 @@ select = ["E", "F", "I", "UP", "B", "TID"]
 # llm/client.py), so the ban is scoped to core/ by disabling TID251 elsewhere.
 [tool.ruff.lint.per-file-ignores]
 "src/triagedesk/llm/**" = ["TID251"]
+# The extraction prompt is a human-readable template: its lines are deliberately long,
+# so the line-length rule does not apply (the prompt bytes are the artefact, SAFE-04).
+"src/triagedesk/llm/prompts.py" = ["E501"]
 "src/triagedesk/mcp/**" = ["TID251"]
 "src/triagedesk/graph/**" = ["TID251"]
 "src/triagedesk/store/**" = ["TID251"]

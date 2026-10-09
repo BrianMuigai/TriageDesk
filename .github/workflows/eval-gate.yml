@@ -1,0 +1,45 @@
+# The eval gate (EVAL-03, D-06, T-04-14): a violating run cannot be merged.
+#
+# The job runs the deterministic, offline eval command, which exits non-zero when ANY
+# safety invariant (INV-1..INV-4) is violated on ANY case or run — or when a non-declared
+# accuracy miss is present. Because the job fails on that exit code, an invariant break
+# gates the build rather than sitting in a document (Pitfall 12).
+#
+# The offline report named here is the deterministic CI gate artefact (a stubbed-model
+# run), NOT the measured report: the real local-model report is produced separately and is
+# never dressed up as a CI result (T-04-01, Pitfall 16).
+name: eval-gate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  eval-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install Python 3.12
+        run: uv python install 3.12
+
+      - name: Install the locked dependencies
+        run: uv sync --locked
+
+      - name: Lint
+        run: uv run ruff check
+
+      - name: Test
+        run: uv run pytest -q
+
+      - name: Eval gate (deterministic, offline)
+        run: >-
+          uv run triagedesk eval
+          --cases evals/cases
+          --runs 3
+          --report evals/results/report.ci.json
+          --offline

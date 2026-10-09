@@ -84,7 +84,7 @@ def _measure(model: str) -> dict:
     cold_s = round(time.time() - t0, 1)
 
     t0 = time.time()
-    warm: ExtractionResult = extract(NOTE, model=model)
+    extract(NOTE, model=model)  # warm run: exercise the loaded model, timing only
     warm_s = round(time.time() - t0, 1)
 
     # extract() raises on empty/unparsable output, so reaching here proves the

@@ -142,17 +142,23 @@ class InvariantReport(BaseModel):
 
 
 async def _check_inv1(evidence: RunEvidence) -> tuple[bool, str]:
-    """INV-1: a scored priority is always sourced; citations match triggered rules."""
+    """INV-1: a scored priority is always sourced; citations match triggered rules.
+
+    The graph's ``verify`` node already refuses to publish a priority that fired a rule
+    without citing it; this is the eval-level assertion of the same contract (SCORE-03).
+    A zero-points priority (all vitals in a 0-point band) fired no rule and has nothing to
+    cite — ``len(citations) == len(triggered_rules)`` still holds (0 == 0).
+    """
     priority = evidence.priority
     if priority is None:
         return True, "no priority was produced"
     if len(priority.citations) != len(priority.triggered_rules):
         return False, (
-            f"priority cites {len(priority.citations)} rules but triggered "
-            f"{len(priority.triggered_rules)}"
+            f"priority cites {len(priority.citations)} citation(s) but triggered "
+            f"{len(priority.triggered_rules)} rule(s)"
         )
-    if not (priority.abstained or priority.out_of_scope) and not priority.citations:
-        return False, "a scored priority carried no citation"
+    if priority.triggered_rules and not priority.citations:
+        return False, "a scored priority fired rules but carried no citation"
     return True, "priority is sourced"
 
 

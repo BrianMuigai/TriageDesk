@@ -19,3 +19,6 @@ venv/
 *.db
 *.db-wal
 *.db-shm
+
+# Deterministic CI gate artefact (a stubbed-model run; never the measured report)
+evals/results/report.ci.json
