@@ -1,0 +1,143 @@
+# Second, independent transcription of the adult SATS chart (D-10).
+#
+# This is a VERIFICATION ARTEFACT, not a runtime authority: it is never imported
+# by code. It is transcribed directly from docs/SATS.md §4-§5 by a different route
+# than data/*.yaml — numeric bands are written as range STRINGS mirroring the
+# manual's table rows (e.g. "<9", ">=30", "35.0-38.4") rather than as explicit
+# min/max bounds — so a slip in either transcription is caught by
+# scripts/transcribe_diff.py, which normalises both to a common form and diffs them.
+#
+# The alias/label lists in data/sats_discriminators.yaml are authored (agent
+# discretion) and are NOT part of the transcription; only the id -> category
+# mapping is a clinical fact and is compared here.
+version: 1
+citation: "SATS Training Manual 2012 (EMSSA) — second independent transcription"
+transcription: B
+
+tews:
+  mobility:
+    unit: null
+    rows:
+      - {points: 0, value: walking}
+      - {points: 1, value: with_help}
+      - {points: 2, value: stretcher}
+  respiratory_rate:
+    unit: breaths/min
+    rows:
+      - {points: 0, range: "9-14"}
+      - {points: 1, range: "15-20"}
+      - {points: 2, range: "21-29"}
+      - {points: 3, range: "<9"}
+      - {points: 3, range: ">=30"}
+  heart_rate:
+    unit: bpm
+    rows:
+      - {points: 0, range: "51-100"}
+      - {points: 1, range: "41-50"}
+      - {points: 1, range: "101-110"}
+      - {points: 2, range: "111-129"}
+      - {points: 3, range: "<41"}
+      - {points: 3, range: ">=130"}
+  systolic_bp:
+    unit: mmHg
+    rows:
+      - {points: 0, range: "101-199"}
+      - {points: 1, range: "81-100"}
+      - {points: 2, range: "71-80"}
+      - {points: 3, range: "<71"}
+      - {points: 3, range: ">=200"}
+  temperature:
+    unit: celsius
+    rows:
+      # The 1-point column is blank in the manual (docs/SATS.md §4) — no band.
+      - {points: 0, range: "35.0-38.4"}
+      - {points: 2, range: "<35.0"}
+      - {points: 2, range: ">38.4"}
+  avpu:
+    unit: null
+    rows:
+      - {points: 0, value: alert}
+      - {points: 1, value: voice}
+      - {points: 2, value: pain}
+      - {points: 3, value: unresponsive}
+  trauma:
+    unit: null
+    rows:
+      - {points: 0, value: "no"}
+      - {points: 1, value: "yes"}
+
+tews_to_colour:
+  - {colour: GREEN, range: "0-2"}
+  - {colour: YELLOW, range: "3-4"}
+  - {colour: ORANGE, range: "5-6"}
+  - {colour: RED, range: ">=7"}
+
+target_times:
+  RED: {target: "Immediate", destination: "Resuscitation room"}
+  ORANGE: {target: "< 10 min", destination: "Majors"}
+  YELLOW: {target: "< 1 hour", destination: "Majors"}
+  GREEN: {target: "< 4 hours", destination: "Designated area"}
+  BLUE: {target: "< 2 hours", destination: "Doctor for certification"}
+
+out_of_scope:
+  adult_min_age_years: 12
+  adult_min_height_cm: 150
+  on_missing_age: abstain
+
+# Discriminator id -> category (the shared controlled id vocabulary; the mapping
+# is the clinical fact under test).
+discriminator_categories:
+  obstructed_airway: emergency
+  seizure_current: emergency
+  burn_facial_inhalation: emergency
+  hypoglycaemia: emergency
+  cardiac_arrest: emergency
+  avpu_pain_or_unresponsive: emergency
+  confusion: emergency
+
+  high_energy_transfer: very_urgent
+  acute_shortness_of_breath: very_urgent
+  reduced_level_of_consciousness: very_urgent
+  coughing_blood: very_urgent
+  chest_pain: very_urgent
+  stabbed_neck: very_urgent
+  uncontrolled_haemorrhage_arterial: very_urgent
+  seizure_post_ictal: very_urgent
+  acute_focal_neurology: very_urgent
+  aggression: very_urgent
+  threatened_limb: very_urgent
+  eye_injury: very_urgent
+  dislocated_large_joint: very_urgent
+  compound_fracture: very_urgent
+  burn_over_20_percent: very_urgent
+  electrical_burn: very_urgent
+  circumferential_burn: very_urgent
+  chemical_burn: very_urgent
+  poisoning_overdose: very_urgent
+  diabetic_hyperglycaemia_ketonuria: very_urgent
+  vomiting_fresh_blood: very_urgent
+  pregnancy_abdominal_trauma: very_urgent
+  pregnancy_abdominal_pain: very_urgent
+  severe_pain: very_urgent
+
+  persistent_vomiting: urgent
+  pregnancy_with_trauma: urgent
+  pregnancy_pv_bleed: urgent
+  moderate_pain: urgent
+  controlled_haemorrhage: urgent
+  dislocated_finger_toe: urgent
+  closed_fracture: urgent
+  other_burns: urgent
+  abdominal_pain: urgent
+  diabetic_hyperglycaemia_no_ketonuria: urgent
+
+# Rendered verbatim into the verification report by scripts/transcribe_diff.py.
+resolved_ambiguities:
+  - issue: "The temperature row shows a blank in the 1-point column (docs/SATS.md §4)."
+    resolution: "There is no 1-point temperature band — the band is genuinely empty. Both transcriptions encode only the 0-point and 2-point temperature bands, so a temperature in the 0-point range scores 0 and any other in-range temperature scores 2. Encoded as data; never guessed."
+  - issue: "The manual's strict inequalities are written two ways (e.g. '< 9' vs an inclusive 'max: 8')."
+    resolution: "Normalised to a common inclusive form at each parameter's resolution (1 for integer scales, 0.1 for temperature): '< 9' == '<= 8', '> 38.4' == '>= 38.5'. The diff is resolution-aware, so both routes agree without either restating the other's convention."
+
+residual_uncertainties:
+  - "The published manual (Figures 2/5/12-14) was not available in this build window; verification is a dual transcription of docs/SATS.md, not a read of the original manual. The blank 1-point temperature column is treated as 'no 1-point band' and this residual uncertainty is flagged here and in docs/SATS.md."
+  - "Target times and destinations are functional metadata transcribed from docs/SATS.md Table 3; they do not affect the TEWS score and are compared in the same diff for completeness."

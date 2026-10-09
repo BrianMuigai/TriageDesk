@@ -2,9 +2,20 @@
 
 > The clinical reference TriageDesk is built on. Source: **SATS Training Manual (2012), EMSSA**
 > (<https://emssa.org.za>) plus published SATS validation studies.
-> ⚠️ **Verification flag:** the tables below are transcribed from the manual during design. Before the
-> scoring tool is relied upon, every band and every discriminator must be re-checked verbatim against
-> the manual (Figures 2, 5, 12–14). Nothing here is a substitute for the published scale.
+>
+> ⚠️ **Verification flag (re-verified 2026-10-09):** the tables below were transcribed from the manual
+> during design. Every adult TEWS band, colour threshold and discriminator has since been re-checked by a
+> **dual independent transcription diff** (`scripts/transcribe_diff.py` →
+> [`evidence/sats-verification.md`](../evidence/sats-verification.md)), which passes with zero
+> disagreements. **Residual uncertainty:** the published manual (Figures 2, 5, 12–14) was not available in
+> the build window, so the re-check is a dual transcription of *this file*, not a read of the original
+> manual; and the **blank 1-point temperature column** (§4) is treated as "no 1-point band" and is flagged,
+> not guessed. Nothing here is a substitute for the published scale.
+>
+> **This file is the human-readable transcription reference** derived from the same SATS manual. It is
+> **never imported at runtime**; `data/*.yaml` is the machine authority, and the "single source of truth"
+> gate (`CONVENTIONS.md` §1) is scoped to **code + runtime**. This file links to the YAML as the machine
+> source and does not become a second authority for the thresholds.
 
 ---
 
