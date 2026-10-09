@@ -1,6 +1,5 @@
 # DESCRIPTION — TriageDesk
-<!-- ~300-word challenge submission description. -->
-<!-- Count below is approximate; finalise at submission. -->
+<!-- ~300-word challenge submission description (final; count checked by tests/test_docs_final.py). -->
 
 **TriageDesk** is an agentic triage-support tool for the outpatient (OPD) triage desk of a busy public
 hospital. It takes the two things the nurse already has in front of her — a set of vitals and a
@@ -26,4 +25,7 @@ TriageDesk is open source: **LangGraph** for orchestration, a **purpose-built MC
 and flags, and the **SQLite MCP server** for storage. It runs **entirely offline on synthetic data**,
 so no health data leaves the facility.
 
-<!-- Approx. word count: 300 -->
+It is deliberately narrow: TriageDesk suggests and stops, documents its own evaluation results and
+known failures openly, and lets the nurse edit any suggestion before it reaches the queue.
+
+<!-- Word count verified against the ±10% of 300 bound by tests/test_docs_final.py. -->

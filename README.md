@@ -8,7 +8,7 @@
 > Organisers: Nairobi AI Community / Qhala Trust
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Status: pre-build](https://img.shields.io/badge/status-pre--build-orange.svg)](#project-status)
+[![Status: frozen submission](https://img.shields.io/badge/status-v1.0--submission-blue.svg)](#project-status)
 
 ---
 
@@ -50,49 +50,43 @@ case card in the queue is gated behind a named human approver.
 
 ## Project status
 
-**Pre-build.** This repository currently contains the design and compliance documentation required
-*before* implementation begins. Nothing here claims a working agent yet. The status section of this
-README will be updated with measured results as the build lands — including what is unfinished.
+**Frozen submission (`v1.0-submission`).** The agent, MCP server, and evaluation harness are built and
+run offline. This README states what works and what is unfinished; the **measured** results — including
+a failure we did not fix — live in [`EVALS.md`](EVALS.md), generated from `evals/results/report.json`.
 
 | Area | State |
 | --- | --- |
 | Problem framing & scope | ✅ Documented → [`PROJECT.md`](PROJECT.md) |
 | Challenge compliance tracking | ✅ Documented → [`REQUIREMENTS.md`](REQUIREMENTS.md) |
 | Architecture | ✅ Documented → [`ARCHITECTURE.md`](ARCHITECTURE.md) |
-| Evaluation plan | ✅ Documented → [`EVALS.md`](EVALS.md) |
 | SATS domain model | ✅ Documented → [`docs/SATS.md`](docs/SATS.md) |
 | Decisions log | ✅ Documented → [`DECISIONS.md`](DECISIONS.md) |
-| Build plan | ✅ Documented → [`ROADMAP.md`](ROADMAP.md) |
 | Security & hardening | ✅ Documented → [`SECURITY.md`](SECURITY.md) |
-| MCP server / agent / evals | ⛔ Not built yet |
-| Demo video | ⛔ Not recorded yet |
+| MCP server / agent / evals | ✅ Built & tested → [`tests/`](tests) |
+| Evaluation (measured) | ✅ Run → [`EVALS.md`](EVALS.md) |
+| Demo video | 🎬 Human-recorded → [`docs/DEMO.md`](docs/DEMO.md) |
+
+**What is unfinished.** The measured run records honest misses, not a green sweep: the declared failure
+**E-09** (a vague complaint is under-triaged) is shown, not hidden, and the other misses are recorded in
+[`EVALS.md`](EVALS.md) §4–§6. Clinician validation remains a declared gap ([`EVALS.md`](EVALS.md) §7).
+[`EVALS.md`](EVALS.md) is the single source for every number.
 
 ## Quickstart
 
-> **Planned one-command run.** Not functional until implementation lands.
+From a clean clone, two commands:
 
 ```bash
-# Prerequisites: Python 3.12+, uv, ollama
-uv run triagedesk demo        # pulls the local model, runs the graph, streams tool calls
+uv sync --locked              # deterministic install from the committed uv.lock
+uv run triagedesk demo        # the whole demo, offline, on the bundled synthetic fixture
 ```
 
-For a stranger to run this end to end they will need: a machine able to run a small open-weights
-model locally (see `DECISIONS.md` → D3 for the RAM sizing note), and Ollama. A fully offline
-`synthetic` fixture ships in-repo so no external data or network is required.
+The bare demo runs **offline by default** — it needs only `uv` and the locked dependencies (no model
+pulled, no network, no borrowed server). To drive the local open-weights model instead of the offline
+fixture, add `--online` (after `ollama pull qwen2.5:1.5b`). A single beat can be re-run with
+`uv run triagedesk demo --beat <name>`. The full presenter runbook — every beat, command, and the real
+expected output — is [`docs/DEMO.md`](docs/DEMO.md); it does not restate the demo here (DRY).
 
-Expected shape of the output:
-
-```
-[case 0417] ingest ......... ok
-[case 0417] normalize ...... RR=24 HR=118 SBP=108 T=38.9 AVPU=A complaint="cough, fast breathing"
-[case 0417] match_discriminators ... "shortness of breath - acute" (VERY URGENT)
-[case 0417] score_priority .. TEWS=6  -> ORANGE   (<10 min)
-             source: RR 24 -> TEWS +2 (21-29); HR 118 -> TEWS +2 (111-129); T 38.9 -> TEWS +2 (>38.4)
-[case 0417] raise_recheck_flag ... n/a
-[case 0417] commit_priority . BLOCKED — awaiting named clinician approval
-```
-
-## Repository map (target)
+## Repository map
 
 ```
 triagedesk/
@@ -100,15 +94,18 @@ triagedesk/
 ├── PROJECT.md             vision, users, scope, success criteria
 ├── REQUIREMENTS.md        challenge compliance & traceability matrix
 ├── ARCHITECTURE.md        agent shape; MCP servers built vs borrowed; why
-├── EVALS.md               evaluation plan, cases, and honest failure
+├── EVALS.md               measured evaluation, cases, and honest failure
 ├── DECISIONS.md           key decisions and rationale (ADR-lite)
 ├── ROADMAP.md             6-day build plan and risks
 ├── DESCRIPTION.md         ~300-word challenge submission description
 ├── SECURITY.md            threat model & hardening
+├── CONVENTIONS.md         DRY + SOLID engineering standard
 ├── LICENSE                Apache-2.0
-├── docs/
-│   └── SATS.md            South African Triage Scale domain model
-└── (source tree — added during build)
+├── data/                  SATS rules (the single source of thresholds)
+├── docs/                  SATS domain model + the demo runbook
+├── evals/                 case fixtures + the measured report.json
+├── src/triagedesk/        core · graph · mcp · store · llm · evals · demo
+└── tests/                 the offline proof suite (pytest)
 ```
 
 ## Traceability
