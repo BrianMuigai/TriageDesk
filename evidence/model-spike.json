@@ -1,0 +1,81 @@
+{
+  "measured_at": "2026-10-09T11:56:11Z",
+  "note": "RR 24, HR 118, BP 108/70, temp 38.9, alert, coughing and fast breathing",
+  "min_available_mb_budget": 1024,
+  "primary": {
+    "model": "qwen3.5:4b",
+    "licence": "Apache License",
+    "ram_before": {
+      "available_mb": 980,
+      "ollama_ps": "NAME            ID              SIZE      PROCESSOR    CONTEXT    UNTIL              \nqwen2.5:1.5b    65ec06548149    1.1 GB    100% CPU     2048       4 minutes from now    \nqwen3.5:4b      d8b0f5e9760c    3.1 GB    100% CPU     2048       3 minutes from now"
+    },
+    "ram_after": {
+      "available_mb": 641,
+      "ollama_ps": "NAME            ID              SIZE      PROCESSOR    CONTEXT    UNTIL               \nqwen3.5:4b      d8b0f5e9760c    3.1 GB    100% CPU     2048       4 minutes from now     \nqwen2.5:1.5b    65ec06548149    1.1 GB    100% CPU     2048       45 seconds from now"
+    },
+    "ollama_ps_size_loaded": "3.1",
+    "cold_latency_s": 144.1,
+    "warm_latency_s": 50.9,
+    "response_empty": false,
+    "parsed": {
+      "case": {
+        "age_years": null,
+        "height_cm": null,
+        "respiratory_rate": 24,
+        "heart_rate": 118,
+        "systolic_bp": 108,
+        "diastolic_bp": 70,
+        "temperature_c": 38.9,
+        "spo2": null,
+        "mobility": null,
+        "avpu": "alert",
+        "trauma": false,
+        "complaint": "coughing and fast breathing"
+      },
+      "matched_discriminator_ids": [],
+      "no_discriminator_matched": true
+    }
+  },
+  "fallback": {
+    "model": "qwen2.5:1.5b",
+    "licence": "Apache License",
+    "ram_before": {
+      "available_mb": 638,
+      "ollama_ps": "NAME            ID              SIZE      PROCESSOR    CONTEXT    UNTIL               \nqwen3.5:4b      d8b0f5e9760c    3.1 GB    100% CPU     2048       4 minutes from now     \nqwen2.5:1.5b    65ec06548149    1.1 GB    100% CPU     2048       45 seconds from now"
+    },
+    "ram_after": {
+      "available_mb": 820,
+      "ollama_ps": "NAME            ID              SIZE      PROCESSOR    CONTEXT    UNTIL              \nqwen2.5:1.5b    65ec06548149    1.1 GB    100% CPU     2048       4 minutes from now    \nqwen3.5:4b      d8b0f5e9760c    3.1 GB    100% CPU     2048       3 minutes from now"
+    },
+    "ollama_ps_size_loaded": "1.1",
+    "cold_latency_s": 52.9,
+    "warm_latency_s": 18.1,
+    "response_empty": false,
+    "parsed": {
+      "case": {
+        "age_years": null,
+        "height_cm": null,
+        "respiratory_rate": 24,
+        "heart_rate": 118,
+        "systolic_bp": 108,
+        "diastolic_bp": 70,
+        "temperature_c": 38.9,
+        "spo2": null,
+        "mobility": null,
+        "avpu": "alert",
+        "trauma": false,
+        "complaint": "coughing and fast breathing"
+      },
+      "matched_discriminator_ids": [],
+      "no_discriminator_matched": true
+    },
+    "ran_end_to_end": true
+  },
+  "selected_model": "qwen2.5:1.5b",
+  "selection_rationale": "qwen2.5:1.5b selected: available RAM with qwen3.5:4b loaded fell to 641 MB (< 1024 MB budget), so the smaller Qwen is the safe default. Both models ran the path end-to-end.",
+  "response_empty": false,
+  "ram_after": {
+    "available_mb": 820,
+    "ollama_ps": "NAME            ID              SIZE      PROCESSOR    CONTEXT    UNTIL              \nqwen2.5:1.5b    65ec06548149    1.1 GB    100% CPU     2048       4 minutes from now    \nqwen3.5:4b      d8b0f5e9760c    3.1 GB    100% CPU     2048       3 minutes from now"
+  }
+}

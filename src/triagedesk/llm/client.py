@@ -19,9 +19,16 @@ import ollama
 from triagedesk.core.schema import ExtractionResult
 from triagedesk.llm.prompts import EXTRACTION_PROMPT
 
-# Primary model (D-01). The Phase-1 spike measures RAM/latency and may select the
-# smaller-Qwen fallback; the selected tag is recorded in evidence/model-spike.json.
-DEFAULT_MODEL = "qwen3.5:4b"
+# Model tags are config values here: a model swap is a config change behind this
+# wrapper (SOLID: D). The Phase-1 spike measures RAM/latency for both and selects
+# the default; the outcome is recorded in evidence/model-spike.json (D-01).
+PRIMARY_MODEL = "qwen3.5:4b"
+FALLBACK_MODEL = "qwen2.5:1.5b"
+
+# Selected default, decided by the Phase-1 model spike on measured evidence
+# (evidence/model-spike.json): with qwen3.5:4b loaded, available RAM fell to
+# 587 MB (< 1024 MB budget), so the smaller Qwen is the safe default.
+DEFAULT_MODEL = FALLBACK_MODEL
 
 # `think=False` is MANDATORY: qwen3.5:4b is a reasoning model and without it the
 # constrained JSON is emitted into the thinking channel and `response` is empty
