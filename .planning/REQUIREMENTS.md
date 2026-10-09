@@ -50,9 +50,9 @@
 
 ### Audit
 
-- [ ] **AUDIT-01**: Every tool call appends a hash-chained record (inputs, outputs, timestamp, actor)
-- [ ] **AUDIT-02**: Approval records capture the named approver + role
-- [ ] **AUDIT-03**: Audit record shape is defined once (one helper) and written to one authoritative store
+- [x] **AUDIT-01**: Every tool call appends a hash-chained record (inputs, outputs, timestamp, actor)
+- [x] **AUDIT-02**: Approval records capture the named approver + role
+- [x] **AUDIT-03**: Audit record shape is defined once (one helper) and written to one authoritative store
 
 ### Safety & hardening
 
@@ -138,9 +138,9 @@ Which phases cover which requirements.
 | GATE-02 | Phase 3 | Complete |
 | GATE-03 | Phase 3 | Complete |
 | GATE-04 | Phase 3 | Complete |
-| AUDIT-01 | Phase 3 | Pending |
-| AUDIT-02 | Phase 3 | Pending |
-| AUDIT-03 | Phase 3 | Pending |
+| AUDIT-01 | Phase 3 | Complete |
+| AUDIT-02 | Phase 3 | Complete |
+| AUDIT-03 | Phase 3 | Complete |
 | SAFE-01 | Phase 2 | Complete |
 | SAFE-02 | Phase 3 | Pending |
 | SAFE-03 | Phase 3 | Pending |

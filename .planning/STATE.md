@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 3
 current_phase_name: Approval Gate, Gated Commit & Safety Spine
 status: executing
-stopped_at: Completed 03-04-PLAN.md
-last_updated: "2026-10-09T16:51:49.960Z"
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-10-09T17:14:41.512Z"
 last_activity: 2026-10-09
 last_activity_desc: Phase 3 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 12
-  completed_plans: 10
+  completed_plans: 11
 state_head: a345a0d3af4b3fd5e4f92776f67b71e642e6c252
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 ## Current Position
 
 Phase: 3 (Approval Gate, Gated Commit & Safety Spine) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-10-09 — Phase 3 execution started
 
-Progress: [████████░░] 83%
+Progress: [█████████░] 92%
 
 ## Performance Metrics
 
@@ -69,6 +69,7 @@ Progress: [████████░░] 83%
 | Phase 3 P01 | 11 | 3 tasks | 8 files |
 | Phase 3 P02 | 9 | 3 tasks | 10 files |
 | Phase 3 P04 | 15 | 3 tasks | 9 files |
+| Phase 03 P03 | 13 | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -123,6 +124,10 @@ Recent decisions affecting current work:
 - [Phase 3]: RecoveryRequest/Escalation carry no colour and the recovery/escalation terminals have no edge to commit (ORCH-05, D-03)
 - [Phase 3]: The recheck node stores RecheckFlag in state second_look and HandoverCard.second_look only — never the colour, the priority or the queue (D-07, M-4)
 - [Phase 3]: One shared offline graph tool fake in tests/conftest.py backs all three graph proof suites (DRY)
+- [Phase 03]: One audit-record shape (AuditRecord) and one canonical seal (record_digest) are shared by append and verify, so the writer and the verifier cannot drift (AUDIT-03, DRY)
+- [Phase 03]: The chain head is persisted in the authoritative store (audit_head); verify recomputes the chain and cross-checks the persisted head, so verification survives a restart (M-6)
+- [Phase 03]: append is the only audit write; verify/reconcile are read-only. reconcile reports any queue row lacking its approval audit record, closed by re-issuing the idempotent commit (D-09, no claimed transaction primitive)
+- [Phase 03]: ONE uniform @audited interceptor wraps every @server.tool(); the record tool name is the wrapped function's name, the append follows the tool's logic so refused/raising calls are recorded honestly (AUDIT-01/03, T-03-15)
 
 ### Pending Todos
 
@@ -145,6 +150,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T16:51:49.948Z
-Stopped at: Completed 03-04-PLAN.md
+Last session: 2026-10-09T17:14:29.446Z
+Stopped at: Completed 03-03-PLAN.md
 Resume file: None
