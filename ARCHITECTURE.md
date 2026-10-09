@@ -83,10 +83,13 @@ Three of the five tools *do something* (BW-2). The queue-mutating tool is the ga
 
 **Why it beats writing our own:** persistence, schema management, and query safety are solved
 problems; hand-rolling a database layer adds zero triage value and adds auditable surface area we
-would have to defend. Consumed via `langchain-mcp-adapters` (`MultiServerMCPClient`).
+would have to defend. Consumed through an MCP client adapter — `langchain.mcp.MCPAdapter`
+(`langchain[mcp]>=1.4.0`, current) rather than the archived `langchain-mcp-adapters`.
 
-> Fallback if the reference server is unavailable: a maintained community SQLite MCP server. Verify
-> before Day 2 (see `REQUIREMENTS.md` G-4).
+> **Maintained server + fallback.** The official reference SQLite server is archived; use a maintained
+> community server (e.g. `jparkerweb/mcp-sqlite` or `rusq/mcp-sqlite`). The graph binds to the **tool
+> interface** (SOLID/DIP), so a "World B" swap of the adapter is a one-module change if the current
+> adapter proves unstable (see `.planning/research/SUMMARY.md`).
 
 ## 5. The gate (irreversible actions)
 
@@ -143,9 +146,9 @@ independent.
 | Choice | Value | Note |
 | --- | --- | --- |
 | Orchestration | **LangGraph** | Open source; `interrupt()` maps to the gate |
-| Model | **Qwen2.5-3B-Instruct (Q4_K_M)** via Ollama | Target, sized for ~6.9 GB RAM; 1.5B fallback |
+| Model | **Qwen2.5-1.5B-Instruct (Q4)** via Ollama | Primary (fits ~6.9 GB RAM); 3B opt-in only if measured to fit |
 | Runner | `uv`, Python 3.12 | Avoids host Python 3.14 wheel gaps |
-| Output contract | constrained/structured JSON | Reliability + latency on CPU |
+| Output contract | structured JSON via Ollama `format=<schema>` | More reliable than native tool-calling at 1.5B–3B on CPU |
 
 See `DECISIONS.md` for rationale on every choice above.
 

@@ -66,7 +66,7 @@ risks** — items we cannot yet close, tracked honestly.
 | SB-5 | **Unedited agent run, tool calls on screen** — **not slides** | Terminal/trace capture of a live run, including a failure | ROADMAP.md §Demo | ⛔ |
 | SB-6 | **~300-word text description**: what it does, sub-theme, facility & workflow | DESCRIPTION.md (draft complete) | DESCRIPTION.md | ✅ |
 | SB-7 | **ARCHITECTURE.md — one page**: agent shape, MCP servers built vs borrowed, why | ARCHITECTURE.md (one page) | ARCHITECTURE.md | ✅ |
-| SB-8 | **EVALS.md**: 8+ test tasks with pass/fail, plus one failure not fixed + what you'd try next | EVALS.md (13 cases planned incl. one expected failure) | EVALS.md | 🟡 results TBD |
+| SB-8 | **EVALS.md**: 8+ test tasks with pass/fail, plus one failure not fixed + what you'd try next | EVALS.md (14 cases planned incl. one expected failure) | EVALS.md | 🟡 results TBD |
 | SB-9 | Repo that **runs** (not a repo that does not run) | One-command run + synthetic fixture + CI smoke test | ROADMAP.md | 🟡 |
 
 ## 5. Data conduct
@@ -85,7 +85,7 @@ risks** — items we cannot yet close, tracked honestly.
 | JC-1 | Agentic depth & MCP craft (**30**) | Plans, calls tools, recovers — not one model call in a loop; tool boundaries a stranger could reuse | Explicit LangGraph plan with a `verify`/retry loop, missing-vital recovery, tool-failure recovery, safe abstention, and 5 reusable tool contracts | ARCHITECTURE.md §3–4 |
 | JC-2 | Open-source rigour (**20**) | Clone & run; README honest about unfinished | One-command run, synthetic fixture, CI smoke test, honest status table incl. unfinished items | README, EVALS |
 | JC-3 | Fit to triage desk (**20**) | Named nurse does a real thing faster, at the desk, under queue pressure; *did you talk to one?* | Models the real five-step SATS desk process with an assumption-labelled throughput model; **no clinician interview available** — declared gap | PROJECT.md §3, §3.1; EVALS §7 |
-| JC-4 | Evaluation & reliability (**15**) | Honest test set, not curated to pass; run-to-run variation measured or hidden | 13 cases incl. a planned failure; 3 runs/case; variation + latency + cost reported | EVALS.md |
+| JC-4 | Evaluation & reliability (**15**) | Honest test set, not curated to pass; run-to-run variation measured or hidden | 14 cases incl. a planned failure; 3 runs/case; variation + latency + cost reported | EVALS.md |
 | JC-5 | Defensibility (**10**) | Priority survives a clinical-audit question; sourced, readable log; known cost per run | Deterministic SATS scorer + exact citations + hash-chained audit log + measured cost/run (tokens + wall-clock) | ARCHITECTURE.md §3, §6; EVALS.md §3.1 |
 | JC-6 | Demo (**5**) | Three clear minutes, including where it fails | 3-min storyboard with a failure segment | ROADMAP.md §Demo |
 

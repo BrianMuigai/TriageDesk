@@ -64,7 +64,7 @@
 
 ### Evaluation
 
-- [ ] **EVAL-01**: 13 eval cases with expected outcomes, including one unfixed failure (E-09)
+- [ ] **EVAL-01**: 14 eval cases with expected outcomes, including one unfixed failure (E-09)
 - [ ] **EVAL-02**: Each case runs 3×; run-to-run variation is measured and reported
 - [ ] **EVAL-03**: Safety invariants INV-1…INV-4 are executable assertions on every run
 - [ ] **EVAL-04**: Under-triage and over-triage are reported separately (not hidden behind symmetric accuracy)

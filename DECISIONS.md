@@ -23,14 +23,16 @@ straightforward to encode. MTS is licensed (proprietary), which conflicts with a
 2012 (EMSSA), <https://emssa.org.za>.
 
 ### D3 — Local open-weights model: Qwen2.5, RAM-constrained
-**Decision:** run the agent loop on **Qwen2.5-Instruct (Q4_K_M) via Ollama**, target the **3B** variant
-with a **1.5B fallback**; frontier models optional and never required to run.
+**Decision:** run the agent loop on **Qwen2.5-Instruct (Q4) via Ollama**, with the **1.5B** variant as
+primary and the **3B** opt-in only if it is measured to fit; frontier models optional and never
+required to run. Extraction uses **structured JSON output** (`format=<schema>`), not native tool-calling.
 **Why:** eligibility requires a full task on an open-weights model, and patient data must not leave the
 country. Qwen2.5 has strong instruction-following and structured-output behaviour for its size.
-**Constraint discovered:** the host has **~6.9 GB RAM total, ~1.4 GB free** — a 7B model will not fit
-reliably. Hence 3B target / 1.5B fallback, small context window, and constrained decoding.
+**Constraint discovered:** the host has **~6.9 GB RAM total, and only ~1–2 GB free** — even a 3B model is
+marginal, so **1.5B is the primary**. Small context window + structured decoding.
 **Consequence:** possible latency pressure (documented in `REQUIREMENTS.md` G-2); a beefier machine may
-be needed for the demo — recorded honestly.
+be needed for the demo — recorded honestly. Licence note: 1.5B is Apache-2.0; 3B/72B ship under the
+Qwen licence (disclosed).
 
 ### D4 — LangGraph for orchestration
 **Decision:** LangGraph.
@@ -41,13 +43,16 @@ approval gate.
 **Consequence:** slightly more boilerplate; much clearer agent shape for JC-1 and ST-1.
 
 ### D5 — Borrow the SQLite MCP server
-**Decision:** use a pre-existing SQLite MCP server for the case/queue store and audit table.
+**Decision:** use a pre-existing, **maintained** SQLite MCP server for the case/queue store and audit
+table (candidates: `jparkerweb/mcp-sqlite`, `rusq/mcp-sqlite`). The official reference server is
+archived and is not used.
 **Why (one line):** *persistence, schema and query safety are solved — hand-rolling a database layer
 adds zero triage value and adds auditable surface area we would have to defend.*
 **Considered and declined:** a vector-store MCP for discriminator retrieval (stronger citation story,
 more setup time). Its absence is exactly what makes case **E-09** fail — recorded as the honest
 unfixed failure.
-**Consequence:** satisfies BW-3; the "boring but correct" storage choice is deliberate.
+**Consequence:** satisfies BW-3; the "boring but correct" storage choice is deliberate. Because the
+graph depends on the tool interface, swapping the server is a one-module change.
 
 ### D6 — Safe abstention on paediatric / out-of-scope input
 **Decision:** the agent **detects** paediatric (age <12) or otherwise out-of-scope input and **abstains
@@ -145,7 +150,8 @@ capability means a **new** tool + **new** node, leaving existing code untouched.
 | Component | Origin | Licence/notes |
 | --- | --- | --- |
 | LangGraph | LangChain (open source) | MIT |
+| MCP client adapter | `langchain.mcp` namespace | current; replaces archived `langchain-mcp-adapters` |
 | Ollama | Ollama (open source) | MIT; runtime only |
-| Qwen2.5-Instruct | Alibaba (open weights) | Apache-2.0 (model weights) |
-| SQLite MCP server | community/official reference | verify maintained source before Day 2 (G-4) |
+| Qwen2.5-Instruct | Alibaba (open weights) | 1.5B Apache-2.0; 3B/72B Qwen licence |
+| SQLite MCP server | maintained community (`jparkerweb/mcp-sqlite` / `rusq/mcp-sqlite`) | official reference server is archived |
 | SATS manual | EMSSA | clinical content; cited, not redistributed wholesale |

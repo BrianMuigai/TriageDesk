@@ -22,7 +22,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 1: SATS Foundations & Risk Retirement** - Rule substrate, typed schema, scaffold; retire the model and MCP unknowns on evidence
 - [ ] **Phase 2: Deterministic Scorer & Own MCP Server** - Pure cited scorer + the five contracted owned tools
 - [ ] **Phase 3: Approval Gate, Gated Commit & Safety Spine** - The gate that refuses to commit without a named approver, plus audit and borrowed persistence
-- [ ] **Phase 4: Evaluation, Recovery & Honest Failure** - Enforcing 13-case × 3-run evaluation with one declared failure
+- [ ] **Phase 4: Evaluation, Recovery & Honest Failure** - Enforcing 14-case × 3-run evaluation with one declared failure
 - [ ] **Phase 5: Demo, Docs & Freeze** - One-command run, live demo video, docs finalised, repo frozen
 
 ## Phase Details
@@ -72,7 +72,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Depends on**: Phase 3
 **Requirements**: EVAL-01, EVAL-02, EVAL-03, EVAL-04, EVAL-05, SAFE-05
 **Success Criteria** (what must be TRUE):
-  1. All 13 eval cases run 3× through the same graph interface; any run-to-run variation in colour or matched-discriminator set counts as a failure, and field-stability is reported separately from colour-stability.
+  1. All 14 eval cases run 3× through the same graph interface; any run-to-run variation in colour or matched-discriminator set counts as a failure, and field-stability is reported separately from colour-stability.
   2. Under-triage and over-triage are reported separately, E-09 ships as a declared unfixed failure, and held-out cases show the failure is bounded rather than universal.
   3. INV-1…4 are executable assertions that non-zero-exit the run and gate CI whenever violated, and a suppression-direction injection case leaves the colour unchanged.
   4. The report carries per-run latency and token cost, is reproducible via recorded hashes, and is the sole source of numbers for `EVALS.md`.
