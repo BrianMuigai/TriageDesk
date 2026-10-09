@@ -79,7 +79,7 @@
 
 ### Engineering standards
 
-- [ ] **QUAL-01**: DRY + SOLID enforced — no duplicated SATS values/citations; graph depends on the tool interface
+- [x] **QUAL-01**: DRY + SOLID enforced — no duplicated SATS values/citations; graph depends on the tool interface
 - [ ] **QUAL-02**: A guard test proves `core/` does not import `llm/` or any MCP client
 
 ## v2 Requirements
@@ -155,7 +155,7 @@ Which phases cover which requirements.
 | DOCS-02 | Phase 5 | Pending |
 | DOCS-03 | Phase 5 | Pending |
 | DEMO-01 | Phase 5 | Pending |
-| QUAL-01 | Phase 1 | Pending |
+| QUAL-01 | Phase 1 | Complete |
 | QUAL-02 | Phase 3 | Pending |
 
 **Coverage:**
