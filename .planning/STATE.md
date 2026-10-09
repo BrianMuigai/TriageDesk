@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 4
 current_phase_name: Evaluation, Recovery & Honest Failure
 status: executing
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-10-09T18:40:13.110Z"
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-10-09T18:59:14.063Z"
 last_activity: 2026-10-09
 last_activity_desc: Phase 4 execution started
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 16
-  completed_plans: 13
+  completed_plans: 14
 state_head: bad675a53c01366530f0aea27e61b72b45c1f88b
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 ## Current Position
 
 Phase: 4 (Evaluation, Recovery & Honest Failure) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-10-09 — Phase 4 execution started
 
-Progress: [████████░░] 81%
+Progress: [█████████░] 88%
 
 ## Performance Metrics
 
@@ -72,6 +72,7 @@ Progress: [████████░░] 81%
 | Phase 03 P03 | 13 | 3 tasks | 6 files |
 | Phase 03 P05 | 13 | 3 tasks | 8 files |
 | Phase 04 P01 | 23 | 3 tasks | 13 files |
+| Phase 04 P02 | 7 | 3 tasks | 21 files |
 
 ## Accumulated Context
 
@@ -138,6 +139,10 @@ Recent decisions affecting current work:
 - [Phase 04]: Colour, matched-set and field stability are three SEPARATE flags; an unstable colour/matched-set is a recorded failure, never averaged (D-02, Pitfall 12)
 - [Phase 04]: Token cost is read from the SAME ollama response via an injected usage_sink on llm.client.extract; never a second model call (D-08, Pitfall 16)
 - [Phase 04]: The report carries a report_digest over non-volatile content (ids, outcomes, stability flags, provenance), excluding latency/tokens/timestamps (D-08, Pitfall 18)
+- [Phase 04]: Terminal outcomes RECOVER/ABSTAIN/RECHECK are read from the graph's own channels (escalation/recovery/second_look), never a re-derived colour (ORCH-05)
+- [Phase 04]: A case passes only when every run's outcome equals expected AND colour + matched-set are stable; the declared failure (E-09) is an allowed miss, recorded passed=false (D-04, T-04-08)
+- [Phase 04]: The E-12 fault is declared as fixture data and wrapped onto the injected normalize callable per case per run, so it exercises the real bounded retry and cannot leak (Pitfall 13, T-04-09)
+- [Phase 04]: Every expected value is frozen from EVALS.md §4 through the substrate; E-04 earns RED from the declared emergency-AVPU alias wording with no data/*.yaml edit (D-05, Pitfall 11)
 
 ### Pending Todos
 
@@ -160,6 +165,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T18:40:13.096Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-10-09T18:59:14.050Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None
