@@ -1,0 +1,208 @@
+# Adult clinical discriminators — the machine authority (D-08, D-11, INTAKE-05).
+#
+# Source: SATS Training Manual 2012, Emergency Medicine Society of South Africa
+# (EMSSA) — <https://emssa.org.za>. Discriminators override the TEWS colour; the
+# most urgent category present wins (docs/SATS.md §5).
+#
+# This file is the single source of truth for discriminator -> category -> colour
+# and for the alias lists used by the deterministic matcher (D-11). It is read
+# ONLY through `src/triagedesk/core/rules.py`; no discriminator string, category
+# or citation may be inlined in code (CONVENTIONS §1).
+#
+# Kept to functional facts: ids, short labels and aliases — no manual prose
+# (Pitfall 5). Alias lists are authored (agent discretion); they are deliberately
+# broad enough to cover the complaint phrasing in the Phase-4 eval cases, but
+# "feeling unwell" is intentionally absent: E-09 is the declared coverage-gap
+# failure and must NOT be tuned green (EVALS §6, Pitfall 11).
+version: 1
+citation: "SATS Training Manual 2012 (EMSSA), adult clinical discriminators"
+
+# Category -> resulting colour and the manual table it is transcribed from.
+categories:
+  emergency:
+    colour: RED
+    citation_ref: "SATS Table: Emergency discriminators"
+  very_urgent:
+    colour: ORANGE
+    citation_ref: "SATS Table: Very urgent discriminators"
+  urgent:
+    colour: YELLOW
+    citation_ref: "SATS Table: Urgent discriminators"
+
+# Every adult discriminator from docs/SATS.md §5 — one entry each.
+discriminators:
+  # --- Emergency (-> RED) ------------------------------------------------- #
+  - id: obstructed_airway
+    category: emergency
+    label: "Obstructed airway — not breathing"
+    aliases: ["obstructed airway", "airway obstruction", "not breathing", "no breathing", "choking", "apnoea", "apnea"]
+  - id: seizure_current
+    category: emergency
+    label: "Seizure — current"
+    aliases: ["active seizure", "current seizure", "seizure now", "convulsing", "convulsion", "status epilepticus", "fitting", "ongoing seizure"]
+  - id: burn_facial_inhalation
+    category: emergency
+    label: "Burn — facial / inhalation"
+    aliases: ["facial burn", "burn to face", "inhalation burn", "inhalation injury", "airway burn", "singed nose", "singed eyebrows"]
+  - id: hypoglycaemia
+    category: emergency
+    label: "Hypoglycaemia — glucose < 3 mmol/L"
+    aliases: ["hypoglycaemia", "hypoglycemia", "low blood sugar", "low glucose", "glucose below 3", "hypo"]
+  - id: cardiac_arrest
+    category: emergency
+    label: "Cardiac arrest"
+    aliases: ["cardiac arrest", "no pulse", "heart stopped", "cardiopulmonary arrest", "cpr in progress"]
+  - id: avpu_pain_or_unresponsive
+    category: emergency
+    label: "AVPU responds only to pain or unresponsive"
+    aliases: ["responds only to pain", "only responds to pain", "responds to pain only", "unresponsive", "unconscious", "not responsive"]
+  - id: confusion
+    category: emergency
+    label: "Confusion"
+    aliases: ["confusion", "confused", "disoriented", "disorientated", "delirious"]
+
+  # --- Very urgent (-> ORANGE) -------------------------------------------- #
+  - id: high_energy_transfer
+    category: very_urgent
+    label: "High-energy transfer (severe mechanism)"
+    aliases: ["high energy transfer", "high-energy transfer", "severe mechanism", "high speed collision", "fall from height", "major trauma mechanism", "motor vehicle accident"]
+  - id: acute_shortness_of_breath
+    category: very_urgent
+    label: "Acute shortness of breath"
+    aliases: ["shortness of breath", "short of breath", "sob", "breathless", "cannot breathe", "can't breathe", "difficulty breathing", "fast breathing", "rapid breathing", "laboured breathing"]
+  - id: reduced_level_of_consciousness
+    category: very_urgent
+    label: "Reduced level of consciousness / confused"
+    aliases: ["reduced level of consciousness", "reduced consciousness", "altered level of consciousness", "decreased consciousness", "drowsy", "not alert", "loc reduced", "not fully conscious"]
+  - id: coughing_blood
+    category: very_urgent
+    label: "Coughing blood"
+    aliases: ["coughing blood", "coughing up blood", "haemoptysis", "hemoptysis", "blood in sputum"]
+  - id: chest_pain
+    category: very_urgent
+    label: "Chest pain"
+    aliases: ["chest pain", "pain in chest", "chest tightness", "chest pressure", "central chest pain", "crushing chest pain"]
+  - id: stabbed_neck
+    category: very_urgent
+    label: "Stabbed neck"
+    aliases: ["stabbed neck", "stab wound to neck", "penetrating neck injury", "neck stab"]
+  - id: uncontrolled_haemorrhage_arterial
+    category: very_urgent
+    label: "Uncontrolled haemorrhage (arterial)"
+    aliases: ["uncontrolled haemorrhage", "uncontrolled hemorrhage", "uncontrolled arterial bleed", "arterial bleed", "arterial haemorrhage", "uncontrolled bleeding", "bleeding heavily", "spurting blood"]
+  - id: seizure_post_ictal
+    category: very_urgent
+    label: "Seizure — post-ictal"
+    aliases: ["post-ictal", "post ictal", "recent seizure", "after a seizure", "post seizure", "recovering from seizure"]
+  - id: acute_focal_neurology
+    category: very_urgent
+    label: "Acute focal neurology (stroke)"
+    aliases: ["stroke", "cva", "facial droop", "hemiplegia", "focal neurology", "weakness one side", "slurred speech", "acute focal neurology"]
+  - id: aggression
+    category: very_urgent
+    label: "Aggression"
+    aliases: ["aggression", "aggressive", "violent", "combative", "assault", "threat to staff"]
+  - id: threatened_limb
+    category: very_urgent
+    label: "Threatened limb"
+    aliases: ["threatened limb", "limb threatening injury", "vascular injury to limb", "ischaemic limb", "limb at risk"]
+  - id: eye_injury
+    category: very_urgent
+    label: "Eye injury"
+    aliases: ["eye injury", "injured eye", "penetrating eye injury", "ocular injury", "chemical in eye"]
+  - id: dislocated_large_joint
+    category: very_urgent
+    label: "Dislocation of a larger joint"
+    aliases: ["dislocated shoulder", "dislocated hip", "dislocated knee", "dislocated elbow", "dislocated ankle", "large joint dislocation", "dislocation of a larger joint"]
+  - id: compound_fracture
+    category: very_urgent
+    label: "Compound fracture"
+    aliases: ["compound fracture", "open fracture", "fracture with bone exposed"]
+  - id: burn_over_20_percent
+    category: very_urgent
+    label: "Burn > 20%"
+    aliases: ["burn over 20 percent", "burns over 20%", "burn more than 20%", "large burn", "extensive burn", "major burn"]
+  - id: electrical_burn
+    category: very_urgent
+    label: "Electrical burn"
+    aliases: ["electrical burn", "electrocution", "electric shock", "lightning strike"]
+  - id: circumferential_burn
+    category: very_urgent
+    label: "Circumferential burn"
+    aliases: ["circumferential burn", "circumferential burns", "full circumference burn"]
+  - id: chemical_burn
+    category: very_urgent
+    label: "Chemical burn"
+    aliases: ["chemical burn", "acid burn", "alkali burn", "caustic burn"]
+  - id: poisoning_overdose
+    category: very_urgent
+    label: "Poisoning / overdose"
+    aliases: ["poisoning", "overdose", "poisoned", "drug overdose", "ingested poison", "took too many tablets", "paraquat ingestion"]
+  - id: diabetic_hyperglycaemia_ketonuria
+    category: very_urgent
+    label: "Diabetic glucose > 11 with ketonuria"
+    aliases: ["high glucose with ketones", "glucose above 11 with ketonuria", "diabetic with ketones", "ketonuria", "high blood sugar with ketones"]
+  - id: vomiting_fresh_blood
+    category: very_urgent
+    label: "Vomiting fresh blood"
+    aliases: ["vomiting fresh blood", "vomiting blood", "blood in vomit", "haematemesis", "hematemesis", "coffee ground vomit"]
+  - id: pregnancy_abdominal_trauma
+    category: very_urgent
+    label: "Pregnancy with abdominal trauma"
+    aliases: ["pregnant with abdominal trauma", "pregnancy abdominal trauma", "pregnant after trauma", "pregnancy with abdominal injury"]
+  - id: pregnancy_abdominal_pain
+    category: very_urgent
+    label: "Pregnancy with abdominal pain"
+    aliases: ["pregnant with abdominal pain", "pregnancy abdominal pain", "pregnant stomach pain"]
+  - id: severe_pain
+    category: very_urgent
+    label: "Severe pain"
+    aliases: ["severe pain", "unbearable pain", "excruciating pain", "worst pain", "10/10 pain", "agonising pain"]
+
+  # --- Urgent (-> YELLOW) -------------------------------------------------- #
+  - id: persistent_vomiting
+    category: urgent
+    label: "Persistent vomiting"
+    aliases: ["persistent vomiting", "vomiting repeatedly", "continuous vomiting", "repeated vomiting", "vomiting all day"]
+  - id: pregnancy_with_trauma
+    category: urgent
+    label: "Pregnancy with trauma"
+    aliases: ["pregnant after accident", "pregnancy with trauma", "pregnant and injured"]
+  - id: pregnancy_pv_bleed
+    category: urgent
+    label: "Pregnancy with PV bleed"
+    aliases: ["pregnant with vaginal bleeding", "pregnancy pv bleed", "pregnant bleeding vaginally", "antepartum haemorrhage"]
+  - id: moderate_pain
+    category: urgent
+    label: "Moderate pain"
+    aliases: ["moderate pain", "moderate discomfort", "pain 5 out of 10"]
+  - id: controlled_haemorrhage
+    category: urgent
+    label: "Controlled haemorrhage"
+    aliases: ["controlled haemorrhage", "controlled bleeding", "bleeding controlled", "minor bleeding", "bleeding stopped"]
+  - id: dislocated_finger_toe
+    category: urgent
+    label: "Dislocation of finger / toe"
+    aliases: ["dislocated finger", "dislocated toe", "finger dislocation", "toe dislocation", "dislocation of finger", "dislocation of toe"]
+  - id: closed_fracture
+    category: urgent
+    label: "Closed fracture"
+    aliases: ["closed fracture", "simple fracture"]
+  - id: other_burns
+    category: urgent
+    label: "Other burns"
+    aliases: ["other burn", "other burns", "minor burn", "small burn", "superficial burn", "scald"]
+  - id: abdominal_pain
+    category: urgent
+    label: "Abdominal pain"
+    aliases: ["abdominal pain", "stomach pain", "tummy pain", "belly pain", "abdo pain", "pain in abdomen"]
+  - id: diabetic_hyperglycaemia_no_ketonuria
+    category: urgent
+    label: "Diabetic glucose > 17 without ketonuria"
+    aliases: ["glucose above 17", "very high glucose", "high blood sugar without ketones", "diabetic glucose high"]
+
+# The explicit 'nothing matched' outcome (D-11): a deterministic matcher must be
+# able to report a coverage gap rather than silently returning a low-acuity colour.
+no_match:
+  result: none
+  warning: "no discriminator matched — coverage gap (E-09); do not infer a colour from the complaint"
