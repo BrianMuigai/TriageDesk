@@ -1,0 +1,31 @@
+# The demo smoke test (DOCS-03, D-02, T-05-04): the exact one-command path a stranger runs.
+#
+# This job runs the EXACT bare `uv run triagedesk demo` command — offline by default, so
+# it needs only `uv` and the locked dependencies (no pulled model, no borrowed server). A
+# broken one-command path therefore fails the build rather than sitting in a document. The
+# setup mirrors `eval-gate.yml` and adds NO dependency; the offline demo is fully
+# in-process, so the borrowed `npx mcp-sqlite` server is never launched (T-05-10, T-05-SC).
+name: smoke
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install Python 3.12
+        run: uv python install 3.12
+
+      - name: Install the locked dependencies
+        run: uv sync --locked
+
+      - name: Demo smoke (the exact one-command path, offline)
+        run: uv run triagedesk demo
