@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 4
 current_phase_name: Evaluation, Recovery & Honest Failure
 status: verifying
-stopped_at: Completed 04-05-PLAN.md
-last_updated: "2026-10-09T20:52:08.657Z"
+stopped_at: Completed 04-06-PLAN.md
+last_updated: "2026-10-09T21:19:35.050Z"
 last_activity: 2026-10-09
 last_activity_desc: Completed 04-03-PLAN.md
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 18
-  completed_plans: 17
+  completed_plans: 18
 state_head: bad675a53c01366530f0aea27e61b72b45c1f88b
 ---
 
@@ -33,7 +33,7 @@ Plan: 4 of 4
 Status: Phase complete — ready for verification
 Last activity: 2026-10-09 — Completed 04-03-PLAN.md
 
-Progress: [█████████░] 94%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -76,6 +76,7 @@ Progress: [█████████░] 94%
 | Phase 04 P03 | 19 | 3 tasks | 8 files |
 | Phase 04 P04 | 24 | 4 tasks | 8 files |
 | Phase 04 P05 | 5 | 2 tasks | 5 files |
+| Phase 04 P06 | 21 | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -158,6 +159,9 @@ Recent decisions affecting current work:
 - [Phase 04]: The measured run failed the gate honestly (E-04 unstable, E-07 RECHECK->RECOVER, E-13 injection->ABSTAIN beyond the declared E-09); recorded, not tuned (D-04/D-05)
 - [Phase 04]: The TEWS-0 baseline citation is data-driven (data/sats_tews.yaml baseline_citation) and formatted through the ONE citation helper; the baseline rule is emitted only when no rule/override fired and a parameter was used, so a real finding is never displaced (G-1, T-04-22)
 - [Phase 04]: INV-1 now fails a scored priority carrying zero citations; graph/nodes.verify is unchanged, so a genuinely uncited priority still fail-closes (T-04-23, EVAL-03)
+- [Phase 04]: ABORT_OUTCOME is harness vocabulary in evals/case.py, excluded from declared_outcomes, so a card-less run can never be a valid expected token or a pass (G-2, T-04-26).
+- [Phase 04]: runner._capture reads the graph's own terminal channels (handover/route/attempt); _outcome maps a colour-present-but-not-delivered run to ABORT, so a fail-closed END is never a delivered colour.
+- [Phase 04]: ReportCase.delivered/routes/attempts are sealed in report_digest; analysis names aborted cases on their own and emit_evals renders Gate delivery strictly from the report (EVAL-05, T-04-27/28).
 
 ### Pending Todos
 
@@ -180,6 +184,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T20:52:08.643Z
-Stopped at: Completed 04-05-PLAN.md
+Last session: 2026-10-09T21:19:35.038Z
+Stopped at: Completed 04-06-PLAN.md
 Resume file: None
