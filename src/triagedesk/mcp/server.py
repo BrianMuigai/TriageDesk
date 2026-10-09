@@ -12,12 +12,13 @@ from __future__ import annotations
 
 from mcp.server import MCPServer
 
-from triagedesk.core import matcher, scorer
+from triagedesk.core import matcher, recheck, scorer
 from triagedesk.core.schema import (
     CaseInput,
     ExtractionResult,
     MatchResult,
     PriorityResult,
+    RecheckFlag,
 )
 from triagedesk.llm.client import extract
 
@@ -70,6 +71,17 @@ def match_discriminators(complaint: str) -> MatchResult:
     explicit ``no_match`` result — never a guessed id (SAFE-01).
     """
     return matcher.match_discriminators(complaint)
+
+
+@server.tool()
+def raise_recheck_flag(previous: CaseInput, current: CaseInput) -> RecheckFlag:
+    """Compare serial vitals into a second-look flag — never a re-classification (D-08).
+
+    A thin, contract-typed adapter over the pure ``core.recheck.compare_vitals``
+    function (SOLID: S/D): it returns a flag and the before/after vitals only. It
+    never returns a colour and never reorders the queue (TOOL-04, T-02-10).
+    """
+    return recheck.compare_vitals(previous, current)
 
 
 if __name__ == "__main__":

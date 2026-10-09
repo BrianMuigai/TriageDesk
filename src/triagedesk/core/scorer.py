@@ -179,6 +179,18 @@ def case_field(name: str) -> str:
     return candidates[0] if len(candidates) == 1 else name
 
 
+def band_points(param: Parameter, value: object) -> int:
+    """The TEWS points a typed *value* scores — the ONE band-selection authority.
+
+    A public wrapper over the band-selection logic so any caller that needs
+    per-vital points (e.g. the serial-vitals recheck) reuses the exact same
+    data-driven selection instead of duplicating it (CONVENTIONS §1/§2 — a single
+    authority). A categorical value that maps to no band scores 0.
+    """
+    band = _select_band(param, value)
+    return band.points if band is not None else 0
+
+
 def score_priority(
     case: CaseInput,
     matched_discriminator_ids: list[str] | None = None,

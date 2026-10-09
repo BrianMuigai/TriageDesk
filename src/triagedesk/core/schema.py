@@ -110,3 +110,34 @@ class MatchResult(BaseModel):
     matched_ids: list[str] = Field(default_factory=list)
     no_match: bool = False
     warning: str | None = None
+
+
+class VitalChange(BaseModel):
+    """One scored vital compared across two serial cases (D-08).
+
+    ``before``/``after`` carry the raw value on each side (numeric, categorical or
+    boolean); ``points_before``/``points_after`` are its TEWS band points read from
+    ``data/sats_tews.yaml``. A move to a higher-points band is a deterioration.
+    """
+
+    parameter: str
+    before: float | int | str | bool | None = None
+    after: float | int | str | bool | None = None
+    points_before: int
+    points_after: int
+
+
+class RecheckFlag(BaseModel):
+    """Second-look flag from serial vitals — never a colour, never a reorder (D-08).
+
+    ``flag`` is ``True`` when at least one scored vital moved to a higher-points
+    TEWS band; ``deteriorations`` names those vitals; ``changes`` carries the
+    before/after value and band points of every compared vital. There is
+    deliberately no colour field: this result never re-classifies and never touches
+    the queue (TOOL-04, T-02-10).
+    """
+
+    flag: bool = False
+    deteriorations: list[str] = Field(default_factory=list)
+    changes: list[VitalChange] = Field(default_factory=list)
+    reason: str | None = None
