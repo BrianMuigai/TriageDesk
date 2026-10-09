@@ -1,0 +1,18 @@
+{
+  "algorithm": "sha256",
+  "canonical_form": "sorted-key JSON, compact separators, UTF-8",
+  "data": {
+    "sats_discriminators.yaml": "64c2c0b09eb444b95cc9769dcd4fd106abfd32a93f0aa2e9ace401877f205d6a",
+    "sats_tews.yaml": "536d878454af0d5f8c67fdefe06ad637dd60e86826c175161aa7b08e86fa3bb6"
+  },
+  "generated_by": "scripts/hash_data.py",
+  "model_licence": "Apache License",
+  "model_tag": "qwen2.5:1.5b",
+  "prompts": {
+    "EXTRACTION_PROMPT": "8dc6e80f2841389889fa0b911894eb6e5f2496bd214f34213ac90134b85c3f3d"
+  },
+  "schemas": {
+    "CaseInput": "a951bd502891a9988952b0effdd71d51172d63d781c56b9245695b5637db481e",
+    "ExtractionResult": "19f4c66211f5f9c51026bb3c5bd81b515836fb7bc682b50f876ca5ffc42d36eb"
+  }
+}

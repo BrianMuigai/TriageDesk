@@ -1,0 +1,90 @@
+# NOTICE — TriageDesk
+
+TriageDesk is released under the **Apache License, Version 2.0** (see `LICENSE`).
+This NOTICE records every third-party component and its licence, as required by
+the challenge's disclosure rule (DQ-8) and Roadmap SC5.
+
+Data posture: **synthetic data only**. No patient data is used, and no network
+client runs on the extraction path — all inference is local via Ollama. No
+secrets are read or written.
+
+## Python dependencies
+
+Runtime (pinned in `pyproject.toml`; exact transitive graph in `uv.lock`):
+
+| Component | Version | Licence |
+| --- | --- | --- |
+| `mcp` (MCP Python SDK) | 2.3.0 | MIT |
+| `langgraph` | 1.2.14 | MIT |
+| `langchain` (`[mcp]` extra) | 1.4.4 | MIT |
+| `langgraph-checkpoint-sqlite` | 3.1.1 | MIT |
+| `ollama` (Python client) | 0.6.3 | MIT |
+| `pydantic` | 2.14.0 | MIT |
+| `PyYAML` | >=6.0,<7 | MIT |
+
+Notable transitive runtime components (full inventory derivable from `uv.lock`):
+
+| Component | Version | Licence |
+| --- | --- | --- |
+| `langchain-core` | 1.6.9 | MIT |
+| `mcp-types` | 2.3.0 | MIT |
+| `fastmcp` | 4.1.0 | Apache-2.0 |
+| `pydantic-core` | 2.50.0 | MIT |
+| `httpx` | 0.28.1 | BSD-3-Clause |
+| `starlette` | 1.7.0 | BSD-3-Clause |
+| `anyio` | 4.15.1 | MIT |
+
+Development-only (not shipped in the runtime path):
+
+| Component | Licence |
+| --- | --- |
+| `pytest` | MIT |
+| `pytest-asyncio` | Apache-2.0 |
+| `ruff` | MIT |
+| `mypy` | MIT |
+
+## Local open-weights models (Ollama)
+
+Both models run locally on CPU; no data egress.
+
+| Model tag | Role | Licence |
+| --- | --- | --- |
+| `qwen2.5:1.5b` | Selected default (D-01/D-03; measured in `evidence/model-spike.json`) | Apache-2.0 |
+| `qwen3.5:4b` | Verified fallback | Apache-2.0 |
+
+The licence for each model is recorded as observed in `evidence/model-spike.json`
+(Plan 01-01 model-fit evidence).
+
+## Borrowed MCP server
+
+| Component | Version | Licence |
+| --- | --- | --- |
+| `mcp-sqlite` (`jparkerweb/mcp-sqlite`) | 1.0.9 | ISC |
+
+The official `modelcontextprotocol/sqlite` reference server is archived and is
+**not** used. The maintained community server above is pinned; `rusq/mcp-sqlite`
+(BSD-2-Clause) is the documented fallback (see `DECISIONS.md` D5, `STACK.md`).
+
+## Clinical content attribution
+
+The clinical rules encoded in `data/sats_tews.yaml` and
+`data/sats_discriminators.yaml` are derived from the **South African Triage
+Scale (SATS)**, published by the **Emergency Medicine Society of South Africa
+(EMSSA)** — *SATS Training Manual* (2012), <https://emssa.org.za>.
+
+SATS clinical content is **cited, not redistributed wholesale**: only the
+machine-necessary thresholds, colour bands and discriminator labels are encoded
+as data, and each is attributed through the citation helper (`core/citations.py`,
+D-15). The transcription provenance and its residual uncertainty are recorded in
+`evidence/sats-verification.md` and `docs/SATS.md`.
+
+## MCP protocol
+
+The owned MCP server is authored with the MCP Python SDK and speaks the current
+MCP protocol revision **2026-07-28**, negotiating down to legacy 2025-era
+clients automatically (see `STACK.md`).
+
+---
+
+*Third-party licences are recorded from the installed package metadata and the
+pinned lockfile at build time; the exact resolved graph is `uv.lock`.*
