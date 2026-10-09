@@ -1,20 +1,20 @@
 ---
-gsd_state_version: "1.0"
+gsd_state_version: 1.0
 milestone: v1.0
+milestone_name: milestone
 current_phase: 3
 current_phase_name: Approval Gate, Gated Commit & Safety Spine
 status: executing
-stopped_at: Completed 02-03-PLAN.md
-last_updated: "2026-10-09T15:52:03.001Z"
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-10-09T16:09:22.361Z"
 last_activity: 2026-10-09
 last_activity_desc: Phase 3 execution started
-state_head: a345a0d3af4b3fd5e4f92776f67b71e642e6c252
 progress:
-  total_phases: 5
+  total_phases: 3
   completed_phases: 2
   total_plans: 12
-  completed_plans: 7
-milestone_name: milestone
+  completed_plans: 8
+state_head: a345a0d3af4b3fd5e4f92776f67b71e642e6c252
 ---
 
 # Project State
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 ## Current Position
 
 Phase: 3 (Approval Gate, Gated Commit & Safety Spine) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 3
+Plan: 2 of 5
+Status: Ready to execute
 Last activity: 2026-10-09 — Phase 3 execution started
 
-Progress: [██████████] 100%
+Progress: [███████░░░] 67%
 
 ## Performance Metrics
 
@@ -66,6 +66,7 @@ Progress: [██████████] 100%
 | Phase 02 P01 | 16 | 3 tasks | 8 files |
 | Phase 02 P02 | 6 | 3 tasks | 7 files |
 | Phase 02 P03 | 10 | 3 tasks | 8 files |
+| Phase 3 P01 | 11 | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,12 @@ Recent decisions affecting current work:
 - [Phase 02]: normalize_case constrains model-returned ids through core.matcher.validate_discriminator_ids (the one closed-set authority); unknown ids dropped, missing vitals stay None (TOOL-01, D-09).
 - [Phase 02]: Deterioration direction is data-derived: the serial-vitals recheck compares TEWS band points, reusing core.scorer.band_points() so no threshold is duplicated; RecheckFlag has no colour and never re-classifies (TOOL-04, D-08).
 - [Phase 02]: commit_priority is a gated Phase-2 stub: it validates an ApprovalToken (approver+role+decision+timestamp), refuses without one, and writes nothing; the real LangGraph gate is Phase 3 (TOOL-05, D-07).
+- [Phase 3]: Graph depends on an injected tools mapping (name -> async callable), never MCPAdapter; graph/build.py is the only composition point (D-13, SOLID: D).
+- [Phase 3]: approval_gate builds a pure evidence payload then interrupt(); NO side effect before the gate so a resumed node re-runs cleanly (D-04, T-03-02).
+- [Phase 3]: commit builds an ApprovalToken from the resumed value verbatim (approve defaults final_colour to the scored colour; edit must carry its own); the gated tool refuses malformed/absent tokens (D-05, T-03-01).
+- [Phase 3]: ApprovalToken.final_colour is validated against the colour set read from data/sats_tews.yaml, never a literal (CONVENTIONS 1).
+- [Phase 3]: checkpoints.db (runtime state) is a different file from triage.db (clinical record + audit) (D-09); the SQLite saver registers an explicit per-type msgpack allowlist derived from core.schema.
+- [Phase 3]: The verify retry edge is bounded (attempt < 2); an exhausted retry stops at END, never reaching the gate or commit (T-03-05).
 
 ### Pending Todos
 
@@ -124,6 +131,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-09T15:14:26.528Z
-Stopped at: Completed 02-03-PLAN.md
+Last session: 2026-10-09T16:09:15.205Z
+Stopped at: Completed 03-01-PLAN.md
 Resume file: None

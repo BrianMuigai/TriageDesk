@@ -35,16 +35,16 @@
 
 ### Orchestration
 
-- [ ] **ORCH-01**: LangGraph graph runs `ingest → normalize → retrieve → score → verify → (recheck) → gate → commit → handover`
-- [ ] **ORCH-02**: The whole task runs on a **local open-weights** model; no frontier model in the required path
+- [x] **ORCH-01**: LangGraph graph runs `ingest → normalize → retrieve → score → verify → (recheck) → gate → commit → handover`
+- [x] **ORCH-02**: The whole task runs on a **local open-weights** model; no frontier model in the required path
 - [ ] **ORCH-03**: Model is used only to extract/explain; the score path never imports the model or an MCP client (enforced by a guard test)
 - [ ] **ORCH-04**: Extraction uses structured JSON output; invalid output retries once, then falls back deterministically
 - [ ] **ORCH-05**: Missing-vital recovery and safe abstention are conditional edges that never guess
 
 ### Gate & commit (safety milestone)
 
-- [ ] **GATE-01**: A LangGraph `interrupt()` pauses for a **named** clinician before any queue-affecting write
-- [ ] **GATE-02**: `commit_priority` cannot run without a valid approval token (approve/edit/dismiss + name + role + timestamp)
+- [x] **GATE-01**: A LangGraph `interrupt()` pauses for a **named** clinician before any queue-affecting write
+- [x] **GATE-02**: `commit_priority` cannot run without a valid approval token (approve/edit/dismiss + name + role + timestamp)
 - [ ] **GATE-03**: The write is **idempotent** (keyed by `case_id` + content hash) — a retry cannot double-place a patient
 - [ ] **GATE-04**: A deterioration re-check raises a second-look flag **without** reordering the queue on its own
 
@@ -129,13 +129,13 @@ Which phases cover which requirements.
 | TOOL-04 | Phase 2 | Complete |
 | TOOL-05 | Phase 2 | Complete |
 | TOOL-06 | Phase 3 | Pending |
-| ORCH-01 | Phase 3 | Pending |
-| ORCH-02 | Phase 3 | Pending |
+| ORCH-01 | Phase 3 | Complete |
+| ORCH-02 | Phase 3 | Complete |
 | ORCH-03 | Phase 3 | Pending |
 | ORCH-04 | Phase 3 | Pending |
 | ORCH-05 | Phase 3 | Pending |
-| GATE-01 | Phase 3 | Pending |
-| GATE-02 | Phase 3 | Pending |
+| GATE-01 | Phase 3 | Complete |
+| GATE-02 | Phase 3 | Complete |
 | GATE-03 | Phase 3 | Pending |
 | GATE-04 | Phase 3 | Pending |
 | AUDIT-01 | Phase 3 | Pending |
