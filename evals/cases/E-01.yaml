@@ -1,0 +1,25 @@
+# Eval case E-01 — Routine presentation (EVALS.md §4).
+# Expected frozen from EVALS.md §4 applied to the golden case through the published
+# substrate (data/sats_tews.yaml): RR 16 -> 1, HR 78 -> 0, SBP 118 -> 0, T 36.8 -> 0,
+# mobility walking -> 0, AVPU alert -> 0, no trauma -> 0 => TEWS 1 => GREEN.
+# Complaint "sore throat" matches no discriminator (no_match), so the colour is the
+# vitals colour. Never derived from the system's current output (D-05, Pitfall 11).
+id: E-01
+description: "Routine presentation"
+note: >-
+  30 year old woman, walking, alert, no trauma. RR 16, HR 78, systolic BP 118,
+  temperature 36.8. Complaint: sore throat.
+case:
+  age_years: 30
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 16
+  heart_rate: 78
+  systolic_bp: 118
+  temperature_c: 36.8
+  trauma: false
+  complaint: "sore throat"
+expected: GREEN
+pass_criteria: "colour=GREEN; cites RR band; no false flag"
+source: "EVALS.md §4 E-01"
+declared_failure: false

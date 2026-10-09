@@ -1,0 +1,29 @@
+# Eval case E-12 — Failure recovery (EVALS.md §4).
+# Injected fault: the model/tool boundary times out on the first call and returns
+# malformed JSON on the second, so the graph's bounded retry is exhausted and it falls
+# back to the deterministic, already-structured case (no fabricated value). The golden
+# case is missing a scored vital (temperature), so the deterministic path lands on the
+# recovery terminal — never an uncited/partial priority and no commit (ORCH-04, Pitfall 13).
+id: E-12
+description: "Failure recovery"
+note: >-
+  50 year old man, walking, alert, no trauma. RR 18, HR 82, systolic BP 120. No
+  temperature recorded. Complaint: generally unwell.
+case:
+  age_years: 50
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 18
+  heart_rate: 82
+  systolic_bp: 120
+  trauma: false
+  complaint: "generally unwell"
+inject:
+  tool_timeout: true
+  malformed_json: true
+expected: RECOVER
+pass_criteria: >-
+  retries once; falls back to the deterministic path; never emits an uncited/partial
+  priority; no commit
+source: "EVALS.md §4 E-12"
+declared_failure: false

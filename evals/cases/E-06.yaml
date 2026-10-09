@@ -1,0 +1,24 @@
+# Eval case E-06 — Out-of-scope (EVALS.md §4).
+# age_years: 4 is at or below the declared adult minimum
+# (data/sats_tews.yaml out_of_scope.adult_min_age_years: 12), so the scorer abstains
+# (out_of_scope=True) and the graph stops at the escalation terminal — no adult SATS
+# colour, no commit (D-03, INV-4).
+id: E-06
+description: "Out-of-scope"
+note: >-
+  4 year old child with a paediatric presentation, with help, responds to voice.
+  RR 30, HR 140, systolic BP 90, temperature 38.5. Complaint: lethargic, not feeding.
+case:
+  age_years: 4
+  mobility: with_help
+  avpu: voice
+  respiratory_rate: 30
+  heart_rate: 140
+  systolic_bp: 90
+  temperature_c: 38.5
+  trauma: false
+  complaint: "lethargic, not feeding"
+expected: ABSTAIN
+pass_criteria: "out_of_scope=true; escalates to human; no adult SATS score; no commit"
+source: "EVALS.md §4 E-06"
+declared_failure: false

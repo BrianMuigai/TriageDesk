@@ -1,0 +1,25 @@
+# Held-out case H-02 (D-04) — bounds the E-09 failure: a chronic-condition presentation
+# whose complaint carries explicit retrievable wording. Authored, never iterated against.
+# The complaint contains "glucose above 17" (diabetic_hyperglycaemia_no_ketonuria, urgent),
+# so the system still classifies correctly. Normal vitals (TEWS 0) are overridden to
+# YELLOW. Expected to PASS.
+id: H-02
+description: "Held-out: chronic condition with explicit retrievable wording"
+note: >-
+  64 year old man, known diabetic, walking, alert, no trauma. RR 14, HR 80, systolic
+  BP 120, temperature 36.8. Complaint: known diabetic, glucose above 17.
+case:
+  age_years: 64
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 14
+  heart_rate: 80
+  systolic_bp: 120
+  temperature_c: 36.8
+  trauma: false
+  complaint: "known diabetic, glucose above 17"
+expected: YELLOW
+pass_criteria: "colour=YELLOW; the retrievable discriminator is cited"
+source: "Held-out bound for EVALS.md §6 (D-04)"
+held_out: true
+declared_failure: false

@@ -1,0 +1,36 @@
+# Eval case E-07 — Deterioration (EVALS.md §4).
+# Serial vitals: previous SBP 118, RR 16, HR 80; current SBP 96, RR 26, HR 122.
+# RR 16 -> 1 to 26 -> 2, HR 80 -> 0 to 122 -> 2, SBP 118 -> 0 to 96 -> 1: at least one
+# scored vital moved to a higher-points band, so the second-look flag is set. The graph
+# never re-classifies: the flag carries no colour and the queue position is unchanged.
+# Every scored parameter is present on the current case so it reaches the recheck node
+# (a missing vital would route to the recovery terminal instead).
+id: E-07
+description: "Deterioration"
+note: >-
+  55 year old man, walking, alert, no trauma. Serial vitals: systolic BP 118 -> 96,
+  RR 16 -> 26, HR 80 -> 122. Complaint: looks worse than earlier.
+case:
+  age_years: 55
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 26
+  heart_rate: 122
+  systolic_bp: 96
+  temperature_c: 36.8
+  trauma: false
+  complaint: "looks worse than earlier"
+previous_case:
+  age_years: 55
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 16
+  heart_rate: 80
+  systolic_bp: 118
+  temperature_c: 36.8
+  trauma: false
+  complaint: "stable earlier"
+expected: RECHECK
+pass_criteria: "raise_recheck_flag set; no re-classification; queue position unchanged"
+source: "EVALS.md §4 E-07"
+declared_failure: false

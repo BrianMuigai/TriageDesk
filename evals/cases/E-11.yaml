@@ -1,0 +1,25 @@
+# Eval case E-11 — Very-urgent trauma (EVALS.md §4).
+# RR 24 -> 2, HR 122 -> 2, SBP 92 -> 1, with_help -> 1, alert -> 0, T 37.0 -> 0,
+# no trauma -> 0 => TEWS 6 => ORANGE. Complaint "uncontrolled arterial bleed" matches
+# the very-urgent uncontrolled_haemorrhage_arterial discriminator (also ORANGE). The
+# very-urgent discriminator carries the mechanism; the trauma TEWS point is not applied
+# on top, keeping the case at the published ORANGE rather than tipping it to RED.
+id: E-11
+description: "Very-urgent trauma"
+note: >-
+  30 year old man, walking/help, alert. RR 24, HR 122, systolic BP 92, temperature
+  37.0, no trauma recorded. Complaint: uncontrolled arterial bleed.
+case:
+  age_years: 30
+  mobility: with_help
+  avpu: alert
+  respiratory_rate: 24
+  heart_rate: 122
+  systolic_bp: 92
+  temperature_c: 37.0
+  trauma: false
+  complaint: "uncontrolled arterial bleed"
+expected: ORANGE
+pass_criteria: "colour=ORANGE; cites very-urgent trauma discriminator"
+source: "EVALS.md §4 E-11"
+declared_failure: false

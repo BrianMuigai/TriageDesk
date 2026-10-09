@@ -1,0 +1,24 @@
+# Eval case E-03 — Discriminator override (EVALS.md §4).
+# Normal vitals (TEWS 0): RR 14 -> 0, HR 80 -> 0, SBP 120 -> 0, T 36.8 -> 0,
+# walking -> 0, alert -> 0, no trauma -> 0 => TEWS 0 => GREEN.
+# Complaint "chest pain" matches the very-urgent chest_pain discriminator, which
+# overrides the TEWS colour to ORANGE (most urgent wins, docs/SATS.md §5).
+id: E-03
+description: "Discriminator override"
+note: >-
+  52 year old man, walking, alert, no trauma. Normal vitals: RR 14, HR 80, systolic
+  BP 120, temperature 36.8. Complaint: chest pain.
+case:
+  age_years: 52
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 14
+  heart_rate: 80
+  systolic_bp: 120
+  temperature_c: 36.8
+  trauma: false
+  complaint: "chest pain"
+expected: ORANGE
+pass_criteria: "colour=ORANGE; citation = VU discriminator, not TEWS"
+source: "EVALS.md §4 E-03"
+declared_failure: false

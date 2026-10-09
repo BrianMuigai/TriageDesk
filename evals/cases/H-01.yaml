@@ -1,0 +1,25 @@
+# Held-out case H-01 (D-04) — bounds the E-09 failure: a vague complaint that DOES carry
+# a retrievable discriminator. Authored, never iterated against. The complaint contains
+# "short of breath" (acute_shortness_of_breath, very urgent), so the system still
+# classifies correctly despite the vague "feeling unwell" opener. Normal vitals (TEWS 0)
+# are overridden to ORANGE. Expected to PASS.
+id: H-01
+description: "Held-out: vague complaint with a retrievable discriminator"
+note: >-
+  58 year old woman, walking, alert, no trauma. RR 14, HR 80, systolic BP 120,
+  temperature 36.8. Complaint: feeling unwell and short of breath.
+case:
+  age_years: 58
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 14
+  heart_rate: 80
+  systolic_bp: 120
+  temperature_c: 36.8
+  trauma: false
+  complaint: "feeling unwell and short of breath"
+expected: ORANGE
+pass_criteria: "colour=ORANGE; the retrievable discriminator is cited"
+source: "Held-out bound for EVALS.md §6 (D-04)"
+held_out: true
+declared_failure: false

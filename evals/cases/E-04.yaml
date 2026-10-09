@@ -1,0 +1,27 @@
+# Eval case E-04 — Emergency discriminator (EVALS.md §4).
+# The presentation is "AVPU responds only to pain". The golden complaint carries the
+# declared emergency-AVPU alias wording ("responds only to pain"), so the emergency
+# discriminator avpu_pain_or_unresponsive is retrieved and RED is earned by a citation
+# — no data/*.yaml edit and no expectation edit (D-05, Pitfall 11).
+# Vitals: mobility stretcher -> 2, AVPU pain -> 2, RR 14 -> 0, HR 80 -> 0, SBP 120 -> 0,
+# T 36.8 -> 0, no trauma -> 0 => TEWS 4 => YELLOW; the emergency discriminator overrides
+# to RED (most urgent wins).
+id: E-04
+description: "Emergency discriminator"
+note: >-
+  68 year old man, immobile (stretcher), reduced level of consciousness, responds only
+  to pain. RR 14, HR 80, systolic BP 120, temperature 36.8, no trauma.
+case:
+  age_years: 68
+  mobility: stretcher
+  avpu: pain
+  respiratory_rate: 14
+  heart_rate: 80
+  systolic_bp: 120
+  temperature_c: 36.8
+  trauma: false
+  complaint: "reduced level of consciousness, responds only to pain"
+expected: RED
+pass_criteria: "colour=RED; cites emergency discriminator; no TEWS-only path"
+source: "EVALS.md §4 E-04"
+declared_failure: false

@@ -1,0 +1,23 @@
+# Eval case E-05 — Missing vital (EVALS.md §4).
+# temperature_c is deliberately omitted, so a scored parameter is missing; the scorer
+# reports missing=[temperature] and the graph stops at the recovery terminal
+# (re-measure) — it fabricates no value, emits no colour and commits nothing
+# (ORCH-05, D-03, Pitfall 4).
+id: E-05
+description: "Missing vital"
+note: >-
+  40 year old man, walking, alert, no trauma. RR 18, HR 82, systolic BP 120. No
+  temperature recorded. Complaint: fever.
+case:
+  age_years: 40
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 18
+  heart_rate: 82
+  systolic_bp: 120
+  trauma: false
+  complaint: "fever"
+expected: RECOVER
+pass_criteria: "missing=[temperature]; requests re-measure; fabricates no value; no commit"
+source: "EVALS.md §4 E-05"
+declared_failure: false

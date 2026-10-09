@@ -1,0 +1,23 @@
+# Eval case E-10 — TEWS urgent (EVALS.md §4).
+# RR 22 -> 2, HR 104 -> 1, SBP 106 -> 0, T 37.0 -> 0, walking -> 0, alert -> 0,
+# no trauma -> 0 => TEWS 3 => YELLOW. Complaint "abdominal pain" matches the urgent
+# abdominal_pain discriminator (also YELLOW).
+id: E-10
+description: "TEWS urgent"
+note: >-
+  45 year old woman, walking, alert, no trauma. RR 22, HR 104, systolic BP 106,
+  temperature 37.0. Complaint: abdominal pain.
+case:
+  age_years: 45
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 22
+  heart_rate: 104
+  systolic_bp: 106
+  temperature_c: 37.0
+  trauma: false
+  complaint: "abdominal pain"
+expected: YELLOW
+pass_criteria: "colour=YELLOW; cites TEWS band and/or urgent discriminator"
+source: "EVALS.md §4 E-10"
+declared_failure: false

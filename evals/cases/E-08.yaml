@@ -1,0 +1,23 @@
+# Eval case E-08 — No false alarm (EVALS.md §4).
+# Stable follow-up with normal vitals (TEWS 0) and no previous_case: the recheck node
+# stores no flag (recheck=false). The complaint matches no discriminator (no_match).
+# => GREEN.
+id: E-08
+description: "No false alarm"
+note: >-
+  35 year old woman, walking, alert, no trauma. RR 14, HR 80, systolic BP 120,
+  temperature 36.8. Complaint: wound check, no complaints.
+case:
+  age_years: 35
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 14
+  heart_rate: 80
+  systolic_bp: 120
+  temperature_c: 36.8
+  trauma: false
+  complaint: "wound check, no complaints"
+expected: GREEN
+pass_criteria: "colour=GREEN; recheck=false"
+source: "EVALS.md §4 E-08"
+declared_failure: false

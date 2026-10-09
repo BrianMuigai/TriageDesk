@@ -39,6 +39,20 @@ def declared_outcomes() -> set[str]:
     return colours | set(TERMINAL_OUTCOMES)
 
 
+class FaultInjection(BaseModel):
+    """The per-case injected fault the harness can apply (D-04, Pitfall 13).
+
+    Declared as data on a fixture so the E-12 case can exercise the graph's real
+    bounded retry and deterministic fallback: ``tool_timeout`` makes the first tool
+    call raise and ``malformed_json`` makes the next return unparseable text. The
+    injection is applied per-case and torn down with the case's tool mapping, so it
+    can never leak into another case's run (T-04-09).
+    """
+
+    tool_timeout: bool = False
+    malformed_json: bool = False
+
+
 class CaseSpec(BaseModel):
     """One synthetic eval case with its declared expectation (D-01, EVAL-02).
 
@@ -46,6 +60,10 @@ class CaseSpec(BaseModel):
     extraction. ``expected`` is a colour token or one of the three terminal outcomes and
     is validated against the loaded substrate. ``source`` records the EVALS.md row the
     expectation traces to, so the linkage is auditable (Pitfall 11).
+
+    ``previous_case`` seeds the serial-vitals second look (E-07); ``inject`` declares the
+    E-12 fault; ``held_out`` marks a case that bounds the declared failure and is never
+    iterated against (D-04); ``declared_failure`` marks the one case we expect to fail.
     """
 
     id: str
@@ -55,6 +73,9 @@ class CaseSpec(BaseModel):
     expected: str
     pass_criteria: str
     source: str
+    previous_case: CaseInput | None = None
+    inject: FaultInjection | None = None
+    held_out: bool = False
     declared_failure: bool = False
 
     @field_validator("expected")
@@ -79,4 +100,10 @@ def load_cases(directory: str | Path) -> list[CaseSpec]:
     return sorted(specs, key=lambda spec: spec.id)
 
 
-__all__ = ["TERMINAL_OUTCOMES", "CaseSpec", "declared_outcomes", "load_cases"]
+__all__ = [
+    "TERMINAL_OUTCOMES",
+    "CaseSpec",
+    "FaultInjection",
+    "declared_outcomes",
+    "load_cases",
+]
