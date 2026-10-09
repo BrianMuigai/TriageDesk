@@ -1,9 +1,10 @@
-"""The ``triagedesk`` console entry point (D-01, EVAL-02).
+"""The ``triagedesk`` console entry point (D-01, EVAL-02, DOCS-01).
 
-The thinnest possible shell over the async eval runner: it parses the ``eval`` command
-with stdlib ``argparse`` (no new dependency, SAFE-04) and hands the arguments to
-``triagedesk.evals.runner.run_eval``. The runner's integer exit code is returned from
-``main``, which the console script passes to ``sys.exit``.
+The thinnest possible shell over the async runners: it parses the ``eval`` and ``demo``
+commands with stdlib ``argparse`` (no new dependency, SAFE-04) and hands the arguments to
+``triagedesk.evals.runner.run_eval`` or ``triagedesk.demo.run.run_demo``. Each runner's
+integer exit code is returned from ``main``, which the console script passes to
+``sys.exit``.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 
+from triagedesk.demo.run import list_beats, run_demo
 from triagedesk.evals.runner import run_eval
 
 # The defaults named once so the CLI and the docs agree (DRY).
@@ -45,6 +47,31 @@ def _build_parser() -> argparse.ArgumentParser:
     eval_parser.add_argument(
         "--case", dest="case_filter", default=None, help="run a single case id"
     )
+
+    demo_parser = subcommands.add_parser(
+        "demo", help="run the scripted demo storyboard (offline by default)"
+    )
+    demo_parser.add_argument(
+        "--online",
+        action="store_true",
+        help="use the pulled local model (default: the offline golden fixture)",
+    )
+    demo_parser.add_argument(
+        "--beat",
+        dest="beats",
+        action="append",
+        default=None,
+        help="run a single storyboard beat by name (repeatable)",
+    )
+    demo_parser.add_argument(
+        "--list",
+        dest="list_beats",
+        action="store_true",
+        help="list the storyboard beat names and labels, then exit",
+    )
+    demo_parser.add_argument(
+        "--fixture", default=DEFAULT_CASES_DIR, help="directory of case fixtures"
+    )
     return parser
 
 
@@ -59,6 +86,16 @@ def main(argv: list[str] | None = None) -> int:
                 report_path=args.report,
                 offline=args.offline,
                 case_filter=args.case_filter,
+            )
+        )
+    if args.command == "demo":
+        if args.list_beats:
+            return list_beats()
+        return asyncio.run(
+            run_demo(
+                beats=args.beats,
+                offline=not args.online,
+                fixture_dir=args.fixture,
             )
         )
     return 2  # pragma: no cover - argparse rejects an unknown command first

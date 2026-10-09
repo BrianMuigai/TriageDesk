@@ -1,0 +1,23 @@
+# The demo storyboard (D-07): the beats the one-command demo plays, in order.
+#
+# Each entry maps a beat NAME to an EXISTING bundled eval case id (`evals/cases/*.yaml`)
+# and a human label. The manifest reuses those fixtures; it is read directly by the demo
+# runner and is NOT globbed by `load_cases` (it lives in its own directory). The
+# escalation and refusal beats deliberately share the E-02 case so the SAME scored
+# priority is shown committing under a named nurse and then refusing without one — the
+# demo's climax.
+- name: routine
+  case: E-01
+  label: "Routine presentation -> GREEN"
+- name: escalation
+  case: E-02
+  label: "Escalated vitals -> ORANGE (named approval commits)"
+- name: deterioration
+  case: E-07
+  label: "Deterioration -> serial-vitals second-look flag"
+- name: refusal
+  case: E-02
+  label: "Approval gate refuses without the named nurse"
+- name: failure
+  case: E-09
+  label: "Declared failure: expected ORANGE vs measured outcome"

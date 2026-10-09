@@ -63,6 +63,7 @@ select = ["E", "F", "I", "UP", "B", "TID"]
 "src/triagedesk/graph/**" = ["TID251"]
 "src/triagedesk/store/**" = ["TID251"]
 "src/triagedesk/evals/**" = ["TID251"]
+"src/triagedesk/demo/**" = ["TID251"]
 "scripts/**" = ["TID251"]
 "tests/**" = ["TID251"]
 
