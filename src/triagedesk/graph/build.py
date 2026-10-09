@@ -31,10 +31,23 @@ from pydantic import BaseModel
 from triagedesk.core import schema as schema_module
 from triagedesk.graph.nodes import ToolMap, make_nodes
 from triagedesk.graph.state import TriageState
+from triagedesk.store import DOMAIN_DB_PATH
 
-# The two persistence paths, named once so no caller inlines a filename (D-09).
-DOMAIN_DB_PATH = Path("triage.db")
+# The LangGraph runtime-state path, named once so no caller inlines a filename
+# (D-09). ``DOMAIN_DB_PATH`` (``triage.db``) is the clinical record + audit, owned
+# by the store package (single source); the two are deliberately DIFFERENT files.
 CHECKPOINTS_DB_PATH = Path("checkpoints.db")
+
+__all__ = [
+    "CHECKPOINTS_DB_PATH",
+    "DOMAIN_DB_PATH",
+    "TRACER_NODES",
+    "build_graph",
+    "checkpointed_graph",
+    "load_graph_tools",
+    "route_after_verify",
+    "run_case",
+]
 
 # The tracer's node set. A later plan may add recovery / recheck / escalation
 # nodes; the proof suite checks a *superset*, so those additions do not
