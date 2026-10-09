@@ -1,17 +1,17 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": null,
+  "milestone": "v1.0",
   "phases": [
     {
       "number": "1",
       "name": "SATS Foundations & Risk Retirement",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "number": "2",
       "name": "Deterministic Scorer & Own MCP Server",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "3",
@@ -32,7 +32,7 @@
   "next": {
     "command": "/gsd:progress --next",
     "label": "Advance to the next step",
-    "reason": "Phase 1 of 5 · 0% · executing"
+    "reason": "Phase 2 of 5 · executing"
   },
-  "updated_at": "2026-10-09T10:53:59.648Z"
+  "updated_at": "2026-10-09T14:29:21.685Z"
 }
