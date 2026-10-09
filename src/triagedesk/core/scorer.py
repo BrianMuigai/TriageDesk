@@ -199,7 +199,10 @@ def score_priority(
 
     Returns a cited SATS colour + TEWS total + target time when the case is adult
     and in scope; otherwise a fail-closed abstention. ``citations`` is derived 1:1
-    from ``triggered_rules`` so the citation invariant holds by construction.
+    from ``triggered_rules`` so the citation invariant holds by construction. A
+    rule-less in-scope priority (all vitals within their 0-point bands) gains exactly
+    ONE data-driven baseline rule, so a routine patient is sourced rather than
+    treated as having no evidence (G-1, SCORE-03).
     """
     rules = get_tews()
     out_of_scope, reason = _out_of_scope(case, rules)
@@ -250,6 +253,21 @@ def score_priority(
                     citation=format_citation(category.citation_ref, get_discriminators().citation),
                 )
             )
+    # A rule-less in-scope priority still needs ONE sourced entry so it reaches the
+    # approval gate rather than fail-closing as "no evidence" (G-1). The baseline is
+    # emitted ONLY when no rule and no discriminator override fired, so a real finding
+    # is never displaced by baseline evidence (T-04-22). The reference text is loaded
+    # from the machine authority and formatted through the ONE citation helper
+    # (CONVENTIONS §1); ``citations`` stays 1:1 with ``triggered_rules`` by construction.
+    if not triggered and used:
+        triggered.append(
+            TriggeredRule(
+                rule_id="tews_baseline",
+                detail=f"{', '.join(used)} within normal SATS bands",
+                points=0,
+                citation=format_citation(rules.baseline_citation, rules.citation),
+            )
+        )
     target_time = rules.target_times[colour]
     return PriorityResult(
         colour=colour,

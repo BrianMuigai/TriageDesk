@@ -69,6 +69,7 @@ class TewsRules(BaseModel):
 
     version: int
     citation: str
+    baseline_citation: str
     parameters: dict[str, Parameter]
     tews_to_colour: list[ColourBand]
     target_times: dict[str, TargetTime]

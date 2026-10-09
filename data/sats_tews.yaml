@@ -11,6 +11,11 @@
 # Transcription is re-verified verbatim against the manual in Plan 01-02 (D-10).
 version: 1
 citation: "SATS Training Manual 2012 (EMSSA), adult TEWS"
+# The citation for the "no rule fired" case: a routine, all-normal-vitals patient
+# scores TEWS 0 and fires no band rule, yet still needs sourced evidence so its
+# priority reaches the approval gate (G-1). Machine authority — never inlined in
+# code (CONVENTIONS §1).
+baseline_citation: "all recorded parameters within normal SATS bands"
 
 parameters:
   mobility:
