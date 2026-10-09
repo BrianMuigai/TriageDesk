@@ -60,13 +60,13 @@
 - [x] **SAFE-02**: No diagnosis/prescription output exists and no dx/rx tool is defined
 - [x] **SAFE-03**: Least privilege — tools are allowlisted; no network/credentials in the agent path
 - [x] **SAFE-04**: Version pinning + hashing for prompts, model, scale data, and tool schemas
-- [ ] **SAFE-05**: Suppression-direction injection is tested (injection that tries to *hide* a finding)
+- [x] **SAFE-05**: Suppression-direction injection is tested (injection that tries to *hide* a finding)
 
 ### Evaluation
 
 - [x] **EVAL-01**: 14 eval cases with expected outcomes, including one unfixed failure (E-09)
 - [x] **EVAL-02**: Each case runs 3×; run-to-run variation is measured and reported
-- [ ] **EVAL-03**: Safety invariants INV-1…INV-4 are executable assertions on every run
+- [x] **EVAL-03**: Safety invariants INV-1…INV-4 are executable assertions on every run
 - [ ] **EVAL-04**: Under-triage and over-triage are reported separately (not hidden behind symmetric accuracy)
 - [ ] **EVAL-05**: Report includes latency + token cost per run and is reproducible via recorded hashes
 
@@ -145,10 +145,10 @@ Which phases cover which requirements.
 | SAFE-02 | Phase 3 | Complete |
 | SAFE-03 | Phase 3 | Complete |
 | SAFE-04 | Phase 1 | Complete |
-| SAFE-05 | Phase 4 | Pending |
+| SAFE-05 | Phase 4 | Complete |
 | EVAL-01 | Phase 4 | Complete |
 | EVAL-02 | Phase 4 | Complete |
-| EVAL-03 | Phase 4 | Pending |
+| EVAL-03 | Phase 4 | Complete |
 | EVAL-04 | Phase 4 | Pending |
 | EVAL-05 | Phase 4 | Pending |
 | DOCS-01 | Phase 5 | Pending |
