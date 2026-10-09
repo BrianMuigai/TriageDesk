@@ -14,7 +14,9 @@ priorities:
 4. an out-of-scope/abstained case still carries no citations and no triggered rules;
 5. E-08 runs through the ONE graph interface with the offline eval tools, reaches the
    approval gate, and on an unapproved resume delivers a sourced GREEN handover card
-   (T-04-24) — the routine patient is served, not silenced.
+   (T-04-24) — the routine patient is served, not silenced;
+6. INV-1 fails a *scored* priority with zero citations and passes the baseline-cited one
+   (T-04-23, EVAL-03).
 
 Offline and deterministic: the model and the MCP subprocess are never launched (the
 autouse store fixture injects the in-memory store; the eval tools call the real owned
@@ -29,7 +31,9 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
 from triagedesk.core import matcher, scorer
+from triagedesk.core.schema import PriorityResult
 from triagedesk.evals.case import CaseSpec, load_cases
+from triagedesk.evals.invariants import INV_1, RunEvidence, evaluate
 from triagedesk.evals.tools import build_tools
 from triagedesk.evals.usage import UsageRecorder
 from triagedesk.graph.build import build_graph
@@ -138,3 +142,17 @@ async def test_e08_reaches_the_gate_and_delivers_a_sourced_green_card() -> None:
     assert card.colour == case.expected  # GREEN
     assert card.citations, "the delivered card carries no citation"
     assert len(card.citations) == len(card.triggered_rules)
+
+
+# ------------------- 6. INV-1 enforces "a scored priority is always sourced"
+
+async def test_inv1_fails_a_scored_priority_with_no_citation() -> None:
+    """INV-1 fails a scored priority with zero citations; the baseline-cited one passes."""
+    uncited = PriorityResult(colour="GREEN", tews=0, citations=[], triggered_rules=[])
+    failed = await evaluate(RunEvidence(case_id="X", expected="GREEN", priority=uncited))
+    assert failed.results[INV_1] is False
+    assert "citation" in failed.reasons[INV_1]
+
+    sourced = scorer.score_priority(_case("E-08").case)
+    passed = await evaluate(RunEvidence(case_id="E-08", expected="GREEN", priority=sourced))
+    assert passed.results[INV_1] is True

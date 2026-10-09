@@ -144,10 +144,11 @@ class InvariantReport(BaseModel):
 async def _check_inv1(evidence: RunEvidence) -> tuple[bool, str]:
     """INV-1: a scored priority is always sourced; citations match triggered rules.
 
-    The graph's ``verify`` node already refuses to publish a priority that fired a rule
-    without citing it; this is the eval-level assertion of the same contract (SCORE-03).
-    A zero-points priority (all vitals in a 0-point band) fired no rule and has nothing to
-    cite — ``len(citations) == len(triggered_rules)`` still holds (0 == 0).
+    The graph's ``verify`` node refuses to publish a priority with no evidence; this is
+    the eval-level assertion of the same contract (SCORE-03, EVAL-03). A *scored* priority
+    (a colour that is neither abstained nor out-of-scope) must cite at least one entry: the
+    scorer emits a data-driven baseline citation for the rule-less TEWS-0 case, so a scored
+    priority with zero citations is now a genuine defect — the hole this closes (T-04-23).
     """
     priority = evidence.priority
     if priority is None:
@@ -159,6 +160,13 @@ async def _check_inv1(evidence: RunEvidence) -> tuple[bool, str]:
         )
     if priority.triggered_rules and not priority.citations:
         return False, "a scored priority fired rules but carried no citation"
+    scored = (
+        priority.colour is not None
+        and not priority.abstained
+        and not priority.out_of_scope
+    )
+    if scored and not priority.citations:
+        return False, "a scored priority carried no citation"
     return True, "priority is sourced"
 
 
