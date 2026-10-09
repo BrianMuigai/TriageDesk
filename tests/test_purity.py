@@ -2,9 +2,12 @@
 
 ``core/`` is a **pure** boundary: it may not import ``llm``, ``mcp`` or ``store``
 in any form — absolute (``import triagedesk.llm`` / ``from triagedesk.llm import
-...``) or relative (``from ..llm import ...`` / ``from .. import mcp``). This is a
-**one-way, published contract** (D-13): later phases depend on it, and silently
-letting the score path depend on the model / MCP / storage would break the design.
+...``) or relative (``from ..llm import ...`` / ``from .. import mcp``). It also may
+not import the **MCP client's** external package roots (``fastmcp`` / ``langchain``),
+which are named explicitly so a stray client import is caught even outside the
+``triagedesk`` namespace (QUAL-02). This is a **one-way, published contract** (D-13):
+later phases depend on it, and silently letting the score path depend on the model /
+MCP client / storage would break the design.
 
 The AST test below is authoritative; a ruff ``flake8-tidy-imports`` banned-api
 rule (``pyproject.toml``, scoped to ``core/``) is the belt-and-braces secondary
@@ -22,7 +25,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
 CORE_DIR = SRC_ROOT / "triagedesk" / "core"
 PACKAGE = "triagedesk"
-FORBIDDEN = ("llm", "mcp", "store")
+# Sibling packages under the ``triagedesk`` namespace that ``core/`` must never reach.
+_FORBIDDEN_SIBLINGS = ("llm", "mcp", "store")
+# The MCP client's external package roots, named explicitly (QUAL-02): the client
+# engine (``fastmcp``) and the adapter host (``langchain``). The ``mcp`` SDK root is
+# already covered as a sibling, and ``_is_forbidden`` treats a bare root uniformly.
+_FORBIDDEN_MCP_CLIENT = ("fastmcp", "langchain")
+FORBIDDEN = _FORBIDDEN_SIBLINGS + _FORBIDDEN_MCP_CLIENT
 
 
 def _module_parts(path: Path) -> list[str]:
@@ -103,3 +112,19 @@ def test_guard_detects_absolute_and_relative_forbidden_imports() -> None:
     assert "..store" in hits
     assert "..llm" in hits
     assert not any("schema" in hit for hit in hits)
+
+
+def test_forbidden_set_names_the_mcp_client_explicitly() -> None:
+    """The forbidden set names the MCP client's roots, not only the sibling (QUAL-02)."""
+    assert "mcp" in FORBIDDEN
+    for root in _FORBIDDEN_MCP_CLIENT:
+        assert root in FORBIDDEN
+
+
+def test_guard_detects_the_external_mcp_client() -> None:
+    """The guard is not vacuous for the external MCP client imports (QUAL-02)."""
+    source = "import fastmcp\nfrom langchain.mcp import MCPAdapter\nimport mcp\n"
+    hits = _forbidden_in_source(source, ["triagedesk", "core", "sample"])
+    assert "fastmcp" in hits
+    assert "langchain.mcp" in hits
+    assert "mcp" in hits
