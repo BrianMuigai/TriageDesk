@@ -1,8 +1,9 @@
 # EVALS — TriageDesk
 
-> **Status:** evaluation **plan**. Results are populated after the build. This document distinguishes
-> **planned** from **measured** at all times — presenting planned runs as real runs is an instant
-> disqualifier in this challenge, so nothing here is dressed up as a result yet.
+> **Status:** evaluation **complete** — the results below are **measured**, generated from
+> `evals/results/report.json` by `scripts/emit_evals.py` (the sole writer of every number). This
+> document distinguishes **planned** from **measured** at all times: presenting a planned run as a real
+> run is an instant disqualifier in this challenge, so nothing here is dressed up as a result it is not.
 > Challenge brief: <https://agentic-africa-challenge.lovable.app/tracks/healthcare>
 
 ## 1. Philosophy

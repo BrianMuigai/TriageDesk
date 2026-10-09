@@ -14,11 +14,16 @@ direction of a doc drifting out of spec, never the reverse.
 from __future__ import annotations
 
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 ARCHITECTURE = Path("ARCHITECTURE.md")
 DESCRIPTION = Path("DESCRIPTION.md")
 README = Path("README.md")
+EVALS = Path("EVALS.md")
+EMIT_EVALS = Path("scripts/emit_evals.py")
+REPORT = Path("evals/results/report.json")
 
 # The plan's declared bounds (05-03-PLAN must_haves / verification).
 ARCH_MAX_WORDS = 700
@@ -28,6 +33,13 @@ DESCRIPTION_TOLERANCE = 0.10
 
 # Stale pre-build status framing that must NOT survive finalisation (D-06).
 STALE_STATUS_ROWS = ("Not built", "Not recorded", "pre-build")
+
+# Stale pre-build EVALS framing that must NOT survive finalisation (D-04).
+STALE_EVALS_FRAMING = (
+    "Results are populated after the build",
+    "dressed up as a result yet",
+    "evaluation **plan**",
+)
 
 
 def _text(path: Path) -> str:
@@ -81,3 +93,26 @@ def test_readme_points_at_the_declared_failure() -> None:
     text = _text(README)
     assert "EVALS.md" in text
     assert "E-09" in text
+
+
+def test_evals_is_a_projection_of_the_report() -> None:
+    """EVALS.md is exactly the report's projection — the generator's --check exits 0 (D-04)."""
+    result = subprocess.run(
+        [sys.executable, str(EMIT_EVALS), "--report", str(REPORT), "--check"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+
+
+def test_evals_header_is_finalised_not_prebuild() -> None:
+    """EVALS.md reads as finalised/measured, not the stale pre-build plan framing (D-04)."""
+    text = _text(EVALS)
+    for stale in STALE_EVALS_FRAMING:
+        assert stale not in text, f"EVALS.md still carries the stale framing {stale!r}"
+    assert "measured" in text.lower()
+
+
+def test_evals_shows_the_declared_failure() -> None:
+    """The declared E-09 failure remains visible in the finalised document (D-04)."""
+    assert "E-09" in _text(EVALS)
