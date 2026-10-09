@@ -105,7 +105,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. SATS Foundations & Risk Retirement | 4/4 | Complete | 2026-10-09 |
-| 2. Deterministic Scorer & Own MCP Server | 0/3 | Planned | - |
+| 2. Deterministic Scorer & Own MCP Server | 3/3 | Complete | 2026-10-09 |
 | 3. Approval Gate, Gated Commit & Safety Spine | 0/TBD | Not started | - |
 | 4. Evaluation, Recovery & Honest Failure | 0/TBD | Not started | - |
 | 5. Demo, Docs & Freeze | 0/TBD | Not started | - |
