@@ -317,6 +317,8 @@ def test_ci_workflow_runs_the_eval_gate_command() -> None:
     assert "triagedesk eval" in runs
     assert "--offline" in runs
     assert "evals/cases" in runs
-    # The gate runs on both push and pull_request (T-04-14).
-    assert "push" in text
-    assert "pull_request" in text
+    # After the v1.0-submission freeze the gate is workflow_dispatch-only (D-08):
+    # no push/PR trigger can start a post-freeze run. Parsed (not substring) so a
+    # comment that merely mentions "push" cannot satisfy or break the guard.
+    triggers = workflow.get("on", workflow.get(True))
+    assert triggers == {"workflow_dispatch": None}
