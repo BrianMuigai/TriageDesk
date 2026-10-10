@@ -65,11 +65,13 @@ a failure we did not fix — live in [`EVALS.md`](EVALS.md), generated from `eva
 | MCP server / agent / evals | ✅ Built & tested → [`tests/`](tests) |
 | Evaluation (measured) | ✅ Run → [`EVALS.md`](EVALS.md) |
 | Demo video | 🎬 Human-recorded → [`docs/DEMO.md`](docs/DEMO.md) |
+| Status & gap analysis | 🟡 Honest self-assessment → [`STATUS.md`](STATUS.md) |
 
 **What is unfinished.** The measured run records honest misses, not a green sweep: the declared failure
 **E-09** (a vague complaint is under-triaged) is shown, not hidden, and the other misses are recorded in
 [`EVALS.md`](EVALS.md) §4–§6. Clinician validation remains a declared gap ([`EVALS.md`](EVALS.md) §7).
-[`EVALS.md`](EVALS.md) is the single source for every number.
+[`EVALS.md`](EVALS.md) is the single source for every number. A full honest gap analysis — the one
+submission gap (video upload), UX considerations, and state-of-the-art gaps — is in [`STATUS.md`](STATUS.md).
 
 ## Quickstart
 
@@ -95,6 +97,7 @@ triagedesk/
 ├── EVALS.md               measured evaluation, cases, and honest failure
 ├── DESCRIPTION.md         ~300-word challenge submission description
 ├── SECURITY.md            threat model & hardening
+├── STATUS.md              honest self-assessment vs the challenge
 ├── LICENSE                Apache-2.0
 ├── NOTICE                 third-party attributions
 ├── AGENTS.md              agent tooling + the iron-clad DRY + SOLID rule
