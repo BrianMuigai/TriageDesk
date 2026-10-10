@@ -90,7 +90,7 @@ names the versions that produced it, so any priority can be reproduced or shown 
 ## 9. Data protection
 
 Synthetic data only; **no egress**. Production would additionally require de-identification, consent
-management, and a retention policy (`PROJECT.md` §9).
+management, and a retention policy (`docs/PROJECT.md` §9).
 
 ## 10. Known limitations (declared)
 

@@ -4,7 +4,7 @@
 > **All code, tests, configuration, and documentation MUST adhere to DRY and SOLID.** A change that
 > violates either is rejected at review and **blocks the phase**. No exceptions.
 >
-> Authoritative standard: [`CONVENTIONS.md`](./CONVENTIONS.md) — mandatory reading before any
+> Authoritative standard: [`docs/CONVENTIONS.md`](./docs/CONVENTIONS.md) — mandatory reading before any
 > `Edit`, `Write`, or code generation.
 >
 > In short: SATS rules live only in `data/*.yaml`; citations come from one helper; tools are narrow and
@@ -23,9 +23,10 @@ into a **sourced, SATS-grounded priority level in seconds** — and it never dia
 moves a patient without a named clinician's approval. It is an entry in the *Agentic AI for Africa*
 challenge (Health & Wellbeing track, **Symptom-based priority scoring**).
 
-> Note: the repository-root `PROJECT.md`, `REQUIREMENTS.md`, `ARCHITECTURE.md`, `EVALS.md`,
-> `DECISIONS.md`, `SECURITY.md` are the **public submission artifacts**. This `.planning/PROJECT.md`
-> is GSD's internal working memory. Keep them consistent, but do not treat them as the same file.
+> Note: the **public submission docs** live at the repo root (`README.md`, `ARCHITECTURE.md`,
+> `EVALS.md`, `DESCRIPTION.md`, `SECURITY.md`) and under `docs/` (`PROJECT.md`, `REQUIREMENTS.md`,
+> `ROADMAP.md`, `DECISIONS.md`, `CONVENTIONS.md`). This `.planning/PROJECT.md` is GSD's internal
+> working memory. Keep them consistent, but do not treat them as the same file.
 
 **Core Value:** **A triage nurse gets a sourced, confirmable priority for each patient in seconds, and nothing reaches
 the queue without her approval.** If everything else fails, this must work.
@@ -38,8 +39,8 @@ the queue without her approval.** If everything else fails, this must work.
 - **Compute**: local CPU only; small quantised open-weights model.
 - **Stack**: required MCP + open-source orchestration; no closed no-code builders.
 - **Data**: synthetic only; no health data leaves the machine.
-- **Compliance**: every challenge requirement is tracked in `../REQUIREMENTS.md`.
-- **Engineering standards**: **DRY + SOLID are iron-clad** (`../CONVENTIONS.md`); a violation blocks the phase.
+- **Compliance**: every challenge requirement is tracked in `../docs/REQUIREMENTS.md`.
+- **Engineering standards**: **DRY + SOLID are iron-clad** (`../docs/CONVENTIONS.md`); a violation blocks the phase.
 
 <!-- GSD:project-end -->
 
@@ -210,13 +211,13 @@ the queue without her approval.** If everything else fails, this must work.
 
 # CONVENTIONS (pointer)
 
-Authoritative engineering standards: **[`../../CONVENTIONS.md`](../../CONVENTIONS.md)**.
+Authoritative engineering standards: **[`docs/CONVENTIONS.md`](./docs/CONVENTIONS.md)**.
 
 **IRON-CLAD RULE: DRY + SOLID.** See that file for the single-source-of-truth table, the SOLID
 application, the enforcement gates, and the rejected anti-patterns.
 
-> This file is intentionally a pointer. The standards live in exactly one place (root
-> `CONVENTIONS.md`); do not restate them here (that would violate DRY).
+> This file is intentionally a pointer. The standards live in exactly one place (`docs/CONVENTIONS.md`);
+> do not restate them here (that would violate DRY).
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->

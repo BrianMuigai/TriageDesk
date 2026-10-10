@@ -5,8 +5,8 @@
 > document is the runbook a person follows to record it; the agent does **not** record the video.
 >
 > Record against the **frozen submission tag `v1.0-submission`** — the commit the freeze protocol in
-> [`ROADMAP.md`](../ROADMAP.md) creates (tagged in plan 05-03). The canonical storyboard is the table
-> in [`ROADMAP.md`](../ROADMAP.md) → *Demo storyboard*; this runbook maps those timing bands to exact
+> [`ROADMAP.md`](ROADMAP.md) creates (tagged in plan 05-03). The canonical storyboard is the table
+> in [`ROADMAP.md`](ROADMAP.md) → *Demo storyboard*; this runbook maps those timing bands to exact
 > commands and expected output and does **not** restate the storyboard (DRY — it links to the single
 > source).
 

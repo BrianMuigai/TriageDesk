@@ -56,11 +56,11 @@ a failure we did not fix — live in [`EVALS.md`](EVALS.md), generated from `eva
 
 | Area | State |
 | --- | --- |
-| Problem framing & scope | ✅ Documented → [`PROJECT.md`](PROJECT.md) |
-| Challenge compliance tracking | ✅ Documented → [`REQUIREMENTS.md`](REQUIREMENTS.md) |
+| Problem framing & scope | ✅ Documented → [`docs/PROJECT.md`](docs/PROJECT.md) |
+| Challenge compliance tracking | ✅ Documented → [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) |
 | Architecture | ✅ Documented → [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 | SATS domain model | ✅ Documented → [`docs/SATS.md`](docs/SATS.md) |
-| Decisions log | ✅ Documented → [`DECISIONS.md`](DECISIONS.md) |
+| Decisions log | ✅ Documented → [`docs/DECISIONS.md`](docs/DECISIONS.md) |
 | Security & hardening | ✅ Documented → [`SECURITY.md`](SECURITY.md) |
 | MCP server / agent / evals | ✅ Built & tested → [`tests/`](tests) |
 | Evaluation (measured) | ✅ Run → [`EVALS.md`](EVALS.md) |
@@ -91,18 +91,23 @@ expected output — is [`docs/DEMO.md`](docs/DEMO.md); it does not restate the d
 ```
 triagedesk/
 ├── README.md              this file
-├── PROJECT.md             vision, users, scope, success criteria
-├── REQUIREMENTS.md        challenge compliance & traceability matrix
 ├── ARCHITECTURE.md        agent shape; MCP servers built vs borrowed; why
 ├── EVALS.md               measured evaluation, cases, and honest failure
-├── DECISIONS.md           key decisions and rationale (ADR-lite)
-├── ROADMAP.md             6-day build plan and risks
 ├── DESCRIPTION.md         ~300-word challenge submission description
 ├── SECURITY.md            threat model & hardening
-├── CONVENTIONS.md         DRY + SOLID engineering standard
 ├── LICENSE                Apache-2.0
+├── NOTICE                 third-party attributions
+├── AGENTS.md              agent tooling + the iron-clad DRY + SOLID rule
+├── docs/
+│   ├── PROJECT.md         vision, users, scope, success criteria
+│   ├── REQUIREMENTS.md    challenge compliance & traceability matrix
+│   ├── ROADMAP.md         submission packaging & freeze protocol
+│   ├── DECISIONS.md       key decisions and rationale (ADR-lite)
+│   ├── CONVENTIONS.md     DRY + SOLID engineering standard
+│   ├── SATS.md            SATS domain model
+│   ├── DEMO.md            demo runbook
+│   └── assets/            architecture diagram, demo tape + video
 ├── data/                  SATS rules (the single source of thresholds)
-├── docs/                  SATS domain model + the demo runbook
 ├── evals/                 case fixtures + the measured report.json
 ├── src/triagedesk/        core · graph · mcp · store · llm · evals · demo
 └── tests/                 the offline proof suite (pytest)
@@ -111,19 +116,19 @@ triagedesk/
 ## Traceability
 
 Every challenge requirement, judging criterion, and instant-disqualifier is tracked in
-[`REQUIREMENTS.md`](REQUIREMENTS.md) with an owning artifact and a status.
+[`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) with an owning artifact and a status.
 
 ## Language
 
 Submission and interaction are in **English**. The architecture is kept
 multilingual-*aware* but multilingual handling is **out of scope** for this build (see
-[`PROJECT.md`](PROJECT.md) → Non-goals).
+[`docs/PROJECT.md`](docs/PROJECT.md) → Non-goals).
 
 ## Data & safety
 
 TriageDesk is built on **synthetic patient data** and a **published triage scale** (SATS). No real
-patient data is used, at any point, in any form. See [`PROJECT.md`](PROJECT.md) → Data conduct and
-[`REQUIREMENTS.md`](REQUIREMENTS.md) → DC-1…DC-4.
+patient data is used, at any point, in any form. See [`docs/PROJECT.md`](docs/PROJECT.md) → Data conduct and
+[`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) → DC-1…DC-4.
 
 ## License
 

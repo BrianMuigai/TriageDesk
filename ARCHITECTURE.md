@@ -91,4 +91,4 @@ SATS rules live in **data**, not code (`data/sats_tews.yaml`, `data/sats_discrim
 adding a rule, band or discriminator is a **one-line YAML edit**; a new capability is one node + one
 tool. Runtime: **`qwen2.5:1.5b`** via Ollama — the measured default in `evals/results/report.json` —
 orchestrated by LangGraph on `uv` / Python 3.12 with structured JSON output (`format=<schema>`); see
-`DECISIONS.md`. Code adheres to **DRY + SOLID** ([`CONVENTIONS.md`](CONVENTIONS.md)).
+`docs/DECISIONS.md`. Code adheres to **DRY + SOLID** ([`docs/CONVENTIONS.md`](docs/CONVENTIONS.md)).

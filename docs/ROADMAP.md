@@ -1,6 +1,6 @@
 # ROADMAP — TriageDesk (submission packaging)
 
-> **Phase-level execution plan (authoritative): [`.planning/ROADMAP.md`](.planning/ROADMAP.md)** — GSD,
+> **Phase-level execution plan (authoritative): [`../.planning/ROADMAP.md`](../.planning/ROADMAP.md)** — GSD,
 > 5 phases, 44 mapped requirements, in `.planning/`.
 > This file covers **submission packaging only** — what the challenge needs delivered and frozen. It
 > deliberately does **not** repeat the phase plan (DRY).
@@ -37,7 +37,7 @@ Unedited screen recording, **tool calls on screen, no slides**; uploaded publicl
 - [ ] Safety invariants INV-1…INV-4 pass on every run.
 - [ ] Every priority cited; every commit gated; audit log present.
 - [ ] README honest about what is unfinished.
-- [ ] `ARCHITECTURE.md` one page; `EVALS.md` complete; `DESCRIPTION.md` ~300 words.
+- [ ] `../ARCHITECTURE.md` one page; `../EVALS.md` complete; `../DESCRIPTION.md` ~300 words.
 - [ ] Demo video < 3 min, unedited, failure included.
 - [ ] OSI licence present; repo frozen and tagged.
 

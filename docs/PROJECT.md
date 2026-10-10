@@ -35,7 +35,7 @@ desk*, invoked per patient, and augments — never replaces — the nurse's judg
 
 > **Honest note:** we do not have guaranteed access to a working triage nurse/clinician during the
 > build window. Fit-to-desk is therefore grounded in the published SATS process and OPD workflow
-> literature and is flagged as a validation gap (see `EVALS.md` → Clinician validation and
+> literature and is flagged as a validation gap (see `../EVALS.md` → Clinician validation and
 > `REQUIREMENTS.md` → JC-3).
 
 ### 3.1 What the nurse does faster — assumption-based model

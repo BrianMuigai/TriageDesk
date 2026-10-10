@@ -1,4 +1,4 @@
-Output docs/triagedesk-demo.mp4
+Output docs/assets/triagedesk-demo.mp4
 Set Shell bash
 Set FontSize 14
 Set Width 1500

@@ -8,9 +8,10 @@ into a **sourced, SATS-grounded priority level in seconds** — and it never dia
 moves a patient without a named clinician's approval. It is an entry in the *Agentic AI for Africa*
 challenge (Health & Wellbeing track, **Symptom-based priority scoring**).
 
-> Note: the repository-root `PROJECT.md`, `REQUIREMENTS.md`, `ARCHITECTURE.md`, `EVALS.md`,
-> `DECISIONS.md`, `SECURITY.md` are the **public submission artifacts**. This `.planning/PROJECT.md`
-> is GSD's internal working memory. Keep them consistent, but do not treat them as the same file.
+> Note: the **public submission docs** live at the repo root (`README.md`, `ARCHITECTURE.md`,
+> `EVALS.md`, `DESCRIPTION.md`, `SECURITY.md`) and under `docs/` (`PROJECT.md`, `REQUIREMENTS.md`,
+> `ROADMAP.md`, `DECISIONS.md`, `CONVENTIONS.md`). This `.planning/PROJECT.md` is GSD's internal
+> working memory. Keep them consistent, but do not treat them as the same file.
 
 ## Core Value
 
@@ -53,7 +54,7 @@ _(Not monetized. This is a challenge submission; delete this section if it becom
 - **Customer**: public-hospital OPD triage desks (nurse-led)
 - **Revenue model**: none (open source, Apache-2.0)
 - **Success metric**: a nurse does a real thing faster under queue pressure; priority survives audit
-- **Strategy notes**: `../ROADMAP.md` (submission plan) and post-MVP roadmap in `~/.opencode/plan/`
+- **Strategy notes**: `../docs/ROADMAP.md` (submission plan) and post-MVP roadmap in `~/.opencode/plan/`
 
 ## Context
 
@@ -75,8 +76,8 @@ _(Not monetized. This is a challenge submission; delete this section if it becom
 - **Compute**: local CPU only; small quantised open-weights model.
 - **Stack**: required MCP + open-source orchestration; no closed no-code builders.
 - **Data**: synthetic only; no health data leaves the machine.
-- **Compliance**: every challenge requirement is tracked in `../REQUIREMENTS.md`.
-- **Engineering standards**: **DRY + SOLID are iron-clad** (`../CONVENTIONS.md`); a violation blocks the phase.
+- **Compliance**: every challenge requirement is tracked in `../docs/REQUIREMENTS.md`.
+- **Engineering standards**: **DRY + SOLID are iron-clad** (`../docs/CONVENTIONS.md`); a violation blocks the phase.
 
 ## Key Decisions
 

@@ -63,7 +63,7 @@ The licence for each model is recorded as observed in `evidence/model-spike.json
 
 The official `modelcontextprotocol/sqlite` reference server is archived and is
 **not** used. The maintained community server above is pinned; `rusq/mcp-sqlite`
-(BSD-2-Clause) is the documented fallback (see `DECISIONS.md` D5, `STACK.md`).
+(BSD-2-Clause) is the documented fallback (see `docs/DECISIONS.md` D5, `STACK.md`).
 
 ## Clinical content attribution
 

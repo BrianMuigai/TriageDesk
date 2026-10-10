@@ -112,7 +112,7 @@ based on vitals alone. The patient is under-triaged relative to the guideline.
   1. a mandatory **clarifying question** when a complaint matches no discriminator and any chronic
      condition is present;
   2. replace keyword matching with **embedding retrieval** over the discriminator KB (the vector-store
-     MCP server we considered but declined for time — see `DECISIONS.md` D5);
+     MCP server we considered but declined for time — see `docs/DECISIONS.md` D5);
   3. add a **"discriminator confidence" field** so the nurse sees when the complaint was not matched.
 
 > The failure is shown in the demo video on purpose. Hiding it would forfeit the reliability points.
@@ -120,7 +120,7 @@ based on vitals alone. The patient is under-triaged relative to the guideline.
 ## 7. Clinician validation (declared gap)
 
 We do **not** have guaranteed access to a working triage nurse or clinician during the build window
-(see `PROJECT.md` §3 and `REQUIREMENTS.md` G-1). The expected colours in §4 are derived from the
+(see `docs/PROJECT.md` §3 and `docs/REQUIREMENTS.md` G-1). The expected colours in §4 are derived from the
 published SATS rules, not from clinician adjudication. This is an honest limitation:
 
 - Grounding: SATS Training Manual (EMSSA) and published SATS validation studies.
