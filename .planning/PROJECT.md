@@ -94,6 +94,15 @@ _(Not monetized. This is a challenge submission; delete this section if it becom
 | Hash-chained audit log | Auditability / defensibility | — Pending |
 | **DRY + SOLID as iron-clad rule** | Maintainability; enforced at plan-check, code-review, and verifier gates | — Pending |
 
+## Current State
+
+**Shipped:** v1.0 MVP (2026-10-10) — all 5 phases complete & verified.
+
+- Frozen at tag `v1.0-submission`; pushed to `github.com/BrianMuigai/TriageDesk`.
+- 239 tests pass; one-command `uv run triagedesk demo` runs offline from a clean clone.
+- Milestone archive: `.planning/milestones/v1.0-ROADMAP.md`, `v1.0-REQUIREMENTS.md`.
+- Demo video recorded: `docs/triagedesk-demo.mp4` (human upload to YouTube/Vimeo pending).
+
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
@@ -112,4 +121,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-09 after initialization*
+*Last updated: 2026-10-10 after v1.0 milestone*

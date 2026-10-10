@@ -1,5 +1,9 @@
 # Roadmap: TriageDesk
 
+## Milestones
+
+- ✅ **v1.0 MVP** — Phases 1–5 (shipped 2026-10-10) — archived at `.planning/milestones/v1.0-ROADMAP.md`
+
 ## Overview
 
 TriageDesk turns a nurse's vitals and free-text complaint into a sourced, SATS-grounded priority
