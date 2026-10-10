@@ -86,7 +86,9 @@ The bare demo runs **offline by default** — it needs only `uv` and the locked 
 pulled, no network, no borrowed server). To drive the local open-weights model instead of the offline
 fixture, add `--online` (after `ollama pull qwen2.5:1.5b`). A single beat can be re-run with
 `uv run triagedesk demo --beat <name>`. The full presenter runbook — every beat, command, and the real
-expected output — is [`docs/DEMO.md`](docs/DEMO.md); it does not restate the demo here (DRY).
+expected output — is [`docs/DEMO.md`](docs/DEMO.md); it does not restate the demo here (DRY). Prefer
+plain `pip`? Pinned `requirements.txt` (runtime) and `requirements-dev.txt` (dev tools) are generated
+from `uv.lock`.
 
 ## Repository map
 
