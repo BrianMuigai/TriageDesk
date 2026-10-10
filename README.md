@@ -102,6 +102,8 @@ triagedesk/
 ├── STATUS.md              honest self-assessment vs the challenge
 ├── LICENSE                Apache-2.0
 ├── NOTICE                 third-party attributions
+├── requirements.txt       pinned runtime deps (generated from uv.lock)
+├── requirements-dev.txt   pinned dev tools (generated from uv.lock)
 ├── AGENTS.md              agent tooling + the iron-clad DRY + SOLID rule
 ├── docs/
 │   ├── PROJECT.md         vision, users, scope, success criteria
