@@ -1,19 +1,23 @@
+%% TriageDesk architecture diagram with embedded flow story.
+%% The "Flow story" panel below is the numbered narrative; the agent nodes carry the same numbers.
 flowchart TD
+    TITLE["TriageDesk: Architecture and Flow Story"]
+
     subgraph HITL["Human in the loop"]
-        NURSE["Triage nurse<br/>enters vitals + complaint"]
-        CLIN["Named clinician<br/>approves / edits / dismisses"]
+        NURSE["Triage nurse<br/>enters vitals and a one line complaint"]
+        CLIN["Named clinician<br/>approves, edits, or dismisses"]
     end
 
     subgraph AGENT["LangGraph Agent (orchestrator)"]
-        N1["ingest"] --> N2["normalize"] --> N3["retrieve"] --> N4["score"] --> N5["verify"] --> N6["recheck"] --> N7["approval_gate (interrupt)"] --> N8["commit (gated)"] --> N9["handover"]
+        N1["1. ingest<br/>validate the case"] --> N2["2. normalize<br/>structure the complaint"] --> N3["3. retrieve<br/>match SATS discriminators"] --> N4["4. score<br/>deterministic TEWS + citations"] --> N5["5. verify<br/>reject any uncited priority"] --> N6["6. recheck<br/>flag a second look, never reclassify"] --> N7["7. approval gate<br/>pause for a named clinician"] --> N8["8. commit<br/>gated queue write"] --> N9["9. handover<br/>render the sourced case card"]
     end
 
-    subgraph LLM["Local LLM (no egress)"]
+    subgraph LLM["Local LLM (offline)"]
         QWEN["Ollama: Qwen3 4B<br/>fallback Qwen2.5<br/>structured JSON output"]
     end
 
     subgraph MCPCLIENT["MCP client"]
-        ADAPTER["langchain.mcp adapter (stdio)"]
+        ADAPTER["langchain.mcp adapter<br/>stdio"]
     end
 
     subgraph OWNED["Owned Triage MCP server"]
@@ -50,8 +54,24 @@ flowchart TD
         LOG["log/audit.jsonl<br/>hash chain"]
     end
 
+    subgraph STORY["Flow story"]
+        direction TB
+        ST0["Human in the loop: the nurse enters data at the start, the clinician approves at the gate."]
+        ST1["1. The case is ingested and the fields are validated."]
+        ST2["2. The local offline model turns the complaint into typed fields."]
+        ST3["3. The triage server matches SATS discriminators for the complaint."]
+        ST4["4. Deterministic code computes TEWS and returns a colour with citations."]
+        ST5["5. A verifier rejects any priority that arrives without a citation."]
+        ST6["6. Worsening vitals raise a second look flag, never a reclassification."]
+        ST7["7. The case pauses until a named clinician approves, edits, or dismisses it."]
+        ST8["8. Only after approval is a queue position written, by the gated tool."]
+        ST9["9. A sourced case card is rendered for the nurse."]
+        ST10["Every tool call is written to the hash chained audit log. The whole path runs offline on synthetic data, with no external API."]
+    end
+
     EXT["External APIs: none (offline)"]
 
+    TITLE --- NURSE
     NURSE --> N1
     N2 -. structured output .-> QWEN
     N5 -. critic .-> QWEN
