@@ -18,25 +18,30 @@ challenge (Health & Wellbeing track, **Symptom-based priority scoring**).
 **A triage nurse gets a sourced, confirmable priority for each patient in seconds, and nothing reaches
 the queue without her approval.** If everything else fails, this must work.
 
+## Current Milestone: v1.1 Score Uplift
+
+**Goal:** Close the ranked gaps in `STATUS.md` — the submission blocker, cheap docs/eval fixes, the desk-facing UX, and the highest-leverage capability gaps — without regressing the frozen v1.0 safety spine.
+
+**Target features:**
+- Docs & rigour: one-command README; reconciled EVALS numbers; milestone-end documentation refresh
+- Evaluation: fix E-04 + E-07; re-run the measured suite; calibrated confidence + abstention
+- Desk UX: human-readable priority card; real approve/edit/dismiss gate; no-match banner; vitals-entry surface
+- Agentic depth: exercise the borrowed MCP beyond `query`; durable checkpoints E2E; RAG grounding; span tracing + replay
+- Review & demo: rehearse the live review; clinician review + quote if access allows; 2–3 min narrated demo
+
 ## Requirements
 
 ### Validated
 
-(None yet — ship to validate)
+- **v1.0 MVP** (shipped 2026-10-10, frozen at tag `v1.0-submission`): vitals + complaint → **cited** SATS priority in seconds; deterministic TEWS + discriminator-override scoring; own MCP server with 5 tools (incl. one gated write); borrowed SQLite MCP; human approval gate; hash-chained audit log; deterioration re-check flag; missing-vital recovery + safe abstention; local open-weights model end-to-end with no egress; 14-case honest evaluation incl. one declared failure; one-command run + ARCHITECTURE/EVALS/DESCRIPTION docs.
 
 ### Active
 
-- [ ] Turn vitals + complaint into a **cited** SATS priority in seconds
-- [ ] **Deterministic** TEWS + discriminator-override scoring (no LLM arithmetic)
-- [ ] Our own **MCP server** with ≥3 tools, incl. acting + one gated write
-- [ ] One **borrowed** MCP server (SQLite) for case/queue storage + audit
-- [ ] **Human approval gate** on every queue-affecting action
-- [ ] **Hash-chained audit log** (inputs, outputs, timestamps, named approver)
-- [ ] **Deterioration re-check flag** (second look; no auto re-classification)
-- [ ] **Missing-vital recovery** + **safe abstention** (paediatric / out-of-scope)
-- [ ] **Open-weights local model** end-to-end, no data egress
-- [ ] **13 honest eval cases** incl. one unfixed failure, run-to-run variation measured
-- [ ] One-command run + 3-min demo video + ARCHITECTURE/EVALS/DESCRIPTION docs
+- [ ] **Docs & rigour** — README is literally one command; EVALS counts reconciled (no 14-vs-16 drift); milestone-end documentation refresh
+- [ ] **Evaluation** — the two fixable failures (E-04, E-07) pass; suite re-run and `EVALS.md` regenerated; calibrated confidence + abstention
+- [ ] **Desk UX** — human-readable priority card; real approve/edit/dismiss gate; loud no-match/low-confidence banner; minimal vitals-entry surface
+- [ ] **Agentic depth** — borrowed MCP exercised beyond `query`; durable `checkpoints.db` wired E2E; RAG grounding over the SATS KB; span tracing + replay
+- [ ] **Review & demo** — live-review rehearsal; clinician review + quote if access allows; 2–3 min narrated demo (with the human video upload as the release gate)
 
 ### Out of Scope
 
@@ -122,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-10 after v1.0 milestone*
+*Last updated: 2026-10-10 — v1.1 Score Uplift started*

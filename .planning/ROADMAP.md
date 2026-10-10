@@ -3,127 +3,158 @@
 ## Milestones
 
 - ✅ **v1.0 MVP** — Phases 1–5 (shipped 2026-10-10) — archived at `.planning/milestones/v1.0-ROADMAP.md`
+- 🚧 **v1.1 Score Uplift** — Phases 6–12 (in progress)
 
 ## Overview
 
 TriageDesk turns a nurse's vitals and free-text complaint into a sourced, SATS-grounded priority
-colour — and nothing reaches the queue without a named clinician's approval. The roadmap follows the
-dependency DAG from the rule substrate outward: it front-loads the two riskiest unknowns (local-model
-structured output; MCP wiring) in Phase 1, proves the pure deterministic scorer and its five owned MCP
-tools in Phase 2, wires the explicit graph plus the protected approval gate, hash-chained audit, and
-borrowed persistence in Phase 3, enforces an honest evaluation (including one declared failure) in
-Phase 4, and lands a live demo plus a clean freeze before the 2026-10-15 deadline in Phase 5. Five
-phases, coarse granularity, each one a vertical slice verifiable on its own.
+colour — and nothing reaches the queue without a named clinician's approval. v1.1 "Score Uplift" is
+**additive engineering onto the frozen v1.0 safety spine** (tag `v1.0-submission`): every capability
+attaches at a published seam — a new node, a new tool, a new contract, or an adapter behind an
+existing protocol — and never edits the scorer, the citation helper, or the audit interceptor.
+
+The order is set by risk and dependency. Phase 6 front-loads the milestone's first HIGH blocker: the
+durable approval-gate lifecycle plus its idempotency-key breadth bug (an edit must supersede, not
+duplicate, the queue row). Phase 7 retires the second HIGH blocker — replay must be read-only and
+structurally unable to re-commit — riding on Phase 6's checkpoint. Phases 8 and 9 land the two
+pure/additive capabilities (calibrated confidence + abstention; retrieval grounding + deeper
+borrowed-MCP read paths), Phase 10 consumes all three in the desk-facing UX with a real
+approve/edit/dismiss gate, and Phases 11–12 close the honesty loop: the measured evaluation re-run,
+the live review rehearsal, the narrated demo, and a full milestone-end documentation refresh. Seven
+phases, coarse granularity, each a vertical slice verifiable on its own.
 
 ## Phases
 
 **Phase Numbering:**
-- Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+- Integer phases (6, 7, 8): Planned milestone work for v1.1 Score Uplift
+- Decimal phases (6.1, 6.2): Urgent insertions (marked with INSERTED)
 
-Decimal phases appear between their surrounding integers in numeric order.
+Decimal phases appear between their surrounding integers in numeric order. Phase numbering continues
+from v1.0 (which ended at Phase 5); it never restarts.
+
+### 🚧 v1.1 Score Uplift (In Progress)
+
+**Milestone Goal:** Close the ranked gaps in `STATUS.md` — the submission blocker, cheap docs/eval
+fixes, the desk-facing UX, and the highest-leverage capability gaps — without regressing the frozen
+v1.0 safety spine.
+
+- [ ] **Phase 6: Durable Execution & Idempotent Gate** - Durable `checkpointed_graph` E2E, stable-thread resume after restart, and an edit that supersedes the queue row instead of duplicating it
+- [ ] **Phase 7: Local Observability — Span Tracing & Read-Only Replay** - Local-only spans linked to the audit record, plus replay that reconstructs read-only and can never re-commit
+- [ ] **Phase 8: Calibrated Confidence & Abstention** - A deterministic coverage/deferral signal where low confidence escalates or asks for missing info, never commits
+- [ ] **Phase 9: Retrieval Grounding & Borrowed-MCP Depth** - Attributed SATS KB retrieval behind a closed-set contract that cannot set a colour, plus borrowed read paths kept read-only
+- [ ] **Phase 10: Desk UX & Real Approval Gate** - Priority card, no-match/low-confidence banner, a real approve/edit/dismiss gate, and a minimal vitals-entry surface
+- [ ] **Phase 11: Honest Evaluation Re-run & Rigour Docs** - E-04/E-07 fixed, 14-case suite re-run, `EVALS.md` regenerated from `report.json`, and a literal one-command README
+- [ ] **Phase 12: Live Review, Demo & Milestone-Close Documentation** - Rehearsed live review + live rule edit, 2–3 min narrated demo, honest clinical fit, all submission docs refreshed
+
+<details>
+<summary>✅ v1.0 MVP (Phases 1–5) — SHIPPED 2026-10-10</summary>
+
+Archived at `.planning/milestones/v1.0-ROADMAP.md` (requirements: `.planning/milestones/v1.0-REQUIREMENTS.md`).
 
 - [x] **Phase 1: SATS Foundations & Risk Retirement** - Rule substrate, typed schema, scaffold; retire the model and MCP unknowns on evidence
 - [x] **Phase 2: Deterministic Scorer & Own MCP Server** - Pure cited scorer + the five contracted owned tools
 - [x] **Phase 3: Approval Gate, Gated Commit & Safety Spine** - The gate that refuses to commit without a named approver, plus audit and borrowed persistence
 - [x] **Phase 4: Evaluation, Recovery & Honest Failure** - Enforcing 14-case × 3-run evaluation with one declared failure
-- [ ] **Phase 5: Demo, Docs & Freeze** - One-command run, live demo video, docs finalised, repo frozen
+- [x] **Phase 5: Demo, Docs & Freeze** - One-command run, live demo video, docs finalised, repo frozen
+
+</details>
 
 ## Phase Details
 
-### Phase 1: SATS Foundations & Risk Retirement
-**Goal**: The published SATS rule substrate and the one typed case schema exist as the single source of truth, the project builds reproducibly, and both Day-1 unknowns are retired on evidence — the local model's schema-constrained output and the MCP beta-adapter / borrowed-server handshake.
-**Mode:** mvp
-**Depends on**: Nothing (first phase)
-**Requirements**: INTAKE-01, INTAKE-02, INTAKE-04, INTAKE-05, SAFE-04, QUAL-01
+### Phase 6: Durable Execution & Idempotent Gate
+**Goal**: The demo and CLI execute the whole triage lifecycle through the durable `checkpointed_graph`, so a case paused at the approval gate survives a process restart and resumes on a stable `thread_id` — and an edit decision updates the queue row instead of duplicating it.
+**Depends on**: Nothing (first phase of v1.1; attaches to the frozen v1.0 spine)
+**Requirements**: AGENT-01
 **Success Criteria** (what must be TRUE):
-  1. Every TEWS band, colour threshold, discriminator, and category lives in exactly one `data/*.yaml` file (re-verified verbatim against the SATS manual) and appears nowhere else.
-  2. A case — structured vitals plus a free-text complaint — is represented by one validated typed schema that rejects missing or implausible values instead of imputing them.
-  3. The installed `qwen3.5:4b` returns valid schema-constrained JSON for the extraction task within this machine's RAM budget (measured), and a smaller-Qwen fallback has been run end-to-end.
-  4. The MCP beta adapter lists and calls tools on both an owned-server stub and the borrowed SQLite server, or the pre-defined one-module World-B fallback swap is documented and chosen.
-  5. A `uv`-pinned Python 3.12 rebuild is reproducible; dependencies, model tag, prompts, tool schemas, and scale data are pinned and hashed; a NOTICE records every third-party licence.
-**Plans**: 4 plans
-- [ ] 01-01-PLAN.md — Tracer: end-to-end note → typed case → owned MCP tool; retire the model RAM/schema unknown
-- [ ] 01-02-PLAN.md — SATS rule substrate in `data/*.yaml`, dual-transcription verified with band-edge tests
-- [ ] 01-03-PLAN.md — MCP adapter / borrowed-server handshake (World A/B) + executable DRY & purity guards
-- [ ] 01-04-PLAN.md — Reproducibility: canonical hashing, committed `uv.lock`, and the `NOTICE`
+  1. A case paused at the approval gate resumes to a committed handover after a full process restart, using a stable `thread_id` derived from the immutable case content rather than a random id.
+  2. An `edit` decision on resume supersedes the existing queue row — exactly one row reflects the edited colour and no second row is inserted, because the idempotency key covers the immutable case content, not `colour` alone.
+  3. A case run end-to-end produces exactly one audit record and one queue row, proving `interrupt()` re-entry does not replay pre-gate side effects.
+  4. `uv run triagedesk demo` runs its storyboard through the checkpointed graph from a clean clone, with a durable mode and a documented resume subcommand.
+**Plans**: TBD
 
-### Phase 2: Deterministic Scorer & Own MCP Server
-**Goal**: A pure deterministic scorer converts typed vitals plus matched discriminators into a cited SATS colour and target time, and the owned MCP server exposes the intake and scoring capability as five contracted tools.
-**Mode:** mvp
-**Depends on**: Phase 1
-**Requirements**: INTAKE-03, SCORE-01, SCORE-02, SCORE-03, SCORE-04, SCORE-05, SAFE-01, TOOL-01, TOOL-02, TOOL-03, TOOL-04, TOOL-05
+### Phase 7: Local Observability — Span Tracing & Read-Only Replay
+**Goal**: Tool, node, and model spans emit to a local sink with no egress, each audit record carries a `trace_id` linking it to those spans, and replay reconstructs a past case read-only — structurally unable to re-run the gated commit.
+**Depends on**: Phase 6
+**Requirements**: AGENT-04
 **Success Criteria** (what must be TRUE):
-  1. TEWS and discriminator-override scoring are computed deterministically from typed vitals — no number comes from the model — and every priority cites exactly the rules and vitals that fired (`citations == triggered_rules`).
-  2. Paediatric / out-of-scope input fails closed: the system abstains and escalates rather than scoring a child, including when age is missing, expressed in months, or ambiguous.
-  3. The owned MCP server exposes `normalize_case`, `match_discriminators`, `score_priority`, `raise_recheck_flag`, and a gated `commit_priority` stub, each validated against one shared contract.
-  4. Every TEWS band edge on both sides, plus unit and boundary cases, is covered by tests; a missing vital is detected and never imputed (score inputs ⊆ nurse-provided fields).
-  5. Discriminator matching is a deterministic data lookup with aliases in YAML and an explicit "no match" result, so injected or omitted complaint text cannot change the colour.
-**Plans**: 3 plans
-- [ ] 02-01-PLAN.md — Tracer: typed case → cited score through the owned `score_priority` tool; fail-closed out-of-scope, missing-vital detection, band-edge tests
-- [ ] 02-02-PLAN.md — Deterministic alias matcher (`match_discriminators`) + most-urgent-wins discriminator override; injection/determinism tests
-- [ ] 02-03-PLAN.md — Remaining owned tools: contract-validated `normalize_case`, pure `raise_recheck_flag`, gated `commit_priority` stub
+  1. Tool, node, and model spans are written to a local file with no network/egress, and cloud tracing remains disabled.
+  2. Every audit record carries a `trace_id` that links it to its spans in the local stream.
+  3. A past case is reconstructed for replay from the checkpoint plus the audit/span stream, without re-running the model.
+  4. Replaying a gated case adds zero queue rows and zero commits, and the replayed outcome equals the original.
+**Plans**: TBD
 
-### Phase 3: Approval Gate, Gated Commit & Safety Spine
-**Goal**: The gate physically refuses to place a patient in the queue without a named clinician's approval — enforced by a LangGraph `interrupt()`, an idempotent approval-keyed commit, a single hash-chained audit interceptor, and borrowed SQLite persistence.
-**Mode:** mvp
-**Depends on**: Phase 2
-**Requirements**: TOOL-06, ORCH-01, ORCH-02, ORCH-03, ORCH-04, ORCH-05, GATE-01, GATE-02, GATE-03, GATE-04, AUDIT-01, AUDIT-02, AUDIT-03, SAFE-02, SAFE-03, QUAL-02
+### Phase 8: Calibrated Confidence & Abstention
+**Goal**: The system computes a deterministic coverage/deferral signal — never a model probability — exposed by an `assess_confidence` tool and wired to routing, so low confidence can only make the system more cautious (escalate or request-missing-info), never `commit` and never downgrade a scored colour.
+**Depends on**: Phase 6
+**Requirements**: AGENT-02
 **Success Criteria** (what must be TRUE):
-  1. No code path — retry or deterministic fallback included — can reach `commit_priority` without a valid approval token carrying a named approver, role, and timestamp.
-  2. The queue write is idempotent, keyed by `case_id` plus an immutable content hash: committing the same case twice yields exactly one queue row and one audit entry, even across a simulated crash.
-  3. Every tool call appends one canonical hash-chained audit record through a single shared helper; the chain verifies after a restart and the audit store and queue store never diverge.
-  4. The full graph runs `ingest → normalize → retrieve → score → verify → (recheck) → gate → commit → handover` on the local model only, with a deterministic-first `verify`, and missing-vital / out-of-scope conditions route to recovery or abstention edges that never guess.
-  5. A deterioration re-check raises a visible second-look flag showing the before/after vitals with the queue position unchanged, and the handover card renders only structured fields with no diagnosis or prescription language.
-**Plans**: 5 plans
-- [ ] 03-01-PLAN.md — Tracer: raw note → full graph → sourced priority → gate `interrupt()` → refused-without-approval
-- [ ] 03-02-PLAN.md — Borrowed SQLite persistence + idempotent approval-keyed commit (`commit_priority` real gate)
-- [ ] 03-03-PLAN.md — One hash-chained audit interceptor; chain verifies after restart; approver + role recorded
-- [ ] 03-04-PLAN.md — Recovery/abstention edges + bounded retry/fallback + non-mutating deterioration re-check
-- [ ] 03-05-PLAN.md — Safety hardening: templated handover, least-privilege allowlist, pure-core/model-free guards
+  1. `assess_confidence` returns a deterministic coverage/deferral signal derived from vitals coverage, discriminator coverage, the override-vs-TEWS path, and TEWS distance from the band edge — never a model probability and never a percentage presented as clinical risk.
+  2. Low confidence routes to `escalate` or `request_missing_info` and never to `commit`; the signal can only make the system more cautious and can never downgrade a scored colour.
+  3. The threshold is derived from a stated asymmetric cost, the deferral rate is reported, and a no-match case is never reported as high confidence.
+  4. Calibration is measured offline on a held-out split and reported with ECE / risk–coverage, declared as a small-sample measure.
+**Plans**: TBD
 
-### Phase 4: Evaluation, Recovery & Honest Failure
-**Goal**: An honest, enforcing evaluation proves the system's behaviour — including one declared failure — and reports safety-relevant error directions and run-to-run stability.
-**Mode:** mvp
-**Depends on**: Phase 3
-**Requirements**: EVAL-01, EVAL-02, EVAL-03, EVAL-04, EVAL-05, SAFE-05
+### Phase 9: Retrieval Grounding & Borrowed-MCP Depth
+**Goal**: A read-only `retrieve_evidence` tool plus a `ground` node placed after `score` surface attributed SATS KB excerpts under a closed-set contract that cannot set a colour, and the borrowed SQLite MCP server is exercised through its read paths behind the unchanged `Store` protocol — read-only in the agent path.
+**Depends on**: Phase 6
+**Requirements**: AGENT-03, MCP-01
 **Success Criteria** (what must be TRUE):
-  1. All 14 eval cases run 3× through the same graph interface; any run-to-run variation in colour or matched-discriminator set counts as a failure, and field-stability is reported separately from colour-stability.
-  2. Under-triage and over-triage are reported separately, E-09 ships as a declared unfixed failure, and held-out cases show the failure is bounded rather than universal.
-  3. INV-1…4 are executable assertions that non-zero-exit the run and gate CI whenever violated, and a suppression-direction injection case leaves the colour unchanged.
-  4. The report carries per-run latency and token cost, is reproducible via recorded hashes, and is the sole source of numbers for `EVALS.md`.
-**Plans**: 6 plans
-- [ ] 04-01-PLAN.md — Tracer: one case × 3 runs → measured `report.json` through the real graph interface
-- [ ] 04-02-PLAN.md — The honest 14-case suite + held-out bounding cases for the declared E-09 failure
-- [ ] 04-03-PLAN.md — Executable INV-1…4 gating CI + the E-14 suppression-injection proof
-- [ ] 04-04-PLAN.md — Under/over-triage split, latency/token cost, report as the sole `EVALS.md` source
-- [ ] 04-05-PLAN.md — Gap G-1: baseline citation so a routine TEWS-0 patient gets a sourced GREEN card through the gate
-- [ ] 04-06-PLAN.md — Gap G-2: honest delivered-vs-aborted terminal capture + re-run the measured eval and regenerate EVALS.md
+  1. A `retrieve_evidence` tool and a `ground` node placed after `score` return attributed SATS KB excerpts derived from `data/*.yaml`.
+  2. Retrieval returns only closed-set discriminator ids, a rank, and an explicit `no_match` — it can never emit a colour or an uncited rule — and the `ground` node writes a separate `evidence` channel without touching `priority`/`citations`.
+  3. The declared failure E-09 is addressed by real retrieval or reported as a clean defer, never by adding a literal alias.
+  4. The borrowed SQLite MCP server's read paths (`list_tables`, schema, `read_records`, `db_info`) are used behind the unchanged `Store` protocol, with a tool allowlist and statement guard keeping the borrowed server read-only in the agent path.
+**Plans**: TBD
 
-### Phase 5: Demo, Docs & Freeze
-**Goal**: A stranger can run the frozen system in one command, the demo video shows a live human-judged run including a failure, and the repository is frozen before the deadline.
-**Mode:** mvp
-**Depends on**: Phase 4
-**Requirements**: DOCS-01, DOCS-02, DOCS-03, DEMO-01
+### Phase 10: Desk UX & Real Approval Gate
+**Goal**: The desk-facing surface renders the suggestion plus its evidence and requires a named human to approve, edit, or dismiss — nothing commits without that interaction.
+**Depends on**: Phase 8, Phase 9
+**Requirements**: UX-01, UX-02, UX-03, UX-04
 **Success Criteria** (what must be TRUE):
-  1. A clean clone of the frozen tag runs the whole demo on the synthetic fixture in one command, and a CI smoke test exercises that path.
-  2. `ARCHITECTURE.md`, `EVALS.md`, and `DESCRIPTION.md` are finalised, with every EVALS number sourced from `report.json` and the planned-vs-measured distinction preserved.
-  3. The 3-minute unedited video shows a live run against the frozen commit with tool calls visible, including a human judging with evidence and a failure.
-  4. The repo is tagged and `git log -1` predates the 2026-10-15 deadline; `commit_docs`/CI/hooks are disabled and the remote is audited for post-freeze commits.
-**Plans**: 3 plans
-- [ ] 05-01-PLAN.md — Tracer: `triagedesk demo` one-command run on the synthetic fixture (full storyboard) + CI smoke test
-- [ ] 05-02-PLAN.md — Demo runbook (`docs/DEMO.md`) + scripted entry point grounding (recording declared human)
-- [ ] 05-03-PLAN.md — Docs finalised (ARCHITECTURE/EVALS/DESCRIPTION/README) + repository freeze
+  1. A human-readable priority card renders the **suggested** colour, target time, and the "why" vitals next to their adjacent citations — framed as a suggestion and never a diagnosis.
+  2. A loud "no discriminator matched / low confidence — nurse to confirm" banner shows whenever the typed uncertainty signal fires, so the E-09 class is a visible flag rather than a buried JSON key.
+  3. The gate is a real approve / edit / dismiss interaction that records a named approver and commits no artefact on dismiss or timeout (no default approve).
+  4. A minimal vitals-entry surface validates through the one shared schema, and a one-screen desk quickstart gives a first desk-facing interaction without coupling to graph internals.
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 11: Honest Evaluation Re-run & Rigour Docs
+**Goal**: The two fixable measured failures reach their expected outcomes, the 14-case suite is re-run over the real graph, and `EVALS.md` is regenerated solely from `report.json` with reconciled counts — alongside a literal one-command README.
+**Depends on**: Phase 10
+**Requirements**: EVAL-06, DOCS-04, DOCS-05
+**Success Criteria** (what must be TRUE):
+  1. E-04 (emergency discriminator) and E-07 (deterioration recheck) reach their expected outcomes in the measured run.
+  2. The 14-case suite is re-run over the real graph and `EVALS.md` is regenerated **only** from `report.json` (no hand-edited numbers), with case and run counts reconciled (no 14-vs-16 / 29-vs-32 drift).
+  3. A stranger gets running in one command — `uv run triagedesk demo` is the literal one-liner (uv auto-syncs; no separate install step).
+**Plans**: TBD
+
+### Phase 12: Live Review, Demo & Milestone-Close Documentation
+**Goal**: The live technical review is rehearsed end-to-end including a live one-line discriminator edit, the demo runs to 2–3 minutes with narration and the measured eval on screen, the clinical-fit gap is re-declared honestly, and every submission document is refreshed to the v1.1 state.
+**Depends on**: Phase 11
+**Requirements**: REV-01, DEMO-02, FIT-01, DOCS-06
+**Success Criteria** (what must be TRUE):
+  1. A 10-minute live walkthrough plus a dry-run "add a discriminator to `data/sats_discriminators.yaml` live, reload, and re-score" passes the safety suite — the extension is data-only, with no code edit.
+  2. The demo runs to 2–3 minutes with narration, showing the measured eval run on screen, still unedited and still showing a failure.
+  3. A single triage nurse or clinician review is obtained and quoted in README/EVALS if access can be arranged; if not, the gap is re-declared honestly rather than over-claimed.
+  4. Every submission document (README, ARCHITECTURE, EVALS, DESCRIPTION, STATUS, `docs/REQUIREMENTS`, `docs/ROADMAP`) reflects the v1.1 capabilities and current measured results, with no stale v1.0 claims.
+**Plans**: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 6 → 7 → 8 → 9 → 10 → 11 → 12
+(Phases 7, 8, and 9 each depend only on Phase 6 and are independent of one another; Phase 10 consumes 8 and 9.)
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. SATS Foundations & Risk Retirement | 4/4 | Complete | 2026-10-09 |
-| 2. Deterministic Scorer & Own MCP Server | 3/3 | Complete | 2026-10-09 |
-| 3. Approval Gate, Gated Commit & Safety Spine | 5/5 | Complete | 2026-10-09 |
-| 4. Evaluation, Recovery & Honest Failure | 6/6 | Complete | 2026-10-10 |
-| 5. Demo, Docs & Freeze | 0/3 | Not started | - |
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. SATS Foundations & Risk Retirement | v1.0 | 4/4 | Complete | 2026-10-09 |
+| 2. Deterministic Scorer & Own MCP Server | v1.0 | 3/3 | Complete | 2026-10-09 |
+| 3. Approval Gate, Gated Commit & Safety Spine | v1.0 | 5/5 | Complete | 2026-10-09 |
+| 4. Evaluation, Recovery & Honest Failure | v1.0 | 6/6 | Complete | 2026-10-10 |
+| 5. Demo, Docs & Freeze | v1.0 | 3/3 | Complete | 2026-10-10 |
+| 6. Durable Execution & Idempotent Gate | v1.1 | 0/TBD | Not started | - |
+| 7. Local Observability — Span Tracing & Read-Only Replay | v1.1 | 0/TBD | Not started | - |
+| 8. Calibrated Confidence & Abstention | v1.1 | 0/TBD | Not started | - |
+| 9. Retrieval Grounding & Borrowed-MCP Depth | v1.1 | 0/TBD | Not started | - |
+| 10. Desk UX & Real Approval Gate | v1.1 | 0/TBD | Not started | - |
+| 11. Honest Evaluation Re-run & Rigour Docs | v1.1 | 0/TBD | Not started | - |
+| 12. Live Review, Demo & Milestone-Close Documentation | v1.1 | 0/TBD | Not started | - |

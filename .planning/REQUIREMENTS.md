@@ -1,169 +1,125 @@
 # Requirements: TriageDesk
 
-**Defined:** 2026-10-09
+**Defined:** 2026-10-10 (milestone **v1.1 Score Uplift**)
 **Core Value:** A triage nurse gets a sourced, confirmable priority for each patient in seconds, and nothing reaches the queue without her approval.
 
-> Iron-clad engineering rule: **DRY + SOLID** (`CONVENTIONS.md`) — every requirement below must be met
-> without duplicating logic or violating the single-source-of-truth rule.
+> Iron-clad engineering rule: **DRY + SOLID** (`docs/CONVENTIONS.md`) — every requirement below must be
+> met without duplicating logic or violating the single-source-of-truth rule. v1.0 is frozen at tag
+> `v1.0-submission`; every v1.1 change attaches at a published seam and must never edit the scorer, the
+> citation helper, or the audit interceptor (`docs/DECISIONS.md` D-18).
 
-## v1 Requirements
+---
 
-### Intake & Data
+## v1.1 Requirements
 
-- [ ] **INTAKE-01**: Nurse can enter a case as structured vitals plus a free-text presenting complaint
-- [ ] **INTAKE-02**: System normalizes a case into one validated typed schema (defined once, imported everywhere)
-- [x] **INTAKE-03**: Missing critical vitals are detected and the nurse is asked to re-measure — no imputation
-- [x] **INTAKE-04**: Adult TEWS bands + colour thresholds live **only** in `data/sats_tews.yaml`
-- [x] **INTAKE-05**: Discriminators + categories live **only** in `data/sats_discriminators.yaml`
+### Durable Execution
 
-### Scoring (deterministic)
+- [ ] **AGENT-01**: The demo and CLI run through the durable `checkpointed_graph` (SQLite `checkpoints.db`), a case paused at the approval gate resumes after a process restart on a stable `thread_id`, and an **edit** decision supersedes rather than duplicates the queue row (idempotency key covers the immutable case content, not `colour` alone).
 
-- [x] **SCORE-01**: TEWS is computed deterministically from typed vitals (no LLM arithmetic)
-- [x] **SCORE-02**: Discriminator overrides apply (most-urgent wins) → a colour + target time
-- [x] **SCORE-03**: Every priority cites the exact rule/vital(s) that produced it (citation invariant)
-- [x] **SCORE-04**: Paediatric / out-of-scope input is detected, then **abstains + escalates** (predicate fails closed)
-- [x] **SCORE-05**: Band-edge, boundary, and unit cases are covered by tests
+### Confidence & Abstention
 
-### MCP tools
+- [ ] **AGENT-02**: The system computes a deterministic **coverage/deferral** signal (never a model probability and never a percentage shown as clinical risk), an `assess_confidence` tool exposes it, and low confidence **routes to escalate or request-missing-info and never to `commit`** — it can only make the system more cautious, never downgrade a scored colour.
 
-- [x] **TOOL-01**: Own MCP server exposes `normalize_case`
-- [x] **TOOL-02**: Own MCP server exposes `match_discriminators`
-- [x] **TOOL-03**: Own MCP server exposes `score_priority` (acting)
-- [x] **TOOL-04**: Own MCP server exposes `raise_recheck_flag` (acting)
-- [x] **TOOL-05**: Own MCP server exposes `commit_priority` (acting + gated + idempotent)
-- [x] **TOOL-06**: A **borrowed**, maintained SQLite MCP server provides case/queue storage + audit
+### Retrieval Grounding
 
-### Orchestration
+- [ ] **AGENT-03**: A `retrieve_evidence` tool and a `ground` node placed **after** `score` fetch attributed SATS KB excerpts (derived from `data/*.yaml`, not re-authored); retrieval returns **only** closed-set discriminator ids, a rank, and an explicit `no_match`, so it can never set a colour or emit an uncited rule; the declared failure E-09 is addressed by real retrieval (or reported as a clean defer), never by adding a literal alias.
 
-- [x] **ORCH-01**: LangGraph graph runs `ingest → normalize → retrieve → score → verify → (recheck) → gate → commit → handover`
-- [x] **ORCH-02**: The whole task runs on a **local open-weights** model; no frontier model in the required path
-- [x] **ORCH-03**: Model is used only to extract/explain; the score path never imports the model or an MCP client (enforced by a guard test)
-- [x] **ORCH-04**: Extraction uses structured JSON output; invalid output retries once, then falls back deterministically
-- [x] **ORCH-05**: Missing-vital recovery and safe abstention are conditional edges that never guess
+### Observability
 
-### Gate & commit (safety milestone)
+- [ ] **AGENT-04**: Tool, node, and model spans are emitted from the **existing** audit interceptor and wrappers to a **local** exporter (no cloud/egress), a `trace_id` links spans to the audit record, and **replay is read-only** — it reconstructs from the checkpoint + audit/span stream and structurally cannot re-run the gated commit.
 
-- [x] **GATE-01**: A LangGraph `interrupt()` pauses for a **named** clinician before any queue-affecting write
-- [x] **GATE-02**: `commit_priority` cannot run without a valid approval token (approve/edit/dismiss + name + role + timestamp)
-- [x] **GATE-03**: The write is **idempotent** (keyed by `case_id` + content hash) — a retry cannot double-place a patient
-- [x] **GATE-04**: A deterioration re-check raises a second-look flag **without** reordering the queue on its own
+### Desk UX & Gate
 
-### Audit
+- [ ] **UX-01**: A loud "no discriminator matched / low confidence — nurse to confirm" banner is shown, backed by a typed uncertainty field that drives routing, so the E-09 class becomes a visible flag rather than a buried JSON key.
+- [ ] **UX-02**: A human-readable priority card renders the **suggested** colour, target time, and the "why" vitals next to adjacent citations — framed as a suggestion, never a verdict, and never a diagnosis.
+- [ ] **UX-03**: The approval gate is a real **approve / edit / dismiss** interaction that records a named approver and commits no artefact on dismiss or on timeout (no default approve) — the human decision is no longer a hardcoded value.
+- [ ] **UX-04**: A minimal vitals-entry surface (validating through the one shared schema) plus a one-screen desk quickstart give a first desk-facing interaction without coupling to graph internals.
 
-- [x] **AUDIT-01**: Every tool call appends a hash-chained record (inputs, outputs, timestamp, actor)
-- [x] **AUDIT-02**: Approval records capture the named approver + role
-- [x] **AUDIT-03**: Audit record shape is defined once (one helper) and written to one authoritative store
+### Borrowed MCP
 
-### Safety & hardening
-
-- [x] **SAFE-01**: Free-text complaint is treated as untrusted data — prompt injection cannot set a priority (tested by E-13)
-- [x] **SAFE-02**: No diagnosis/prescription output exists and no dx/rx tool is defined
-- [x] **SAFE-03**: Least privilege — tools are allowlisted; no network/credentials in the agent path
-- [x] **SAFE-04**: Version pinning + hashing for prompts, model, scale data, and tool schemas
-- [x] **SAFE-05**: Suppression-direction injection is tested (injection that tries to *hide* a finding)
+- [ ] **MCP-01**: The borrowed SQLite MCP server is exercised beyond `query` — its read paths (`list_tables`, schema, `read_records`, `db_info`) are used behind the unchanged `Store` protocol, and the borrowed server stays **read-only in the agent path** with a tool allowlist and statement guard.
 
 ### Evaluation
 
-- [x] **EVAL-01**: 14 eval cases with expected outcomes, including one unfixed failure (E-09)
-- [x] **EVAL-02**: Each case runs 3×; run-to-run variation is measured and reported
-- [x] **EVAL-03**: Safety invariants INV-1…INV-4 are executable assertions on every run
-- [x] **EVAL-04**: Under-triage and over-triage are reported separately (not hidden behind symmetric accuracy)
-- [x] **EVAL-05**: Report includes latency + token cost per run and is reproducible via recorded hashes
+- [ ] **EVAL-06**: The two fixable measured failures (E-04 emergency discriminator; E-07 deterioration recheck) reach their expected outcomes, the 14-case suite is re-run over the real graph, and `EVALS.md` is regenerated **only** from `report.json` (no hand-edited numbers).
 
-### Docs & demo
+### Review & Demo
 
-- [x] **DOCS-01**: README gets a stranger running in **one command**
-- [x] **DOCS-02**: `ARCHITECTURE.md` (one page), `EVALS.md`, and `DESCRIPTION.md` (~300 words) are finalised
-- [x] **DOCS-03**: CI smoke test runs the demo on the synthetic fixture
-- [ ] **DEMO-01**: 3-minute unedited demo video with tool calls on screen, including a failure
+- [ ] **REV-01**: The live technical review is rehearsed end-to-end: a 10-minute walkthrough plus a dry-run "add a discriminator to `data/sats_discriminators.yaml` live, reload, and re-score" that passes the safety suite.
+- [ ] **DEMO-02**: The demo runs to 2–3 minutes with narration and the measured eval run on screen, still unedited and still showing a failure.
+- [ ] **FIT-01**: A single triage nurse or clinician review is obtained and quoted in README/EVALS if access can be arranged; if not, the gap is re-declared honestly rather than over-claimed.
 
-### Engineering standards
+### Docs & Rigour
 
-- [x] **QUAL-01**: DRY + SOLID enforced — no duplicated SATS values/citations; graph depends on the tool interface
-- [x] **QUAL-02**: A guard test proves `core/` does not import `llm/` or any MCP client
+- [ ] **DOCS-04**: A stranger gets running in **one command** — `uv run triagedesk demo` is the literal one-liner (uv auto-syncs); no separate install step is required.
+- [ ] **DOCS-05**: `EVALS.md` case and run counts are reconciled (no 14-vs-16 / 29-vs-32 drift) and every number is emitted from `report.json`.
+- [ ] **DOCS-06**: At milestone end, every submission document (README, ARCHITECTURE, EVALS, DESCRIPTION, STATUS, `docs/REQUIREMENTS`, `docs/ROADMAP`) is refreshed to reflect the v1.1 capabilities and current measured results, with no stale v1.0 claims.
 
-## v2 Requirements
+## Future Requirements
 
-Deferred to a future release. Tracked but not in the current roadmap.
+Deferred to a later milestone. Tracked but not in the v1.1 roadmap.
 
-- **DISC-01**: Discriminator confidence field + clarifying-question loop (the honest E-09 fix)
-- **ROUTE-01**: Referral / department routing tool (gated like the queue write)
-- **INV-01**: "Additional investigations" column (glucose, ketones, urine) + SHCP discretion
-- **CAL-01**: Calibration metrics (Brier score / reliability curves)
-- **LANG-01**: Multilingual clinical lexicon
-- **PAED-01**: Paediatric SATS age-banded charts
-- **RETR-01**: Embedding-based discriminator retrieval
+- **AGENT-05**: Model routing / caching / budgets to attack the 14–17 s desk latency.
+- **AGENT-06**: Online eval, calibration, and drift monitoring.
+- **MCP-02**: A second borrowed (vector) MCP server for retrieval.
+- **UX-05**: Multimodal intake (voice + chart/cuff photo) — the real desk UX.
+- **CAL-02**: Full calibration report (Brier score / reliability curves) at larger sample size.
+- **PAED-01**: Paediatric SATS age-banded charts.
+- **LANG-01**: Multilingual clinical lexicon.
+- **DISC-01**: Mandatory clarifying-question loop when no discriminator matches.
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Autonomous queue movement | Challenge disqualifier; safety boundary |
-| Diagnosis / prescribing | Challenge disqualifier; no dx/rx tool |
-| Runtime self-learning / long-term memory | Unsafe at the point of care; non-reproducible priorities |
-| Real patient data / hospital EMR integration | Data conduct; synthetic only |
-| Frontier model in the required path | Eligibility; data residency |
-| Closed no-code builders | Explicitly disallowed by the brief |
-| Multilingual input (v1) | Scope; English only for the deadline |
-| Full paediatric scoring | Replaced by safe abstention + escalation |
+| Generative RAG that writes clinical guidance prose | Hallucination risk; the agent must never diagnose or advise |
+| A pseudo-probability shown as clinical risk ("87% sure this is ORANGE") | Miscalibrated and over-trust-inducing; confidence is a deferral signal only |
+| Auto-commit on gate timeout, or a default-approve | Defeats the human approval boundary (challenge disqualifier) |
+| Replay that re-runs the model or the gated commit | Would create a second, un-audited queue write |
+| Cloud tracing (LangSmith egress) or any network call in the agent path | Data residency; the agent path stays offline |
+| Editing code (or `docs/SATS.md`) to add a rule | Rules are data (`data/*.yaml`) — the single source of truth |
+| Adding a literal discriminator alias to make E-09 pass | Would tune the test green and hide a real coverage gap |
+| Vector platform / heavy embedding stack (chromadb, faiss, torch, sentence-transformers) | Does not fit the CPU-only, offline, low-RAM budget |
 
 ## Traceability
 
-Which phases cover which requirements.
+Which phases cover which requirements (filled by the roadmap).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INTAKE-01 | Phase 1 | Pending |
-| INTAKE-02 | Phase 1 | Pending |
-| INTAKE-03 | Phase 2 | Complete |
-| INTAKE-04 | Phase 1 | Complete |
-| INTAKE-05 | Phase 1 | Complete |
-| SCORE-01 | Phase 2 | Complete |
-| SCORE-02 | Phase 2 | Complete |
-| SCORE-03 | Phase 2 | Complete |
-| SCORE-04 | Phase 2 | Complete |
-| SCORE-05 | Phase 2 | Complete |
-| TOOL-01 | Phase 2 | Complete |
-| TOOL-02 | Phase 2 | Complete |
-| TOOL-03 | Phase 2 | Complete |
-| TOOL-04 | Phase 2 | Complete |
-| TOOL-05 | Phase 2 | Complete |
-| TOOL-06 | Phase 3 | Complete |
-| ORCH-01 | Phase 3 | Complete |
-| ORCH-02 | Phase 3 | Complete |
-| ORCH-03 | Phase 3 | Complete |
-| ORCH-04 | Phase 3 | Complete |
-| ORCH-05 | Phase 3 | Complete |
-| GATE-01 | Phase 3 | Complete |
-| GATE-02 | Phase 3 | Complete |
-| GATE-03 | Phase 3 | Complete |
-| GATE-04 | Phase 3 | Complete |
-| AUDIT-01 | Phase 3 | Complete |
-| AUDIT-02 | Phase 3 | Complete |
-| AUDIT-03 | Phase 3 | Complete |
-| SAFE-01 | Phase 2 | Complete |
-| SAFE-02 | Phase 3 | Complete |
-| SAFE-03 | Phase 3 | Complete |
-| SAFE-04 | Phase 1 | Complete |
-| SAFE-05 | Phase 4 | Complete |
-| EVAL-01 | Phase 4 | Complete |
-| EVAL-02 | Phase 4 | Complete |
-| EVAL-03 | Phase 4 | Complete |
-| EVAL-04 | Phase 4 | Complete |
-| EVAL-05 | Phase 4 | Complete |
-| DOCS-01 | Phase 5 | Complete |
-| DOCS-02 | Phase 5 | Complete |
-| DOCS-03 | Phase 5 | Complete |
-| DEMO-01 | Phase 5 | Pending |
-| QUAL-01 | Phase 1 | Complete |
-| QUAL-02 | Phase 3 | Complete |
+| AGENT-01 | Phase 6 | Pending |
+| AGENT-02 | Phase 8 | Pending |
+| AGENT-03 | Phase 9 | Pending |
+| AGENT-04 | Phase 7 | Pending |
+| UX-01 | Phase 10 | Pending |
+| UX-02 | Phase 10 | Pending |
+| UX-03 | Phase 10 | Pending |
+| UX-04 | Phase 10 | Pending |
+| MCP-01 | Phase 9 | Pending |
+| EVAL-06 | Phase 11 | Pending |
+| REV-01 | Phase 12 | Pending |
+| DEMO-02 | Phase 12 | Pending |
+| FIT-01 | Phase 12 | Pending |
+| DOCS-04 | Phase 11 | Pending |
+| DOCS-05 | Phase 11 | Pending |
+| DOCS-06 | Phase 12 | Pending |
 
 **Coverage:**
 
-- v1 requirements: 44 total
-- Mapped to phases: 44
+- v1.1 requirements: 16 total
+- Mapped to phases: 16
 - Unmapped: 0
 
+**By phase:**
+
+- Phase 6 (Durable Execution & Idempotent Gate): AGENT-01
+- Phase 7 (Local Observability — Span Tracing & Read-Only Replay): AGENT-04
+- Phase 8 (Calibrated Confidence & Abstention): AGENT-02
+- Phase 9 (Retrieval Grounding & Borrowed-MCP Depth): AGENT-03, MCP-01
+- Phase 10 (Desk UX & Real Approval Gate): UX-01, UX-02, UX-03, UX-04
+- Phase 11 (Honest Evaluation Re-run & Rigour Docs): EVAL-06, DOCS-04, DOCS-05
+- Phase 12 (Live Review, Demo & Milestone-Close Documentation): REV-01, DEMO-02, FIT-01, DOCS-06
+
 ---
-*Requirements defined: 2026-10-09*
-*Last updated: 2026-10-09 after roadmap traceability*
+*Requirements defined: 2026-10-10*
+*Last updated: 2026-10-10 — milestone v1.1 requirements mapped to Phases 6–12 (roadmap created)*
