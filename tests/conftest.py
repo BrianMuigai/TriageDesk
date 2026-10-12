@@ -135,6 +135,7 @@ def build_graph_tools(
     *,
     case: CaseInput | None = None,
     normalize_impl: Callable[[dict[str, Any]], Any] | None = None,
+    retrieve_impl: Callable[[dict[str, Any]], Any] | None = None,
     calls: list[tuple[str, Any]] | None = None,
     writes: list[Any] | None = None,
     store: InMemoryStore | None = None,
@@ -144,8 +145,9 @@ def build_graph_tools(
     The graph depends on an injected ``name -> async callable`` mapping (D-13), so
     the proof suites supply these fakes and never launch the MCP subprocess or the
     model. Kept here (not per test module) so the fake is defined once (DRY).
-    ``normalize_impl`` overrides the extraction; ``store``, when given, receives the
-    real idempotent queue write.
+    ``normalize_impl`` overrides the extraction and ``retrieve_impl`` overrides the
+    retrieval (the channel-isolation proof needs a differing ``evidence`` value);
+    ``store``, when given, receives the real idempotent queue write.
     """
     calls = calls if calls is not None else []
     writes = writes if writes is not None else []
@@ -182,6 +184,8 @@ def build_graph_tools(
 
     async def retrieve_evidence(inp: dict[str, Any]) -> Any:
         calls.append(("retrieve_evidence", inp))
+        if retrieve_impl is not None:
+            return retrieve_impl(inp)
         return retrieval.retrieve(str(inp["complaint"]))
 
     async def commit_priority(inp: dict[str, Any]) -> CommitResult:
