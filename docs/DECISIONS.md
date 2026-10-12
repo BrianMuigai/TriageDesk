@@ -165,6 +165,10 @@ must be deleted before a durable run** (no migration; synthetic, disposable data
 and the Phase-6 key change took). The span sink is a new gitignored runtime artefact. Because the trace
 runs on content-addressed identity, two storyboard beats sharing a case share one trace (documented, not
 a bug). No new dependency and no new graph node were added: the phase is wiring plus one projection.
+The trace binding travels in a per-task `contextvars` value and so does **not** cross the owned-MCP
+**subprocess** boundary: the demonstrated in-process paths (demo, eval, resume, replay) carry the trace,
+while the `graph.build.load_graph_tools` / `run_case` stdio-subprocess path records `trace_id=""` — a
+declared limitation, not a silent claim (WR-02).
 Rationale and the guaranteed properties: `SECURITY.md` §10.
 
 ---

@@ -198,6 +198,29 @@ async def test_a_span_sink_failure_never_breaks_the_tool_or_its_audit_record(
     assert record.outputs == result.model_dump(mode="json")
 
 
+async def test_an_owned_tool_without_a_bound_trace_records_an_empty_trace_id(
+    monkeypatch: pytest.MonkeyPatch, injected_store: Any
+) -> None:
+    """A tool reached with no bound trace records ``trace_id=""`` — the declared scope (WR-02).
+
+    The binding is a ``contextvars`` value, so it does not cross the owned-MCP **subprocess**
+    boundary: a child process sees the contextvar default (empty). The demonstrated in-process
+    paths (demo/eval/resume/replay) bind the trace, so they are covered; this test pins the
+    boundary honestly rather than over-claiming it.
+    """
+    bind_trace("")  # what a fresh process — the owned stdio subprocess — sees
+    monkeypatch.setattr(
+        server_module,
+        "extract",
+        lambda note: ExtractionResult(case=CaseInput(), matched_discriminator_ids=[]),
+    )
+
+    await server_module.normalize_case("chest pain")
+
+    records = await injected_store.read_audit_records()
+    assert records[-1].trace_id == ""
+
+
 def test_trace_id_defaults_empty_and_is_sealed_by_the_digest() -> None:
     """``trace_id`` defaults to ``""`` and is covered by the canonical record digest."""
     common: dict[str, Any] = {

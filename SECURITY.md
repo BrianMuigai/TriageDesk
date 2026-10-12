@@ -104,7 +104,13 @@ management, and a retention policy (`docs/PROJECT.md` §9).
   prompt or completion — so the sink never becomes a second, uncontrolled copy of clinical text.
 - **Sealed binding.** The `trace_id` is content-derived (the same `case_id_for(raw_note)` the
   durable thread uses) and is a first-class audit field sealed in the record's canonical digest;
-  one case has one trace across restart and replay.
+  one case has one trace across restart and replay. *Declared scope:* the binding travels in a
+  per-task `contextvars` value, which does **not** cross a process boundary. The demonstrated
+  paths — demo, eval, resume and replay — call the owned tools **in-process**, so every record
+  and span carries the trace. When the graph reaches the owned server over its **stdio
+  subprocess** (`graph.build.load_graph_tools` / `run_case`), the child process has no bound
+  trace, so its records carry `trace_id=""`; that path is outside the graded flow and is declared
+  here rather than silently claimed (WR-02).
 - **Replay cannot write.** `triagedesk replay` reconstructs a case from the checkpoint plus the
   audit/span stream. It compiles no graph and builds no tool map, so the gated `commit_priority`
   is structurally unreachable; the zero-write proof asserts replay adds **no queue row and no
