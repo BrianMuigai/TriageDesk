@@ -487,6 +487,25 @@ def test_post_with_a_wrong_csrf_token_is_refused(
     assert injected_store.rows == []
 
 
+def test_non_ascii_csrf_token_renders_the_failure_panel(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A non-ASCII ``csrf_token`` renders the failure panel instead of crashing (WR-01).
+
+    ``secrets.compare_digest`` raises ``TypeError`` on a ``str`` carrying non-ASCII characters,
+    and the token field is attacker-controlled (``parse_qs`` percent-decodes UTF-8). Comparing
+    on UTF-8 **bytes** keeps the check total: the request is refused with the documented panel
+    and the connection is never dropped.
+    """
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        form = {**_form_from_case(COMPLETE_CASE), "csrf_token": "é"}
+        status, body = _post_status(_base(server) + "/case", form)
+    assert status == 200
+    assert "The case could not be scored." in body
+    assert 'class="priority-card"' not in body
+    assert injected_store.rows == []
+
+
 def test_cross_origin_post_is_refused(tmp_path: Path, injected_store: Any) -> None:
     """A POST carrying a foreign ``Origin`` is refused (403) and writes nothing (WR-01).
 

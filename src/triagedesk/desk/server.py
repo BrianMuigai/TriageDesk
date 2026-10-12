@@ -857,10 +857,17 @@ class DeskHandler(BaseHTTPRequestHandler):
         return origin != f"http://{self.headers.get('Host')}"
 
     def _csrf_ok(self, form: Mapping[str, str]) -> bool:
-        """True when *form* carries the per-server CSRF token (WR-01), compared in constant time."""
+        """True when *form* carries the per-server CSRF token (WR-01), compared in constant time.
+
+        Both sides are compared as UTF-8 **bytes**: ``compare_digest`` raises ``TypeError`` on a
+        ``str`` carrying non-ASCII characters, and ``supplied`` is attacker-controlled
+        (``parse_qs`` percent-decodes UTF-8), so a ``str`` comparison would let a single
+        non-ASCII token crash the handler instead of rendering the failure panel. The token
+        itself is ASCII (``token_urlsafe``), so encoding both sides is total and cannot raise.
+        """
         supplied = str(form.get(_CSRF_FIELD, ""))
         return bool(supplied) and secrets.compare_digest(
-            supplied, self.server.csrf_token
+            supplied.encode("utf-8"), self.server.csrf_token.encode("utf-8")
         )
 
     def do_GET(self) -> None:  # noqa: N802 (stdlib naming)
