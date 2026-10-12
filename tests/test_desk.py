@@ -687,3 +687,134 @@ def test_baseline_why_vitals_row_is_never_an_empty_list(
     assert baseline.citation in card, "the baseline why-vitals citation did not render"
 
 
+# ------------------------------------- Task 3: copy and hermeticity proofs (D10-05, D10-15)
+
+
+def _rendered_card_and_banner(tmp_path: Path) -> tuple[str, str, str]:
+    """The card/banner regions for a scored case and the deferred case (the scan subject)."""
+    with _running_server(tmp_path / "scored.db") as server:
+        scored = _post(_base(server) + "/case", _form_from_case(COMPLETE_CASE))
+    case = _e09()
+    with _running_server(tmp_path / "deferred.db") as server:
+        deferred = _post(_base(server) + "/case", _form_from_case(case.case))
+    return scored, deferred, _banner_region(deferred)
+
+
+def test_rendered_copy_carries_no_forbidden_token(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """No rendered card/banner string or served asset carries a prohibited token (D10-05).
+
+    The ONE declared exception is the verbatim complaint echo — the nurse's own words shown
+    as typed, covered instead by the escaping proof — so the scan subject is the card region,
+    the banner region and the surface's own copy, never the complaint field.
+    """
+    scored, deferred, banner = _rendered_card_and_banner(tmp_path)
+    subject = "\n".join(
+        [
+            _section(scored, "priority-card"),
+            _section(deferred, "priority-card"),
+            banner,
+            (ASSET_DIR / "index.html").read_text(encoding="utf-8"),
+            (ASSET_DIR / "styles.css").read_text(encoding="utf-8"),
+        ]
+    )
+    assert subject.strip(), "the token scan subject is empty (a vacuous guard)"
+
+    forbidden = prohibited_tokens()
+    assert forbidden, "the ONE prohibited-token vocabulary is empty"
+    for token in forbidden:
+        assert not re.search(rf"\b{re.escape(token)}\b", subject.lower()), (
+            f"a rendered string carries the prohibited token {token!r}"
+        )
+
+
+def test_no_rendered_string_shows_a_percentage(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """No card, banner or state-panel string carries a percent sign or probability word."""
+    scored, deferred, _ = _rendered_card_and_banner(tmp_path)
+    rendered = scored + deferred
+    assert "%" not in rendered
+    for word in ("percent", "probability", "probable"):
+        assert not re.search(rf"\b{word}\b", rendered.lower()), word
+
+
+def test_colour_label_accompanies_every_rendered_colour(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """Every rendered colour carries its name as text and the generic class (D10-08)."""
+    db = tmp_path / "checkpoints.db"
+    paused = asyncio.run(submit_case(COMPLETE_CASE, db))
+    assert paused.payload is not None
+    colour = str(paused.payload["colour"])
+    card = _section(desk_server.render_state(paused), "priority-card")
+    assert f'class="colour-block colour-{colour.lower()}"' in card
+    assert f'<span class="colour-name">{colour}</span>' in card
+    assert f'<span class="value">{colour}</span>' in card
+
+    # The deferred read-only card renders its colour with its name and class too.
+    case = _e09()
+    with _running_server(tmp_path / "deferred.db") as server:
+        deferred = _post(_base(server) + "/case", _form_from_case(case.case))
+    deferred_card = _section(deferred, "priority-card")
+    assert "colour-block colour-" in deferred_card
+    assert '<span class="colour-name">' in deferred_card
+
+
+def test_submit_path_launches_no_borrowed_store(
+    tmp_path: Path, injected_store: Any, monkeypatch: Any
+) -> None:
+    """The bridge's full submit+decision path launches no borrowed store (D10-15)."""
+    launched: list[object] = []
+
+    def spy(*args: object, **kwargs: object) -> object:
+        launched.append((args, kwargs))
+        raise AssertionError("the desk surface launched the borrowed store")
+
+    monkeypatch.setattr("triagedesk.store.borrowed.open_borrowed_store", spy)
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        base = _base(server)
+        body = _post(base + "/case", _form_from_case(COMPLETE_CASE))
+        _post(
+            base + "/decision",
+            {
+                "thread_id": _thread_id(body),
+                "decision": "approve",
+                "name": "Nurse Demo",
+                "role": "triage nurse",
+            },
+        )
+
+    assert launched == []
+    assert len(injected_store.rows) == 1
+
+
+def test_deferred_end_to_end_is_read_only(tmp_path: Path, injected_store: Any) -> None:
+    """The deferred path renders the banner + read-only card, no gate, no row, no commit."""
+    case = _e09()
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        body = _post(_base(server) + "/case", _form_from_case(case.case))
+
+    assert BANNER_HEADLINE in body
+    assert 'class="priority-card"' in body
+    assert 'class="approval-gate"' not in body
+    assert injected_store.rows == []
+    assert injected_store.calls == [], "a deferred case reached the queue store"
+
+
+def test_served_css_declares_wrapping_rules() -> None:
+    """The served CSS wraps long strings and never clips the gate controls (UI-SPEC backstops)."""
+    css = (ASSET_DIR / "styles.css").read_text(encoding="utf-8")
+    assert "nowrap" not in css, "the CSS clips a label with white-space: nowrap"
+
+    for selector in (".evidence-list li", ".banner-headline", ".complaint-block .value"):
+        block = _css_block(css, selector)
+        assert "overflow-wrap" in block or "word-break" in block, selector
+
+    banner = _css_block(css, ".banner-headline")
+    assert not re.search(r"(?<!-)\bheight\s*:", banner), "the banner headline has a fixed height"
+
+    for selector in ("button", ".gate-actions"):
+        block = _css_block(css, selector)
+        assert not re.search(r"(?<!-)\bwidth\s*:", block), f"{selector} has a fixed width"
