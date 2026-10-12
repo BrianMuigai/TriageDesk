@@ -6,8 +6,8 @@ injected tool callable or a pure ``core`` function. The nodes depend on a
 the World A -> B swap touches ``mcp/adapter.py`` alone (D-13, SOLID: D).
 
 Model use is confined to ``normalize`` (through the owned ``normalize_case``
-tool, which wraps the local Ollama client). The ``retrieve``, ``score`` and
-``verify`` nodes touch no model — the discriminator set and the colour are
+tool, which wraps the local Ollama client). The ``retrieve``, ``score``, ``ground``
+and ``verify`` nodes touch no model — the discriminator set and the colour are
 deterministic (D-02).
 
 The safety spine lives here too: ``approval_gate`` performs **no side effect
@@ -31,6 +31,7 @@ from triagedesk.core.schema import (
     CommitResult,
     ConfidenceResult,
     Escalation,
+    EvidenceResult,
     ExtractionResult,
     HandoverCard,
     MatchResult,
@@ -191,6 +192,36 @@ def _make_score(tools: ToolMap) -> NodeFn:
         return {"priority": priority}
 
     return score
+
+
+def _make_ground(tools: ToolMap) -> NodeFn:
+    """Build the ``ground`` node over the injected tool mapping (D9-07, D9-08)."""
+
+    async def ground(state: TriageState) -> dict[str, Any]:
+        """Surface attributable retrieval evidence in its OWN channel (D9-07, D9-08).
+
+        Calls the injected ``retrieve_evidence`` tool with the case's complaint and stores
+        the contract in the ``evidence`` channel — the ONLY key it returns, never
+        ``priority``, ``citations``, ``matched_ids`` or ``no_match`` (D9-07), so an
+        advisory retrieval can never touch the scored colour. The node touches NO model
+        and writes NO store.
+
+        Retry consequence: when :func:`route_after_verify` loops a failed check
+        back to ``score``, the graph re-enters ``score -> ground -> verify`` and this node
+        runs a second time on the re-scored state. That is harmless and deterministic — the
+        complaint has not changed, so the same :class:`~triagedesk.core.schema.EvidenceResult`
+        is produced — and ``ground`` writes only ``evidence`` (last-write-wins; no reducer).
+        The only cost is a second node span and a second ``retrieve_evidence`` audit record
+        on a retried case (E-12 slices); no test asserts ``retrieve_evidence`` multiplicity.
+        """
+        case = state["case"]
+        result = parse_tool_result(
+            EvidenceResult,
+            await tools["retrieve_evidence"]({"complaint": case.complaint}),
+        )
+        return {"evidence": result}
+
+    return ground
 
 
 def _make_assess(tools: ToolMap) -> NodeFn:
@@ -402,6 +433,7 @@ def make_nodes(tools: ToolMap) -> dict[str, NodeFn]:
         "normalize": _make_normalize(tools),
         "retrieve": _make_retrieve(tools),
         "score": _make_score(tools),
+        "ground": _make_ground(tools),
         "assess": _make_assess(tools),
         "verify": verify,
         "recheck": _make_recheck(tools),

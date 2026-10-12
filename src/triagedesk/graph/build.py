@@ -102,6 +102,7 @@ TRACER_NODES: tuple[str, ...] = (
     "normalize",
     "retrieve",
     "score",
+    "ground",
     "verify",
     "recheck",
     "assess",
@@ -220,13 +221,15 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
     """Compile the tracer graph over the injected ``tools`` mapping (D-01, D-13).
 
     ``START -> ingest -> normalize -> (retrieve -> score | escalate) ->
-    (score: escalate | request_missing_info | verify) -> (verify -> recheck) ->
-    assess -> (approval_gate -> commit -> handover | escalate |
-    request_missing_info) -> END``. The ``normalize``, ``score``, ``verify`` and
-    ``assess`` edges are conditional; the recovery/abstention terminals have no edge
+    (score: escalate | request_missing_info | ground) -> (ground -> verify) ->
+    (verify -> recheck) -> assess -> (approval_gate -> commit -> handover |
+    escalate | request_missing_info) -> END``. The ``normalize``, ``score``, ``verify``
+    and ``assess`` edges are conditional; the recovery/abstention terminals have no edge
     to ``commit``, and a deferral from ``assess`` only reaches those terminals (D8-12).
-    ``checkpointer`` is injected so the same builder serves both the in-memory test
-    graph and the durable SQLite graph (D-09).
+    ``ground`` sits between ``score`` and ``verify`` and is ROUTING-NEUTRAL (D9-07/D9-08):
+    it writes only its own ``evidence`` channel and is wired by a plain edge, so no router
+    reads it and the path taken is unchanged. ``checkpointer`` is injected so the same
+    builder serves both the in-memory test graph and the durable SQLite graph (D-09).
 
     The injected tool surface is asserted against the allowlist FIRST, so a drifted or
     unexpected tool fails loudly at composition rather than silently reaching the
@@ -252,9 +255,13 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
         {
             "escalate": "escalate",
             "request_missing_info": "request_missing_info",
-            "verify": "verify",
+            "verify": "ground",
         },
     )
+    # ``ground`` is advisory and routing-neutral (D9-08): it is entered by the ``score``
+    # conditional edge's ``verify`` route LABEL (the decision is unchanged) but wired by a
+    # PLAIN edge to ``verify``, so the path taken is identical whether or not retrieval runs.
+    graph.add_edge("ground", "verify")
     graph.add_conditional_edges(
         "verify",
         route_after_verify,
