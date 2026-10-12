@@ -38,7 +38,11 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from conftest import COMPLETE_CASE, imported_modules
+from conftest import (
+    COMPLETE_CASE,
+    package_parts_for,
+    resolved_imports,
+)
 from triagedesk.cli import main
 from triagedesk.core import matcher, retrieval, scorer
 from triagedesk.core.rules import get_tews
@@ -64,6 +68,7 @@ from triagedesk.evals.case import CaseSpec, load_cases
 from triagedesk.evals.invariants import prohibited_tokens
 
 DESK_DIR = Path(desk_server.__file__).parent
+SRC_ROOT = DESK_DIR.resolve().parents[1]  # .../src (the parent of the triagedesk package)
 ASSET_DIR = DESK_DIR / "static"
 CASES_DIR = Path(__file__).resolve().parents[1] / "evals" / "cases"
 
@@ -81,6 +86,9 @@ LOW_CONFIDENCE_BODY = (
 # gated commit tool. The only route to a queue row is the resumed interrupt through that tool
 # (D10-11/D10-12), so a direct import here would be a second, un-audited write path.
 _COMMIT_PATH_MODULES = frozenset({"triagedesk.store.queue", "triagedesk.mcp.server"})
+# The commit symbols themselves: importing one from anywhere is a second write path, however
+# it is reached (an absolute import, a relative import, or a re-export).
+_COMMIT_SYMBOLS = frozenset({"commit_to_queue", "commit_priority"})
 
 
 @contextlib.contextmanager
@@ -393,13 +401,39 @@ def test_vitals_bounds_are_derived_from_the_schema() -> None:
 
 
 def test_no_self_commit_path_in_the_desk_package() -> None:
-    """No ``desk/`` module imports the queue writer or the gated-commit host (D10-12)."""
-    modules = sorted(DESK_DIR.glob("*.py"))
+    """No ``desk/`` module imports the queue writer or the gated-commit host (D10-12).
+
+    The scan recurses the WHOLE package and resolves relative imports, so neither a
+    ``from ..store.queue import commit_to_queue`` nor a commit path added in a ``desk/``
+    subpackage can evade the guard (WR-04).
+    """
+    modules = sorted(DESK_DIR.rglob("*.py"))
     assert modules, "the desk package scan visited no module"
     for path in modules:
-        imported = set(imported_modules(path.read_text(encoding="utf-8")))
-        offenders = imported & _COMMIT_PATH_MODULES
-        assert not offenders, f"{path.name} imports a commit path: {sorted(offenders)}"
+        source = path.read_text(encoding="utf-8")
+        resolved = set(resolved_imports(source, package_parts_for(path, SRC_ROOT)))
+        module_offenders = resolved & _COMMIT_PATH_MODULES
+        assert not module_offenders, (
+            f"{path.name} imports a commit path: {sorted(module_offenders)}"
+        )
+        symbol_offenders = {
+            name for name in resolved if name.rsplit(".", 1)[-1] in _COMMIT_SYMBOLS
+        }
+        assert not symbol_offenders, (
+            f"{path.name} imports a commit symbol: {sorted(symbol_offenders)}"
+        )
+
+
+def test_commit_path_guard_resolves_relative_and_symbol_imports() -> None:
+    """The guard is not vacuous: relative and symbol imports of a commit path are caught (WR-04)."""
+    parts = ["triagedesk", "desk"]  # the __package__ of a desk/ module
+    relative = set(resolved_imports("from ..store.queue import commit_to_queue\n", parts))
+    assert "triagedesk.store.queue" in relative
+    assert "triagedesk.store.queue.commit_to_queue" in relative
+
+    symbol = set(resolved_imports("from triagedesk.mcp.server import commit_priority\n", parts))
+    assert "triagedesk.mcp.server" in symbol
+    assert "triagedesk.mcp.server.commit_priority" in symbol
 
 
 def test_make_server_binds_localhost_only(tmp_path: Path) -> None:

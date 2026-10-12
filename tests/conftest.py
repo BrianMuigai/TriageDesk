@@ -64,6 +64,45 @@ def imported_modules(source: str) -> list[str]:
     return modules
 
 
+def package_parts_for(path: Path, src_root: Path) -> list[str]:
+    """The dotted parts of the package *containing* *path* (its ``__package__``).
+
+    Used to resolve relative imports. For both ``pkg/mod.py`` and ``pkg/__init__.py`` the
+    containing package is ``pkg`` — a package's ``__package__`` is the package itself — so
+    the answer is the file's path parts with the final component dropped.
+    """
+    rel = path.resolve().relative_to(Path(src_root).resolve())
+    return list(rel.with_suffix("").parts)[:-1]
+
+
+def resolved_imports(source: str, package_parts: list[str]) -> list[str]:
+    """Every absolute dotted module name imported by *source*, resolving relative imports.
+
+    The relative-aware sibling of :func:`imported_modules` (which deliberately drops
+    relative imports): ``from ..store.queue import x`` in a module whose ``__package__`` is
+    ``["triagedesk", "desk"]`` resolves to ``triagedesk.store.queue``, so a guard scanning
+    for a forbidden absolute module cannot be evaded by a relative import.
+    ``from a.b import c`` contributes both ``a.b`` and ``a.b.c`` (so a forbidden submodule
+    imported through its parent package is still caught).
+    """
+    tree = ast.parse(source)
+    resolved: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            resolved.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            if node.level == 0:
+                base: list[str] = []
+            else:
+                keep = len(package_parts) - (node.level - 1)
+                base = package_parts[:keep]
+            module = base + node.module.split(".") if node.module else base
+            if node.module:
+                resolved.append(".".join(module))
+            resolved.extend(".".join(module + [alias.name]) for alias in node.names)
+    return sorted(set(resolved))
+
+
 class RecordingStore(InMemoryStore):
     """The shared package store double plus the test-only queue-call recorder (DRY).
 
