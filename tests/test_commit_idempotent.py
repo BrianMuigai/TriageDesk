@@ -2,6 +2,8 @@
 
 Task 2 (queue level): the write is idempotent on (``case_id``, immutable content
 hash); a volatile approval timestamp never enters the key; a crash-retry yields one row.
+An ``edit`` of the same case supersedes the row in place — one row, updated colour,
+unchanged position (D6-06).
 Task 3 (tool level): ``commit_priority`` refuses without a valid token (or on
 ``dismiss``) touching no store, and a valid token commits once with the token's
 ``final_colour`` through the injectable store seam.
@@ -16,9 +18,19 @@ from typing import Any
 
 from mcp import Client
 
-from triagedesk.core.schema import CommitResult
+from triagedesk.core.schema import CaseInput, CommitResult
 from triagedesk.mcp import server as server_module
 from triagedesk.store.queue import IMMUTABLE_FIELDS, commit_to_queue, content_hash
+
+# One CaseInput-shaped payload — the immutable case content the idempotency key now
+# covers (D6-04). Shared by the store- and tool-level tests so the key is meaningful.
+_CASE: dict[str, Any] = {
+    "respiratory_rate": 24,
+    "heart_rate": 118,
+    "avpu": "alert",
+    "complaint": "central chest pain",
+}
+_CASE_INPUT = CaseInput(**_CASE)
 
 
 def _token(decision: str, final_colour: str = "ORANGE", **overrides: Any) -> dict[str, Any]:
@@ -39,13 +51,11 @@ def _token(decision: str, final_colour: str = "ORANGE", **overrides: Any) -> dic
 
 async def test_commit_twice_yields_one_row(memory_store) -> None:
     """Committing the same case content twice produces exactly one queue row (D-06)."""
-    content = {"colour": "ORANGE", "target": "soon"}
-
     first, created_first = await commit_to_queue(
-        memory_store, case_id="c-1", colour="ORANGE", content=content
+        memory_store, case_id="c-1", colour="ORANGE", content=_CASE_INPUT
     )
     second, created_second = await commit_to_queue(
-        memory_store, case_id="c-1", colour="ORANGE", content=content
+        memory_store, case_id="c-1", colour="ORANGE", content=_CASE_INPUT
     )
 
     assert created_first is True
@@ -54,16 +64,35 @@ async def test_commit_twice_yields_one_row(memory_store) -> None:
     assert len(memory_store.rows) == 1
 
 
-async def test_changing_a_scored_field_changes_the_content_hash() -> None:
-    """A different scored field produces a different key (and so a distinct row)."""
-    red = content_hash("c-1", {"colour": "RED", "target": "now"})
-    orange = content_hash("c-1", {"colour": "ORANGE", "target": "now"})
-    assert red != orange
+async def test_an_edit_supersedes_the_row_in_place(memory_store) -> None:
+    """An ``edit`` of the same case supersedes in place — one row, new colour, same seat.
+
+    The idempotency key covers the immutable case input, so an approve and an edit of
+    the same case re-derive the SAME key: the row is updated (``colour`` -> the edited
+    colour) and its ``position``/``created_at`` are preserved, never duplicated (D6-04,
+    D6-06).
+    """
+    first, created_first = await commit_to_queue(
+        memory_store, case_id="c-1", colour="ORANGE", content=_CASE_INPUT
+    )
+    created_at = first.created_at
+    assert created_first is True
+
+    second, created_second = await commit_to_queue(
+        memory_store, case_id="c-1", colour="GREEN", content=_CASE_INPUT
+    )
+
+    assert created_second is False
+    assert second.colour == "GREEN"
+    assert len(memory_store.rows) == 1
+    assert memory_store.rows[0].colour == "GREEN"
+    assert memory_store.rows[0].position == 1
+    assert memory_store.rows[0].created_at == created_at
 
 
 async def test_volatile_timestamp_does_not_change_the_content_hash() -> None:
     """The approval timestamp never enters the key — a retry cannot churn it (Pitfall 14)."""
-    base = {"colour": "ORANGE", "target": "soon", "citations": ["a", "b"]}
+    base = _CASE_INPUT.model_dump(mode="json")
     earlier = content_hash("c-1", {**base, "approved_at": "2026-10-09T16:00:00Z"})
     later = content_hash("c-1", {**base, "approved_at": "2026-10-09T18:30:00Z"})
     assert earlier == later
@@ -79,15 +108,13 @@ async def test_crash_then_retry_yields_one_row(memory_store) -> None:
     appear. Any store transaction would be belt-and-braces only — the borrowed server
     exposes no transaction call (D-06, Pitfall 14).
     """
-    content = {"colour": "RED", "target": "now"}
-
     # First attempt writes the row, then the process "crashes" before it acknowledges
     # (the returned row is discarded — no ack reached the caller).
-    await commit_to_queue(memory_store, case_id="c-9", colour="RED", content=content)
+    await commit_to_queue(memory_store, case_id="c-9", colour="RED", content=_CASE_INPUT)
 
     # Retry after restart: the same key is re-derived, so nothing new is inserted.
     retried, created = await commit_to_queue(
-        memory_store, case_id="c-9", colour="RED", content=content
+        memory_store, case_id="c-9", colour="RED", content=_CASE_INPUT
     )
 
     assert created is False
@@ -103,7 +130,9 @@ async def test_commit_priority_refuses_without_a_token_and_writes_nothing(
 ) -> None:
     """A token-less call is refused and touches no store (GATE-02, T-03-09)."""
     async with Client(server_module.server) as client:
-        call = await client.call_tool("commit_priority", {"case_id": "c-1", "colour": "RED"})
+        call = await client.call_tool(
+            "commit_priority", {"case_id": "c-1", "colour": "RED", "case": _CASE}
+        )
 
     result = CommitResult.model_validate_json(call.content[0].text)
     assert result.refused is True
@@ -117,7 +146,12 @@ async def test_commit_priority_refuses_a_dismiss_and_writes_nothing(injected_sto
     async with Client(server_module.server) as client:
         call = await client.call_tool(
             "commit_priority",
-            {"case_id": "c-1", "colour": "RED", "approval_token": _token("dismiss", "RED")},
+            {
+                "case_id": "c-1",
+                "colour": "RED",
+                "case": _CASE,
+                "approval_token": _token("dismiss", "RED"),
+            },
         )
 
     result = CommitResult.model_validate_json(call.content[0].text)
@@ -132,11 +166,11 @@ async def test_commit_priority_commits_once_through_the_injected_store(injected_
     async with Client(server_module.server) as client:
         first = await client.call_tool(
             "commit_priority",
-            {"case_id": "c-1", "colour": "ORANGE", "approval_token": token},
+            {"case_id": "c-1", "colour": "ORANGE", "case": _CASE, "approval_token": token},
         )
         repeat = await client.call_tool(
             "commit_priority",
-            {"case_id": "c-1", "colour": "ORANGE", "approval_token": token},
+            {"case_id": "c-1", "colour": "ORANGE", "case": _CASE, "approval_token": token},
         )
 
     assert CommitResult.model_validate_json(first.content[0].text).committed is True
@@ -150,7 +184,7 @@ async def test_commit_priority_edit_commits_the_tokens_final_colour(injected_sto
     async with Client(server_module.server) as client:
         call = await client.call_tool(
             "commit_priority",
-            {"case_id": "c-2", "colour": "RED", "approval_token": token},
+            {"case_id": "c-2", "colour": "RED", "case": _CASE, "approval_token": token},
         )
 
     assert CommitResult.model_validate_json(call.content[0].text).committed is True
@@ -168,7 +202,7 @@ async def test_commit_priority_uses_the_injected_store_seam(memory_store) -> Non
     async with Client(server_module.server) as client:
         await client.call_tool(
             "commit_priority",
-            {"case_id": "c-3", "colour": "ORANGE", "approval_token": token},
+            {"case_id": "c-3", "colour": "ORANGE", "case": _CASE, "approval_token": token},
         )
 
     # The autouse seam injected THIS store instance; the row landed in it.
