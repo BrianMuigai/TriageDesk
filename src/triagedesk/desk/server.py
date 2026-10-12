@@ -675,9 +675,20 @@ class DeskHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self) -> None:  # noqa: N802 (stdlib naming)
-        """Dispatch ``/case`` and ``/decision`` over the ONE pause/resume plumbing."""
-        length = int(self.headers.get("Content-Length") or 0)
-        raw = self.rfile.read(length).decode("utf-8")
+        """Dispatch ``/case`` and ``/decision`` over the ONE pause/resume plumbing.
+
+        The header/body parse is guarded: a malformed ``Content-Length`` (non-numeric or
+        negative) or a body that is not valid UTF-8 renders the documented failure panel
+        rather than crashing the handler and dropping the connection (WR-01).
+        """
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            if length < 0:
+                raise ValueError("negative Content-Length")
+            raw = self.rfile.read(length).decode("utf-8")
+        except (TypeError, ValueError, UnicodeDecodeError):
+            self._send_html(render_state(error=_FAILURE_COPY))
+            return
         form = {
             key: values[0]
             for key, values in parse_qs(raw, keep_blank_values=True).items()

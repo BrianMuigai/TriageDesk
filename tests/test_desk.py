@@ -26,6 +26,7 @@ import contextlib
 import html
 import inspect
 import re
+import socket
 import threading
 import urllib.parse
 import urllib.request
@@ -105,6 +106,29 @@ def _post(url: str, data: dict[str, str]) -> str:
     encoded = urllib.parse.urlencode(data).encode("utf-8")
     with urllib.request.urlopen(url, data=encoded) as response:
         return response.read().decode("utf-8")
+
+
+def _raw_post(server: Any, request_bytes: bytes) -> bytes:
+    """Send raw request bytes over a fresh socket and read the raw response.
+
+    Used for the malformed-request proofs: ``urllib`` would refuse to build an invalid
+    ``Content-Length`` or a non-UTF-8 body, so the request is hand-written (WR-01).
+    """
+    with socket.create_connection(
+        ("127.0.0.1", server.server_address[1]), timeout=5
+    ) as sock:
+        sock.sendall(request_bytes)
+        sock.settimeout(5)
+        chunks: list[bytes] = []
+        try:
+            while True:
+                chunk = sock.recv(65536)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+        except TimeoutError:
+            pass
+        return b"".join(chunks)
 
 
 def _form_from_case(case: CaseInput) -> dict[str, str]:
@@ -286,6 +310,30 @@ def test_non_numeric_vital_renders_the_schema_message(
     assert "age_years" in body
     assert "Check the highlighted field and try again." in body
     assert 'class="priority-card"' not in body
+    assert injected_store.rows == []
+
+
+def test_malformed_request_renders_the_failure_panel(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A bad ``Content-Length`` or a non-UTF-8 body fails cleanly, never by dropping (WR-01)."""
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        bad_length = (
+            b"POST /case HTTP/1.1\r\nHost: x\r\nContent-Length: abc\r\n"
+            b"Connection: close\r\n\r\n"
+        )
+        response = _raw_post(server, bad_length)
+        assert b"HTTP/1." in response, "the handler dropped the connection on a bad length"
+        assert b"The case could not be scored." in response
+
+        bad_body = (
+            b"POST /case HTTP/1.1\r\nHost: x\r\nContent-Length: 4\r\n"
+            b"Connection: close\r\n\r\n\xff\xfe\xfd\xfc"
+        )
+        response = _raw_post(server, bad_body)
+        assert b"HTTP/1." in response, "the handler dropped the connection on a bad body"
+        assert b"The case could not be scored." in response
+
     assert injected_store.rows == []
 
 
