@@ -271,7 +271,7 @@ def test_resume_reports_an_unexpected_failure_cleanly(
     async def boom(*args: object, **kwargs: object) -> object:
         raise RuntimeError("Client failed to connect")
 
-    monkeypatch.setattr("triagedesk.cli.resume_thread", boom)
+    monkeypatch.setattr("triagedesk.durable.resume_thread", boom)
 
     code = main(
         [

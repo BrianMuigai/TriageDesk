@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -387,3 +388,22 @@ def test_harden_offline_is_import_safe_without_langsmith(
     monkeypatch.setitem(sys.modules, "langsmith", None)
 
     harden_offline()  # must not raise
+
+
+def test_importing_the_cli_pulls_no_tracer_capable_stack() -> None:
+    """Importing ``triagedesk.cli`` loads no LangChain/MCP/Ollama stack (WR-06).
+
+    ``main`` hardens offline as its FIRST statement and imports the command handlers only
+    afterwards, so importing the CLI module cannot let a transitive dependency prime a tracer
+    from the environment before ``harden_offline`` runs. A fresh interpreter is used because
+    this session has already imported those packages.
+    """
+    code = (
+        "import sys, triagedesk.cli\n"
+        "heavy = sorted(m for m in ('langchain', 'langgraph', 'langsmith', 'ollama', 'mcp') "
+        "if m in sys.modules)\n"
+        "print(','.join(heavy))\n"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "", f"importing the CLI pulled {result.stdout.strip()}"

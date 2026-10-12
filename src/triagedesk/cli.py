@@ -10,9 +10,10 @@ No graph, store or decision-shape logic lives here: the durable decision rule is
 ``durable.approval_decision`` and the resume mechanism is the ONE
 ``durable.resume_thread`` (SOLID: S).
 
-Every invocation first calls ``observability.offline.harden_offline`` — the ONE place the
+``main``'s FIRST statement is ``observability.offline.harden_offline`` — the ONE place the
 transitive tracer environment is neutralised and asserted off, so no command egresses
-(D7-03).
+(D7-03). The command handlers are imported lazily *after* it, so no transitive dependency can
+prime a tracer from the environment at import time (WR-06).
 """
 
 from __future__ import annotations
@@ -22,12 +23,7 @@ import asyncio
 import sqlite3
 import sys
 
-from triagedesk.demo.run import list_beats, run_demo
-from triagedesk.durable import DurableError, approval_decision, resume_thread
-from triagedesk.evals.runner import run_eval
-from triagedesk.graph.build import CHECKPOINTS_DB_PATH
 from triagedesk.observability.offline import harden_offline
-from triagedesk.replay import ReplayError, replay_case
 
 # The defaults named once so the CLI and the docs agree (DRY).
 DEFAULT_CASES_DIR = "evals/cases"
@@ -144,7 +140,16 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     """Parse *argv* and dispatch; return the process exit code."""
+    # Harden FIRST — before any command handler is imported, so no transitive dependency can
+    # prime a tracer from the environment at import time (D7-03, WR-06). The handlers are
+    # imported lazily below this line, never at module import.
     harden_offline()
+    from triagedesk.demo.run import list_beats, run_demo
+    from triagedesk.durable import DurableError, approval_decision, resume_thread
+    from triagedesk.evals.runner import run_eval
+    from triagedesk.graph.build import CHECKPOINTS_DB_PATH
+    from triagedesk.replay import ReplayError, replay_case
+
     args = _build_parser().parse_args(argv)
     if args.command == "eval":
         return asyncio.run(
