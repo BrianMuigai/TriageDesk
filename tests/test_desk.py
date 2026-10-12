@@ -292,6 +292,57 @@ def test_form_to_card_to_gate_to_commit(tmp_path: Path, injected_store: Any) -> 
         assert len(injected_store.rows) == 1, "an approve did not land exactly one queue row"
 
 
+def test_trauma_checkbox_is_paired_with_a_hidden_false() -> None:
+    """The Trauma checkbox carries a hidden ``false`` companion, placed after it (CR-01).
+
+    An unchecked HTML checkbox is not a successful control, so a bare checkbox makes the
+    browser omit the scored ``trauma`` vital and the case routes to the recovery terminal. The
+    companion MUST follow the checkbox: the handler keeps ``parse_qs(...)[key][0]``, so a checked
+    box (``["true", "false"]``) still reads True while an unchecked box (``["false"]``) reads
+    False.
+    """
+    body = desk_server.render_state()
+    checkbox = '<input id="trauma" name="trauma" type="checkbox" value="true">'
+    hidden = '<input type="hidden" name="trauma" value="false">'
+    assert checkbox in body, "the Trauma checkbox is not rendered"
+    assert hidden in body, "the Trauma checkbox has no hidden false companion"
+    assert body.index(checkbox) < body.index(hidden), (
+        "the hidden companion must follow the checkbox so a checked box still reads true"
+    )
+    # The two browser submissions the pairing produces, through the ONE schema mapping.
+    assert form_to_case({"trauma": "false"}).trauma is False
+    assert form_to_case({"trauma": "true"}).trauma is True
+
+
+def test_unchecked_trauma_reaches_the_card_and_gate(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """The DEFAULT (Trauma unchecked) browser submission is committable, not a recovery (CR-01).
+
+    Simulates the browser's own serialisation of the RENDERED form: the unchecked Trauma
+    checkbox contributes nothing of its own, but the paired hidden ``false`` — which the browser
+    DOES submit — supplies the scored vital. Before the fix (a bare checkbox) the browser omitted
+    ``trauma`` entirely, the schema mapped the absence to ``None``, and the submission routed to
+    the recovery terminal with no card and no gate.
+    """
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        rendered = _get(_base(server) + "/")
+        companion = re.search(
+            r'<input type="hidden" name="trauma" value="([^"]*)">', rendered
+        )
+        assert companion, "the Trauma checkbox has no hidden companion (CR-01)"
+
+        form = _form_from_case(COMPLETE_CASE)
+        form.pop("trauma", None)  # an unchecked checkbox is not a successful control...
+        form["trauma"] = companion.group(1)  # ...its paired hidden field IS submitted
+        body = _post(_base(server) + "/case", form)
+
+    assert 'class="priority-card"' in body, "the unchecked default did not render a card"
+    assert 'class="approval-gate"' in body, "the unchecked default did not render the gate"
+    assert "A scored vital is missing" not in body
+    assert injected_store.rows == []
+
+
 def test_out_of_range_vital_renders_the_schema_message(
     tmp_path: Path, injected_store: Any
 ) -> None:

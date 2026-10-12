@@ -403,8 +403,17 @@ def _vitals_field(name: str, label: str, form: Mapping[str, str]) -> str:
         )
     if kind == "checkbox":
         checked = " checked" if raw.strip().lower() in _TRUTHY else ""
+        # A checkbox alone cannot express False: an unchecked box is not a successful control,
+        # so the browser omits the key entirely and the ONE schema reads the field as absent
+        # (``None``). For a scored vital (``trauma``) that omission is the recovery terminal, so
+        # the common "no trauma" patient could never reach the gate (CR-01). Pair the checkbox
+        # with a hidden ``false``: the checkbox MUST come first, because the form data set is
+        # built in tree order and the handler keeps ``parse_qs(...)[key][0]`` — a checked box
+        # yields ``["true", "false"]`` -> True while an unchecked box yields ``["false"]`` ->
+        # False. The hidden input carries no ``id`` (the checkbox owns the ``<label for>``).
         control = (
             f'<input id="{name}" name="{name}" type="checkbox" value="true"{checked}>'
+            f'<input type="hidden" name="{name}" value="false">'
         )
         return (
             f'<div class="field field-check">{control}'
