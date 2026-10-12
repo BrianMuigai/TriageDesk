@@ -150,9 +150,9 @@ capability means a **new** tool + **new** node, leaving existing code untouched.
 **Decision:** tool, node and model spans are emitted from the **existing** seams — the `@audited`
 interceptor, the composition-root node wrapper, and the `llm/client` boundary — to **ONE** local,
 append-only JSONL sink (`spans.jsonl`) written by **ONE** module (`observability/spans.py`). The
-`trace_id` reuses the existing `case_id_for(raw_note)` derivation, so one case has exactly one trace
+`trace_id` reuses the existing `case_id_for_note(raw_note)` derivation, so one case has exactly one trace
 across a restart and across replay (never a random uuid), and every audit record gains a first-class
-`trace_id` (additive; sealed in the canonical digest). Cloud tracing is neutralised and **asserted**
+`trace_id` (additive; sealed in the canonical digest when non-empty). Cloud tracing is neutralised and **asserted**
 inert at startup. Replay (`replay.py`) reconstructs a past case **read-only** from the checkpoint plus
 the audit/span stream; it compiles no graph and builds no tool map, so the gated commit is structurally
 unreachable and no model is called.

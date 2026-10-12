@@ -102,9 +102,9 @@ management, and a retention policy (`docs/PROJECT.md` §9).
   installed is the API (no SDK), so no exporter can be constructed.
 - **Minimal span content.** A span carries ids, timings and counts only — never the complaint,
   prompt or completion — so the sink never becomes a second, uncontrolled copy of clinical text.
-- **Sealed binding.** The `trace_id` is content-derived (the same `case_id_for(raw_note)` the
-  durable thread uses) and is a first-class audit field sealed in the record's canonical digest;
-  one case has one trace across restart and replay. *Declared scope:* the binding travels in a
+- **Sealed binding.** The `trace_id` is content-derived (the same `case_id_for_note(raw_note)` the
+  durable thread uses) and is a first-class audit field sealed in the record's canonical digest when
+  non-empty; one case has one trace across restart and replay. *Declared scope:* the binding travels in a
   per-task `contextvars` value, which does **not** cross a process boundary. The demonstrated
   paths — demo, eval, resume and replay — call the owned tools **in-process**, so every record
   and span carries the trace. When the graph reaches the owned server over its **stdio

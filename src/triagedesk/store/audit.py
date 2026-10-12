@@ -45,7 +45,7 @@ class AuditRecord(BaseModel):
     ``prev_hash`` chains the record to its predecessor and ``hash`` seals its own
     canonical content. An approval record carries a named ``approved_by`` and ``role``
     so the queue write is attributable to a person (AUDIT-02). ``trace_id`` is the
-    content-derived id (``graph.nodes.case_id_for``) that links the record to its spans
+    content-derived id (``graph.nodes.case_id_for_note``) that links the record to its spans
     in the local span stream (D7-06); it defaults to ``""`` so existing constructors and
     legacy rows stay valid, and it is sealed by :func:`record_digest` like every other
     field.
