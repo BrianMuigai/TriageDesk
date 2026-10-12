@@ -135,6 +135,21 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="checkpoint file (default: checkpoints.db)",
     )
+
+    desk_parser = subcommands.add_parser(
+        "desk", help="serve the local triage desk surface (loopback only)"
+    )
+    desk_parser.add_argument(
+        "--host", default="127.0.0.1", help="bind address (default: 127.0.0.1)"
+    )
+    desk_parser.add_argument(
+        "--port", type=int, default=8765, help="bind port (default: 8765)"
+    )
+    desk_parser.add_argument(
+        "--db",
+        default=None,
+        help="checkpoint file (default: checkpoints.db)",
+    )
     return parser
 
 
@@ -220,6 +235,21 @@ def main(argv: list[str] | None = None) -> int:
             # so a decode failure can never traceback). A clinical CLI reports the failure
             # cleanly with a non-zero exit rather than a raw traceback (WR-04). Replay is
             # read-only, so there is nothing to roll back.
+            print(str(exc), file=sys.stderr)
+            return 1
+        return 0
+    if args.command == "desk":
+        # Imported LAZILY inside ``main`` — after ``harden_offline()`` has already run — so no
+        # transitive dependency can prime a tracer from the environment at import time (D10-03,
+        # WR-06). The handler is imported here, never at module import.
+        from triagedesk.desk.server import serve
+
+        try:
+            serve(host=args.host, port=args.port, db_path=args.db or CHECKPOINTS_DB_PATH)
+        except (ValueError, RuntimeError, sqlite3.Error, ExceptionGroup) as exc:
+            # A bind failure, a bad ``--db`` or an unexpected runtime error is reported cleanly
+            # with a non-zero exit rather than a raw traceback (WR-04). The surface commits
+            # nothing, so there is nothing to roll back.
             print(str(exc), file=sys.stderr)
             return 1
         return 0

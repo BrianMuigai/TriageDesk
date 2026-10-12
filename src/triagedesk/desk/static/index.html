@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TriageDesk — triage desk</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main>
+<h1>TriageDesk — triage desk</h1>
+
+<section class="quickstart-panel" aria-labelledby="quickstart-heading">
+  <h2 id="quickstart-heading">Start here</h2>
+  <p class="quickstart-steps">1. Enter the vitals and the complaint. 2. Choose Get suggested priority. 3. Check the suggestion and its evidence. 4. Approve, edit, or dismiss — nothing is committed until you do.</p>
+</section>
+
+<form id="vitals-form" class="vitals-form" method="post" action="/case">
+  <h2>Patient vitals</h2>
+  <div class="field"><label for="age_years">Age (years)</label><input id="age_years" name="age_years" type="number" inputmode="numeric" min="0" max="130"></div>
+  <div class="field"><label for="age_months">Age (months)</label><input id="age_months" name="age_months" type="number" inputmode="numeric" min="0" max="1560"></div>
+  <div class="field field-check"><input id="age_ambiguous" name="age_ambiguous" type="checkbox" value="true"><label for="age_ambiguous">Age unclear</label></div>
+  <div class="field"><label for="height_cm">Height (cm)</label><input id="height_cm" name="height_cm" type="number" step="0.1" min="30" max="260"></div>
+  <div class="field"><label for="respiratory_rate">Breathing rate</label><input id="respiratory_rate" name="respiratory_rate" type="number" inputmode="numeric" min="0" max="100"></div>
+  <div class="field"><label for="heart_rate">Heart rate</label><input id="heart_rate" name="heart_rate" type="number" inputmode="numeric" min="0" max="350"></div>
+  <div class="field"><label for="systolic_bp">Systolic BP</label><input id="systolic_bp" name="systolic_bp" type="number" inputmode="numeric" min="0" max="400"></div>
+  <div class="field"><label for="diastolic_bp">Diastolic BP</label><input id="diastolic_bp" name="diastolic_bp" type="number" inputmode="numeric" min="0" max="300"></div>
+  <div class="field"><label for="temperature_c">Temperature (°C)</label><input id="temperature_c" name="temperature_c" type="number" step="0.1" min="20" max="45"></div>
+  <div class="field"><label for="spo2">Oxygen saturation</label><input id="spo2" name="spo2" type="number" inputmode="numeric" min="0" max="100"></div>
+  <div class="field"><label for="mobility">Mobility</label><select id="mobility" name="mobility"><option value="">—</option><option value="walking">Walking</option><option value="with_help">With help</option><option value="stretcher">Stretcher</option></select></div>
+  <div class="field"><label for="avpu">Alertness (AVPU)</label><select id="avpu" name="avpu"><option value="">—</option><option value="alert">Alert</option><option value="voice">Voice</option><option value="pain">Pain</option><option value="unresponsive">Unresponsive</option></select></div>
+  <div class="field field-check"><input id="trauma" name="trauma" type="checkbox" value="true"><label for="trauma">Trauma</label></div>
+  <div class="field"><label for="complaint">Complaint</label><textarea id="complaint" name="complaint" rows="3"></textarea></div>
+  $form_values
+  <div class="form-actions">
+    <button type="submit" id="submit-vitals" class="primary">Get suggested priority</button>
+    <button type="reset" class="destructive" data-confirm="Clear form: this removes the vitals you have typed. Clear the form?">Clear form</button>
+  </div>
+</form>
+
+$state_panel
+<div class="uncertainty-banner" aria-live="polite">$banner</div>
+$card
+$gate
+</main>
+<script>
+(function () {
+  var form = document.getElementById('vitals-form');
+  if (!form) { return; }
+  form.addEventListener('submit', function () {
+    var button = document.getElementById('submit-vitals');
+    if (!button) { return; }
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    button.textContent = 'Getting the suggested priority…';
+  });
+  var reset = form.querySelector('button[type="reset"]');
+  if (reset) {
+    reset.addEventListener('click', function (event) {
+      if (!window.confirm(reset.getAttribute('data-confirm'))) {
+        event.preventDefault();
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>

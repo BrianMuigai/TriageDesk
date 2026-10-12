@@ -68,6 +68,10 @@ select = ["E", "F", "I", "UP", "B", "TID"]
 # the ``Store`` protocol, exactly as ``demo/`` does — a layer above core, legitimately
 # depending on those modules (D7-15, D-13).
 "src/triagedesk/replay.py" = ["TID251"]
+# The desk surface is a peer presentation layer (like ``demo/``): a layer above core that
+# legitimately reaches the shipped seams (``durable``/``evals``) and, if it ever resolves the
+# store, does so through the ONE ``mcp.server`` seam (D10-02, D10-04).
+"src/triagedesk/desk/**" = ["TID251"]
 "scripts/**" = ["TID251"]
 "tests/**" = ["TID251"]
 

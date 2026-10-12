@@ -1,0 +1,298 @@
+/* The desk surface stylesheet (UX-02…UX-04; the 10-UI-SPEC token tables).
+ *
+ * Hand-authored, no build step, no framework, no CDN, no font import, no asset fetch — the
+ * page makes no external request (D10-03). The substrate colour string -> swatch mapping
+ * lives here (a presentation lookup), so no SATS colour name is inlined in Python.
+ */
+
+:root {
+  --bg: #F7F8FA;
+  --surface: #FFFFFF;
+  --accent: #1D4ED8;
+  --destructive: #B42318;
+  --text: #111827;
+  --muted-text: #475467;
+  --border: #D0D5DD;
+
+  --colour-red: #B3261E;
+  --colour-orange: #9A3412;
+  --colour-yellow: #FACC15;
+  --colour-green: #15803D;
+  --colour-blue: #0B3D91;
+
+  --caution-bg: #FEF3C7;
+  --caution-border: #B45309;
+  --caution-text: #78350F;
+  --success-bg: #ECFDF5;
+  --success-text: #065F46;
+  --error-bg: #FEF2F2;
+  --error-border: #B42318;
+  --error-text: #7F1D1D;
+  --muted-bg: #F2F4F7;
+
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: var(--space-3xl) var(--space-md);
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+main {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0 0 var(--space-2xl);
+}
+
+h2 {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0 0 var(--space-md);
+}
+
+h3 {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  margin: var(--space-lg) 0 var(--space-sm);
+}
+
+p {
+  margin: 0 0 var(--space-md);
+}
+
+.label {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.value {
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.citation {
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--muted-text);
+}
+
+.quickstart-panel,
+.vitals-form,
+.priority-card,
+.approval-gate,
+.state-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: var(--space-lg);
+  margin: 0 0 var(--space-2xl);
+}
+
+.quickstart-steps {
+  margin: 0;
+  color: var(--muted-text);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0 0 var(--space-md);
+}
+
+.field label {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.field-check {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+input,
+select,
+textarea {
+  min-height: 44px;
+  padding: var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--text);
+  background: var(--surface);
+}
+
+textarea {
+  min-height: 96px;
+}
+
+button {
+  min-height: 44px;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+}
+
+button.destructive {
+  background: var(--destructive);
+  border-color: var(--destructive);
+  color: var(--surface);
+}
+
+button[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.form-actions,
+.gate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.form-echo {
+  margin-top: var(--space-md);
+  color: var(--muted-text);
+}
+
+.framing {
+  color: var(--muted-text);
+}
+
+.colour-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  padding: var(--space-md);
+  border-radius: 8px;
+  margin: 0 0 var(--space-md);
+}
+
+.colour-name {
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.colour-red {
+  background: var(--colour-red);
+  color: var(--surface);
+}
+
+.colour-orange {
+  background: var(--colour-orange);
+  color: var(--surface);
+}
+
+.colour-yellow {
+  background: var(--colour-yellow);
+  color: var(--text);
+}
+
+.colour-green {
+  background: var(--colour-green);
+  color: var(--surface);
+}
+
+.colour-blue {
+  background: var(--colour-blue);
+  color: var(--surface);
+}
+
+.why-vitals-list,
+.form-echo ul {
+  list-style: none;
+  margin: 0 0 var(--space-md);
+  padding: 0;
+}
+
+.why-vitals-list li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.uncertainty-banner {
+  background: var(--caution-bg);
+  border-left: 4px solid var(--caution-border);
+  color: var(--caution-text);
+  padding: var(--space-md);
+  margin: 0 0 var(--space-2xl);
+}
+
+.uncertainty-banner:empty {
+  display: none;
+}
+
+.state-panel {
+  color: var(--text);
+}
+
+.state-panel.state-success {
+  background: var(--success-bg);
+  color: var(--success-text);
+  border-color: var(--success-text);
+}
+
+.state-panel.state-error {
+  background: var(--error-bg);
+  color: var(--error-text);
+  border-left: 4px solid var(--error-border);
+}
+
+.state-panel.state-muted {
+  background: var(--muted-bg);
+  color: var(--muted-text);
+}
