@@ -84,8 +84,11 @@ class InMemoryStore:
     async def upsert_queue_row(self, row: QueueRow) -> None:
         self._note("upsert_queue_row", row.case_id, row.content_hash)
         key = (row.case_id, row.content_hash)
-        if all((existing.case_id, existing.content_hash) != key for existing in self.rows):
-            self.rows.append(row)
+        for index, existing in enumerate(self.rows):
+            if (existing.case_id, existing.content_hash) == key:
+                self.rows[index] = row  # supersede in place (list order == position)
+                return
+        self.rows.append(row)
 
     async def read_case(self, case_id: str) -> CaseRow | None:
         self._note("read_case", case_id)

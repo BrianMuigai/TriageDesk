@@ -116,8 +116,9 @@ def build_tools(case: CaseSpec, *, offline: bool, recorder: UsageRecorder) -> di
         return await server_module.raise_recheck_flag(previous, current)
 
     async def commit_priority(inp: Mapping[str, Any]) -> Any:
+        case = CaseInput.model_validate(inp["case"])
         return await server_module.commit_priority(
-            str(inp["case_id"]), str(inp["colour"]), inp.get("approval_token")
+            str(inp["case_id"]), str(inp["colour"]), case, inp.get("approval_token")
         )
 
     return {

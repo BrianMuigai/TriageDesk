@@ -219,7 +219,10 @@ def raise_recheck_flag(previous: CaseInput, current: CaseInput) -> RecheckFlag:
 @server.tool()
 @audited(approval=True)
 async def commit_priority(
-    case_id: str, colour: str, approval_token: dict[str, object] | None = None
+    case_id: str,
+    colour: str,
+    case: CaseInput,
+    approval_token: dict[str, object] | None = None,
 ) -> CommitResult:
     """The queue-affecting gate — the real idempotent commit (GATE-02, GATE-03).
 
@@ -228,10 +231,12 @@ async def commit_priority(
     (``refused=True``) and touches no store (D-05, T-03-09). Only a validated token
     reaches the store, through the injectable :class:`~triagedesk.store.Store` seam.
 
-    The write is idempotent on (``case_id``, immutable content hash), so a repeat or a
-    crash-retry yields exactly one queue row (D-06, GATE-03). The committed colour is
-    the clinician's ``final_colour`` for an ``edit`` and the scored ``colour`` for an
-    ``approve`` (D-05).
+    The write is idempotent on (``case_id``, immutable case-content hash), so an
+    ``approve`` and an ``edit`` of the same case re-derive the SAME key and the queue
+    row is superseded in place rather than duplicated (D6-04, D6-06). The committed
+    colour is the clinician's ``final_colour`` for an ``edit`` and the scored ``colour``
+    for an ``approve`` (D-05). The typed ``case`` is validated by the ONE schema module
+    (T-06-02); no dict passthrough enters the key.
     """
     if approval_token is None:
         return CommitResult(refused=True, reason="no approval token supplied; refusing to commit")
@@ -250,7 +255,7 @@ async def commit_priority(
         store,
         case_id=case_id,
         colour=committed_colour,
-        content={"colour": committed_colour},
+        content=case,
     )
     verb = "committed" if created else "already committed"
     return CommitResult(

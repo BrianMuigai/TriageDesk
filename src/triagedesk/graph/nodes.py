@@ -312,6 +312,7 @@ def _make_commit(tools: ToolMap) -> NodeFn:
                 {
                     "case_id": case_id_for(state["raw_note"]),
                     "colour": priority.colour or "",
+                    "case": state["case"].model_dump(),
                     "approval_token": _build_token(state.get("approval"), priority),
                 }
             ),

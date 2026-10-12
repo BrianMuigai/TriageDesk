@@ -169,7 +169,7 @@ def build_graph_tools(
                 store,
                 case_id=inp["case_id"],
                 colour=inp["colour"],
-                content={"colour": inp["colour"]},
+                content=CaseInput.model_validate(inp["case"]),
             )
         return CommitResult(committed=store is not None, reason="accepted")
 

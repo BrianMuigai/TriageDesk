@@ -83,7 +83,12 @@ class Store(Protocol):
         ...
 
     async def upsert_queue_row(self, row: QueueRow) -> None:
-        """Insert the row, ignoring a duplicate idempotency key (belt-and-braces)."""
+        """Insert, or update the mutable fields (``colour``/``target``) by key.
+
+        Matching on (``case_id``, ``content_hash``) preserves ``position`` and
+        ``created_at``, so an ``edit`` supersedes the existing row in place rather than
+        inserting a second one (D6-06).
+        """
         ...
 
     async def read_case(self, case_id: str) -> CaseRow | None:

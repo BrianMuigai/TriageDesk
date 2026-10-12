@@ -59,8 +59,9 @@ AUDIT_HEAD_TABLE = "audit_head"
 # shape ``mcp/adapter`` supplies (``tool.name -> tool.ainvoke``).
 BorrowedTool = Callable[[Mapping[str, Any]], Awaitable[Any]]
 
-# Belt-and-braces DDL: the PRIMARY KEY on the idempotency key makes a duplicate insert
-# a no-op even if the read-then-write check ever raced (the key is the real mechanism).
+# Belt-and-braces DDL: the PRIMARY KEY on the idempotency key makes the upsert safe even
+# if the read-then-write check ever raced — a same-key insert updates only the mutable
+# fields (the key is the real mechanism; D6-06).
 _QUEUE_DDL = (
     f"CREATE TABLE IF NOT EXISTS {QUEUE_TABLE} ("
     "case_id TEXT NOT NULL, "
@@ -197,14 +198,22 @@ class BorrowedStore:
         return int(rows[0]["next_position"])
 
     async def upsert_queue_row(self, row: QueueRow) -> None:
-        """Insert the row, ignoring a duplicate idempotency key (belt-and-braces)."""
+        """Insert, or update the mutable fields (``colour``/``target``) by key.
+
+        The SQLite UPSERT form updates only the mutable columns, so
+        ``position``/``created_at`` are preserved and no second row appears (D6-06,
+        Pitfall 2). ``values`` stays parameterised — no string interpolation of case
+        content (T-06-01).
+        """
         await self._call(
             TOOL_QUERY,
             {
                 "sql": (
-                    f"INSERT OR IGNORE INTO {QUEUE_TABLE} "
+                    f"INSERT INTO {QUEUE_TABLE} "
                     "(case_id, content_hash, colour, target, position, created_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?)"
+                    "VALUES (?, ?, ?, ?, ?, ?) "
+                    "ON CONFLICT(case_id, content_hash) DO UPDATE SET "
+                    "colour = excluded.colour, target = excluded.target"
                 ),
                 "values": [
                     row.case_id,
