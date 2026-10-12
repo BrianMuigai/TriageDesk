@@ -60,6 +60,13 @@ class ReportCase(BaseModel):
     is the fold of that map. ``passed`` is the accuracy verdict: every run's outcome equals
     ``expected`` AND every invariant holds AND colour and matched-set are stable.
     ``tokens_in``/``tokens_out`` are the case's totals across runs; ``latency_s`` is per-run.
+
+    ``held_out`` records the declared calibration split (a held-out case bounds the declared
+    failure and is never iterated against, D8-13). ``confidence_levels`` / ``deferrals`` /
+    ``confidence_satisfied`` are the per-run coverage-signal captures read from the graph's own
+    ``confidence`` channel — ``None`` for a run that short-circuited before ``assess``. The
+    internal ordinal scalar (``confidence_satisfied``) lives ONLY here in ``evals/``: it is never
+    in ``core.schema`` and never in a tool output (D8-04, A2).
     """
 
     case_id: str
@@ -83,6 +90,11 @@ class ReportCase(BaseModel):
     tokens_in: int = 0
     tokens_out: int = 0
     declared_failure: bool = False
+    # The declared calibration split (D8-13) and the per-run coverage-signal facts (D8-10).
+    held_out: bool = False
+    confidence_levels: list[str | None] = Field(default_factory=list)
+    deferrals: list[bool | None] = Field(default_factory=list)
+    confidence_satisfied: list[int | None] = Field(default_factory=list)
 
 
 class GateViolation(BaseModel):
@@ -111,6 +123,46 @@ class GateResult(BaseModel):
     unexpected_failures: list[str] = Field(default_factory=list)
 
 
+class RiskCoveragePoint(BaseModel):
+    """One point on the risk–coverage curve (D8-13, D8-15).
+
+    ``threshold`` is the deterministic ordinal coverage count at which the point is swept;
+    ``coverage`` is the fraction of measured runs at or above it and ``risk`` the error rate
+    among those runs. It is a *ranking* over the deterministic signal — never a probability —
+    so it stays compatible with "never a model probability" (D8-04). It is only ever built with
+    an explicit ``threshold``, so it needs no bare-constructible default.
+    """
+
+    threshold: int
+    coverage: float = 0.0
+    risk: float = 0.0
+
+
+class Calibration(BaseModel):
+    """The declared-split calibration block over a measured report (D8-13, D8-15).
+
+    ``calibration_ids``/``held_out_ids`` name the two splits explicitly (the calibration split
+    is ``held_out=False``; the held-out split bounds the declared failure) and ``n_*`` name their
+    sizes. ``risk_coverage`` sweeps the deterministic rank; ``ece`` is the offline expected
+    calibration error over the calibration split, binned coarsely (``ece_bins``). Both are
+    declared a small-sample measure (``small_sample_caveat`` names both ``n``s) and are NEVER
+    presented as a validated calibrated probability (D8-04, D8-15, A2).
+
+    Every field is defaulted so a bare ``Calibration()`` is valid: the model is reached through
+    ``Analysis.calibration = Field(default_factory=Calibration)``, so it MUST construct with no
+    arguments (as must a bare ``Analysis()`` and a ``Report(...)`` built without ``analysis``).
+    """
+
+    calibration_ids: list[str] = Field(default_factory=list)
+    held_out_ids: list[str] = Field(default_factory=list)
+    n_calibration: int = 0
+    n_held_out: int = 0
+    risk_coverage: list[RiskCoveragePoint] = Field(default_factory=list)
+    ece: float = 0.0
+    ece_bins: int = 0
+    small_sample_caveat: str = ""
+
+
 class Analysis(BaseModel):
     """The safety-relevant aggregate block over a report (EVAL-04, EVAL-05, D-03).
 
@@ -129,6 +181,11 @@ class Analysis(BaseModel):
     ``aborted_cases`` / ``aborted_count`` report the runs that stopped at ``END`` without a
     handover card (``ABORT_OUTCOME``) on their own — an abort is never folded into the
     under/over direction split or the colour accuracy figure (G-2, T-04-26).
+
+    ``deferral_count`` / ``deferral_runs`` / ``deferral_rate`` / ``deferral_cases`` report the
+    coverage deferrals SEPARATELY, next to the outcome breakdown (D8-10, D8-16): a deferral is
+    reduced coverage, not a wrong answer. ``calibration`` carries the declared-split
+    calibration block (D8-13, D8-15).
     """
 
     colour_runs: int = 0
@@ -155,6 +212,11 @@ class Analysis(BaseModel):
     red_expected_count: int = 0
     red_miss_count: int = 0
     red_miss_cases: list[str] = Field(default_factory=list)
+    deferral_count: int = 0
+    deferral_runs: int = 0
+    deferral_rate: float = 0.0
+    deferral_cases: list[str] = Field(default_factory=list)
+    calibration: Calibration = Field(default_factory=Calibration)
 
 
 class Report(BaseModel):
@@ -281,12 +343,14 @@ def write_report(path: str | Path, report: Report) -> Report:
 
 __all__ = [
     "Analysis",
+    "Calibration",
     "GateResult",
     "GateViolation",
     "Mode",
     "Provenance",
     "Report",
     "ReportCase",
+    "RiskCoveragePoint",
     "build_provenance",
     "compute_report_digest",
     "write_report",

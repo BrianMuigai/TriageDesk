@@ -26,11 +26,14 @@ import pytest
 
 from triagedesk.evals.analysis import analyse, colour_urgency
 from triagedesk.evals.report import (
+    Analysis,
+    Calibration,
     GateResult,
     Mode,
     Provenance,
     Report,
     ReportCase,
+    RiskCoveragePoint,
     compute_report_digest,
 )
 
@@ -38,6 +41,16 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 GENERATOR_PATH = REPO_ROOT / "scripts" / "emit_evals.py"
 
 _ALL_INVARIANTS = {"INV-1": True, "INV-2": True, "INV-3": True, "INV-4": True}
+
+# The ONE synthetic provenance block the helpers below wrap reports with.
+_PROVENANCE = Provenance(
+    model_tag="test-model",
+    ollama_version="test",
+    prompt_hash="prompt",
+    sats_tews_hash="tews",
+    sats_discriminators_hash="discriminators",
+    harness_commit="commit",
+)
 
 
 def _load_generator() -> ModuleType:
@@ -98,6 +111,10 @@ def _report_case(
     tokens_out: int = 5,
     declared_failure: bool = False,
     passed: bool | None = None,
+    held_out: bool = False,
+    deferrals: list[bool | None] | None = None,
+    confidence_levels: list[str | None] | None = None,
+    confidence_satisfied: list[int | None] | None = None,
 ) -> ReportCase:
     """A synthetic report case carrying only the facts the analyser/generator read."""
     return ReportCase(
@@ -115,6 +132,14 @@ def _report_case(
         tokens_in=tokens_in,
         tokens_out=tokens_out,
         declared_failure=declared_failure,
+        held_out=held_out,
+        deferrals=deferrals if deferrals is not None else [False] * len(outcomes),
+        confidence_levels=(
+            confidence_levels if confidence_levels is not None else ["high"] * len(outcomes)
+        ),
+        confidence_satisfied=(
+            confidence_satisfied if confidence_satisfied is not None else [3] * len(outcomes)
+        ),
     )
 
 
@@ -124,14 +149,7 @@ def _report(cases: list[ReportCase], *, runs: int = 3, mode: Mode = "offline") -
         mode=mode,
         runs=runs,
         cases_dir="evals/cases",
-        provenance=Provenance(
-            model_tag="test-model",
-            ollama_version="test",
-            prompt_hash="prompt",
-            sats_tews_hash="tews",
-            sats_discriminators_hash="discriminators",
-            harness_commit="commit",
-        ),
+        provenance=_PROVENANCE,
         cases=cases,
         invariants=dict(_ALL_INVARIANTS),
         gate=GateResult(passed=True),
@@ -264,6 +282,92 @@ def test_generator_is_idempotent_and_the_report_is_the_sole_source() -> None:
     tampered = sealed.model_copy(update={"report_digest": "deadbeef"})
     with pytest.raises(ValueError):
         _EMIT.validate_report(tampered)
+
+
+# ------------------- 5b. deferral rate + declared-split calibration (D8-10, D8-13, D8-15)
+
+
+def test_deferral_rate_and_declared_split_calibration_are_measured() -> None:
+    """The deferral rate is derived from the report; calibration names its declared split."""
+    report = _report(
+        [
+            _report_case(
+                "D-1",
+                "GREEN",
+                ["ABSTAIN"] * 3,
+                deferrals=[True] * 3,
+                confidence_levels=["low"] * 3,
+                confidence_satisfied=[1, 1, 1],
+                passed=False,
+            ),
+            _report_case(
+                "D-2",
+                "GREEN",
+                ["GREEN"] * 3,
+                deferrals=[False] * 3,
+                confidence_satisfied=[3, 3, 3],
+            ),
+            _report_case(
+                "H-9",
+                "ORANGE",
+                ["ORANGE"] * 3,
+                held_out=True,
+                deferrals=[False] * 3,
+                confidence_satisfied=[3, 3, 3],
+            ),
+        ]
+    )
+    analysis = analyse(report)
+
+    # The deferral rate is derived SEPARATELY from the direction split (D8-10).
+    assert analysis.deferral_count == 3
+    assert analysis.deferral_runs == 9
+    assert analysis.deferral_rate == pytest.approx(3 / 9)
+    assert analysis.deferral_cases == ["D-1"]
+
+    # The calibration split is declared by ``held_out`` with both sample sizes named (D8-13).
+    calibration = analysis.calibration
+    assert calibration.calibration_ids == ["D-1", "D-2"]
+    assert calibration.held_out_ids == ["H-9"]
+    assert calibration.n_calibration == 2
+    assert calibration.n_held_out == 1
+    assert "n_calibration=2" in calibration.small_sample_caveat
+    assert "n_held_out=1" in calibration.small_sample_caveat
+
+    # ECE is coarsely binned; risk–coverage is swept from the internal scalar only (D8-15, A2).
+    assert calibration.ece_bins == 4
+    assert 0.0 <= calibration.ece <= 1.0
+    assert [point.threshold for point in calibration.risk_coverage] == [3, 1]
+    assert all(isinstance(point, RiskCoveragePoint) for point in calibration.risk_coverage)
+
+    # Rendering stays idempotent with the deferral/calibration facts present.
+    sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
+    first = _EMIT.render_evals(_TEMPLATE, sealed)
+    second = _EMIT.render_evals(first, sealed)
+    assert first == second
+
+
+# --------------------------- 5c. the nested default_factory contract (build shape)
+
+
+def test_bare_models_and_a_report_without_analysis_construct() -> None:
+    """A bare ``Calibration``/``Analysis`` and an analysis-less ``Report`` build cleanly."""
+    assert Calibration().n_calibration == 0
+    assert Analysis().calibration.ece_bins == 0
+    assert ReportCase(case_id="X", expected="GREEN", runs=1).deferrals == []
+
+    # The exact shape ``run_eval`` (runner.py:372) and the helpers use: a Report built
+    # WITHOUT the ``analysis`` argument must instantiate without raising.
+    report = Report(
+        mode="offline",
+        runs=1,
+        cases_dir="evals/cases",
+        provenance=_PROVENANCE,
+        cases=[_report_case("X", "GREEN", ["GREEN"])],
+        invariants=dict(_ALL_INVARIANTS),
+        gate=GateResult(passed=True),
+    )
+    assert report.analysis.calibration.n_calibration == 0
 
 
 # ------------------------------------------- 6. the declared failure is shown, not hidden
