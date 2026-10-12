@@ -98,7 +98,9 @@ class _SqliteBorrowedTools:
 
         async def get_table_schema(arguments: Any) -> Any:
             self._record("get_table_schema", arguments)
-            return {"tableName": arguments.get("tableName")}
+            table = arguments.get("tableName")
+            rows = self.conn.execute(f"PRAGMA table_info({table})").fetchall()
+            return [dict(row) for row in rows]
 
         async def create_record(arguments: Any) -> Any:
             self._record("create_record", arguments)
@@ -106,7 +108,15 @@ class _SqliteBorrowedTools:
 
         async def read_records(arguments: Any) -> Any:
             self._record("read_records", arguments)
-            return []
+            table = arguments.get("table")
+            limit = arguments.get("limit")
+            sql = f"SELECT * FROM {table}"
+            params: list[Any] = []
+            if limit is not None:
+                sql += " LIMIT ?"
+                params.append(limit)
+            rows = self.conn.execute(sql, params).fetchall()
+            return [dict(row) for row in rows]
 
         async def update_records(arguments: Any) -> Any:
             self._record("update_records", arguments)
