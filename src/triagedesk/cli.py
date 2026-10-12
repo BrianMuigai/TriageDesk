@@ -154,7 +154,7 @@ def main(argv: list[str] | None = None) -> int:
                 role=args.role,
                 colour=args.colour,
             )
-            asyncio.run(
+            result = asyncio.run(
                 resume_thread(
                     thread_id=args.thread_id,
                     decision=decision,
@@ -164,6 +164,15 @@ def main(argv: list[str] | None = None) -> int:
         except DurableError as exc:
             print(str(exc), file=sys.stderr)
             return 1
+        # Surface the gate's outcome so a refused approve/edit is never mistaken for a
+        # commit (WR-02): a ``dismiss`` refusal is legitimate and exits 0; any other
+        # refusal exits non-zero. The reason is the ONE ``CommitResult.reason`` the gate
+        # already produces, so the CLI restates no gate logic (SOLID: S/D).
+        commit = result.get("commit_result")
+        if commit is not None:
+            print(commit.reason, file=sys.stderr)
+            if commit.refused and args.decision != "dismiss":
+                return 1
         return 0
     return 2  # pragma: no cover - argparse rejects an unknown command first
 

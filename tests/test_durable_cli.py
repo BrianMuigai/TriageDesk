@@ -19,13 +19,21 @@ subprocess (CONVENTIONS §1).
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
 
 from triagedesk.cli import _build_parser, main
 from triagedesk.demo.run import run_demo
+from triagedesk.durable import run_to_gate
+from triagedesk.evals.case import load_cases
+from triagedesk.evals.tools import build_tools
+from triagedesk.evals.usage import UsageRecorder
 from triagedesk.store.memory import InMemoryStore
+
+# The bundled synthetic fixtures, resolved from the repo root (the same cases the demo runs).
+CASES_DIR = Path(__file__).resolve().parents[1] / "evals" / "cases"
 
 
 def test_demo_parser_accepts_the_durable_flag() -> None:
@@ -165,3 +173,43 @@ async def test_durable_demo_resolves_the_injected_store_seam(
     assert (
         injected_store.audit_records
     ), "the injected store was not used by the durable demo"
+
+
+def test_resume_refused_edit_prints_reason_and_exits_nonzero(
+    tmp_path: Path, injected_store, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A gate that REFUSES an ``edit`` prints the gate's reason and exits non-zero (WR-02).
+
+    An undeclared ``--colour`` (``PURPLE``) makes the approval token malformed, so the gate
+    refuses and leaves the queue untouched; the CLI must not report success by silence.
+    """
+    case = next(case for case in load_cases(CASES_DIR) if case.id == "E-02")
+    db_path = tmp_path / "checkpoints.db"
+    tools = build_tools(case, offline=True, recorder=UsageRecorder())
+    paused = asyncio.run(
+        run_to_gate(tools, raw_note=case.note, case=case.case, db_path=db_path)
+    )
+    assert paused.paused, "the E-02 case did not pause at the approval gate"
+
+    code = main(
+        [
+            "resume",
+            "--thread-id",
+            paused.thread_id,
+            "--decision",
+            "edit",
+            "--approver",
+            "Nurse Demo",
+            "--role",
+            "triage nurse",
+            "--colour",
+            "PURPLE",
+            "--db",
+            str(db_path),
+        ]
+    )
+
+    assert code != 0, "a refused edit reported success"
+    err = capsys.readouterr().err
+    assert "refusing to commit" in err, "the gate's refusal reason was not printed"
+    assert injected_store.rows == [], "a refused edit wrote a queue row"
