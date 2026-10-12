@@ -1,17 +1,22 @@
-"""The desk surface end-to-end and structural proof suite (Plan 10-01, UX-02…UX-04).
+"""The desk surface end-to-end and structural proof suite (Plans 10-01/10-02, UX-01…UX-04).
 
-Proves the phase's tracer slice hermetically (D10-15): the bridge is driven over loopback
+Proves the phase's surface hermetically (D10-15): the bridge is driven over loopback
 ONLY, through the shared conftest seams (the injected in-memory store and a ``tmp_path``
 checkpoint file), so no model, no borrowed subprocess and no repo-root artefact is touched.
 
-Two halves:
+Three parts:
 
 * the end-to-end proof — a GET renders the empty state, a vitals POST renders the graph's
-  suggested priority framed as a suggestion with its adjacent citations, and a named-human
-  approve lands EXACTLY one queue row through the gated tool;
-* the structural proofs — the ``desk/`` package has no commit path, binds loopback only,
-  hardens offline before its handler is reached, makes no external request, escapes the
-  untrusted complaint, and swaps the CTA label while a submit is in flight.
+  suggested priority framed as a suggestion with its adjacent citations and evidence, and a
+  named-human approve lands EXACTLY one queue row through the gated tool (Plan 10-01);
+* the uncertainty and fail-safe proofs (Plan 10-02) — the loud banner fires only from the
+  typed signal, a deferred case is a read-only card with no gate, the evidence list is read
+  from the paused state snapshot, and every gate branch (dismiss, timeout, edit set, schema
+  rejection, repeat submission) is provably incapable of committing without a named human;
+* the structural and copy proofs — the ``desk/`` package has no commit path, binds loopback
+  only, hardens offline before its handler is reached, makes no external request, escapes the
+  untrusted complaint, launches no borrowed subprocess, and renders no prohibited token or
+  numeric-risk figure.
 """
 
 from __future__ import annotations
@@ -24,18 +29,43 @@ import re
 import threading
 import urllib.parse
 import urllib.request
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from conftest import COMPLETE_CASE, imported_modules
 from triagedesk.cli import main
-from triagedesk.core.schema import CaseInput
+from triagedesk.core import matcher, retrieval, scorer
+from triagedesk.core.rules import get_tews
+from triagedesk.core.schema import (
+    ApprovalToken,
+    CaseInput,
+    ConfidenceResult,
+    Escalation,
+    EvidenceResult,
+    PriorityResult,
+    RecoveryRequest,
+)
 from triagedesk.desk import server as desk_server
-from triagedesk.desk.server import make_server, serve, submit_case
+from triagedesk.desk.server import decide, make_server, serve, submit_case
+from triagedesk.durable import PausedRun
+from triagedesk.evals.case import CaseSpec, load_cases
+from triagedesk.evals.invariants import prohibited_tokens
 
 DESK_DIR = Path(desk_server.__file__).parent
 ASSET_DIR = DESK_DIR / "static"
+CASES_DIR = Path(__file__).resolve().parents[1] / "evals" / "cases"
+
+# The banner headline, verbatim from UX-01 (asserted as a literal so a paraphrase fails).
+BANNER_HEADLINE = "No discriminator matched / low confidence — nurse to confirm"
+NO_MATCH_BODY = (
+    "No discriminator matched this complaint, so this suggestion may be incomplete. "
+    "Confirm before you act."
+)
+LOW_CONFIDENCE_BODY = (
+    "Confidence is low for this suggestion, so it may be incomplete. Confirm before you act."
+)
 
 # The modules a desk module must NEVER import: the queue writer and the module that hosts the
 # gated commit tool. The only route to a queue row is the resumed interrupt through that tool
@@ -85,7 +115,54 @@ def _base(server: Any) -> str:
     return f"http://127.0.0.1:{server.server_address[1]}"
 
 
-# ------------------------------------------------------------------ end-to-end (Task 1)
+def _thread_id(body: str) -> str:
+    """The paused thread id the gate form carries as its hidden field (D10-11)."""
+    match = re.search(r'name="thread_id" value="([^"]+)"', body)
+    assert match, "the gate form carries no hidden thread_id field"
+    return match.group(1)
+
+
+def _section(body: str, cls: str) -> str:
+    """The rendered ``<section class="cls">`` region (a card / gate region)."""
+    match = re.search(rf'<section class="{cls}"[^>]*>.*?</section>', body, re.DOTALL)
+    assert match, f"the rendered page has no {cls!r} region"
+    return match.group(0)
+
+
+def _banner_region(body: str) -> str:
+    """The inner HTML of the ``uncertainty-banner`` region (empty when it did not fire)."""
+    match = re.search(
+        r'<div class="uncertainty-banner"[^>]*>(.*?)</div>', body, re.DOTALL
+    )
+    assert match, "the rendered page has no uncertainty-banner region"
+    return match.group(1)
+
+
+def _css_block(css: str, selector: str) -> str:
+    """The declaration block of ONE served-CSS rule (for the wrap/clip proxies)."""
+    match = re.search(re.escape(selector) + r"\s*\{([^}]*)\}", css)
+    assert match, f"the served CSS declares no rule for {selector!r}"
+    return match.group(1)
+
+
+def _e09() -> CaseSpec:
+    """The genuine ``no_match`` fixture the deferred-path proofs run (never a fabricated state)."""
+    return next(case for case in load_cases(CASES_DIR) if case.id == "E-09")
+
+
+def _run_from_state(**channels: Any) -> PausedRun:
+    """A terminal ``PausedRun`` built from a state mapping (for the trigger/terminal proofs)."""
+    return PausedRun(
+        thread_id="state-thread",
+        config={},
+        result=channels,
+        payload=None,
+        paused=False,
+        existed=False,
+    )
+
+
+# ------------------------------------------------------------------ end-to-end (Plan 10-01)
 
 
 def test_form_to_card_to_gate_to_commit(tmp_path: Path, injected_store: Any) -> None:
@@ -115,6 +192,7 @@ def test_form_to_card_to_gate_to_commit(tmp_path: Path, injected_store: Any) -> 
             "Suggested colour:",
             "Target time:",
             "Why these vitals:",
+            "Evidence from the SATS knowledge base:",
             "Your decision",
             "Approve suggestion",
             "Edit colour",
@@ -155,7 +233,7 @@ def test_out_of_range_vital_renders_the_schema_message(
         assert injected_store.rows == []
 
 
-# --------------------------------------------------------------- structural (Task 2)
+# --------------------------------------------------------------- structural (Plan 10-01)
 
 
 def test_no_self_commit_path_in_the_desk_package() -> None:
@@ -245,3 +323,138 @@ def test_index_html_loading_swap_on_submit() -> None:
 
     script = source.split("<script>", 1)[1].split("</script>", 1)[0]
     assert "$" not in script, "the inline script must carry no placeholder character"
+
+
+# ------------------------------------- Task 1: the banner, the deferred terminal, evidence
+
+
+def test_banner_trigger_reads_only_the_typed_signal() -> None:
+    """The ONE banner rule is the typed signal — never a heuristic (D10-09)."""
+    assert desk_server.banner_trigger({"no_match": True}) == "no_match"
+    assert (
+        desk_server.banner_trigger(
+            {"no_match": False, "confidence": ConfidenceResult(deferral=True)}
+        )
+        == "deferral"
+    )
+    assert (
+        desk_server.banner_trigger(
+            {"no_match": False, "confidence": ConfidenceResult(deferral=False)}
+        )
+        is None
+    )
+    # Never evidence.no_match ("no excerpt matched" — a different fact).
+    assert desk_server.banner_trigger({"evidence": EvidenceResult(no_match=True)}) is None
+    # Never missing_vitals alone (that is the recovery signal's job).
+    assert (
+        desk_server.banner_trigger(
+            {"priority": PriorityResult(missing_vitals=["heart_rate"])}
+        )
+        is None
+    )
+
+
+def test_terminal_kind_prefers_the_deferral_channel() -> None:
+    """A deferral wins over a co-present escalation — a deferral routes to escalate (D10-17)."""
+    state: Mapping[str, Any] = {
+        "confidence": ConfidenceResult(deferral=True),
+        "escalation": Escalation(reason="case could not be safely scored"),
+    }
+    assert desk_server.terminal_kind(state) == "deferred"
+    assert desk_server.terminal_kind({"escalation": Escalation(reason="x")}) == "escalated"
+    assert desk_server.terminal_kind({"recovery": RecoveryRequest(reason="y")}) == "recovery"
+    assert desk_server.terminal_kind({}) is None
+
+
+def test_deferred_case_renders_the_banner_read_only_card_and_no_gate(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """The E-09 class is a loud banner on a READ-ONLY card with NO gate (UX-01, D10-17)."""
+    case = _e09()
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        body = _post(_base(server) + "/case", _form_from_case(case.case))
+
+    assert BANNER_HEADLINE in body, "the verbatim banner headline did not render"
+    assert NO_MATCH_BODY in body
+    assert LOW_CONFIDENCE_BODY not in body
+    assert 'class="priority-card"' in body, "the deferred path rendered no read-only card"
+    assert "Not confirmed and not queued" in body
+    assert "This case was deferred for human review — no priority was committed." in body
+    assert 'class="approval-gate"' not in body, "the deferred path wrongly offered a gate"
+    for control in (
+        "Your decision",
+        "Approve suggestion",
+        "Edit colour",
+        "Dismiss (commit nothing)",
+    ):
+        assert control not in body, f"the deferred path rendered a gate control: {control}"
+    assert injected_store.rows == []
+
+
+def test_banner_body_is_trigger_conditional() -> None:
+    """A deferral-only state renders the low-confidence body, never the no-match body (D10-09)."""
+    body = desk_server.render_state(
+        _run_from_state(
+            no_match=False,
+            confidence=ConfidenceResult(deferral=True),
+            priority=PriorityResult(),
+        )
+    )
+    assert BANNER_HEADLINE in body
+    assert LOW_CONFIDENCE_BODY in body
+    assert NO_MATCH_BODY not in body
+
+
+def test_no_banner_for_evidence_no_match_or_missing_vitals() -> None:
+    """The banner never fires on ``evidence.no_match`` or ``missing_vitals`` alone (D10-09)."""
+    evidence_only = desk_server.render_state(
+        _run_from_state(
+            no_match=False,
+            confidence=ConfidenceResult(deferral=False),
+            evidence=EvidenceResult(no_match=True),
+            priority=PriorityResult(),
+        )
+    )
+    assert BANNER_HEADLINE not in evidence_only
+
+    missing_only = desk_server.render_state(
+        _run_from_state(
+            no_match=False,
+            priority=PriorityResult(missing_vitals=["heart_rate"]),
+        )
+    )
+    assert BANNER_HEADLINE not in missing_only
+
+
+def test_evidence_list_renders_each_passage_in_rank_order(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A scored case renders one ranked evidence row per passage (UX-02, D10-07)."""
+    complaint = "central chest pain and shortness of breath"
+    case = COMPLETE_CASE.model_copy(update={"complaint": complaint})
+    expected = retrieval.retrieve(complaint).passages
+    assert len(expected) >= 2, "the fixture complaint did not retrieve multiple passages"
+
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        body = _post(_base(server) + "/case", _form_from_case(case))
+
+    card = _section(body, "priority-card")
+    assert "Evidence from the SATS knowledge base:" in card
+    indices = [card.index(passage.label) for passage in expected]
+    assert indices == sorted(indices), "the evidence rows are not in rank order"
+    for passage in expected:
+        assert passage.label in card, f"missing evidence label: {passage.label}"
+        assert passage.citation in card, f"missing evidence citation: {passage.citation}"
+
+
+def test_evidence_list_renders_the_no_evidence_line(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """Zero passages render the verbatim no-evidence line, never an empty box (UX-02)."""
+    case = _e09()
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        body = _post(_base(server) + "/case", _form_from_case(case.case))
+    card = _section(body, "priority-card")
+    assert "No evidence excerpt matched this complaint." in card
+
+

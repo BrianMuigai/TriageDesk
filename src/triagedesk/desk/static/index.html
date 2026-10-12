@@ -46,21 +46,41 @@ $gate
 <script>
 (function () {
   var form = document.getElementById('vitals-form');
-  if (!form) { return; }
-  form.addEventListener('submit', function () {
-    var button = document.getElementById('submit-vitals');
-    if (!button) { return; }
-    button.disabled = true;
-    button.setAttribute('aria-busy', 'true');
-    button.textContent = 'Getting the suggested priority…';
-  });
-  var reset = form.querySelector('button[type="reset"]');
-  if (reset) {
-    reset.addEventListener('click', function (event) {
-      if (!window.confirm(reset.getAttribute('data-confirm'))) {
-        event.preventDefault();
-      }
+  if (form) {
+    form.addEventListener('submit', function () {
+      var button = document.getElementById('submit-vitals');
+      if (!button) { return; }
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.textContent = 'Getting the suggested priority…';
     });
+    var reset = form.querySelector('button[type="reset"]');
+    if (reset) {
+      reset.addEventListener('click', function (event) {
+        if (!window.confirm(reset.getAttribute('data-confirm'))) {
+          event.preventDefault();
+        }
+      });
+    }
+  }
+
+  // The gate: a decision in flight disables the submit controls so no second decision is
+  // possible; the deadline timer reveals the timeout panel WITHOUT submitting anything, so
+  // a timeout defaults to no approve (D10-10). The bridge holds no server-side deadline:
+  // a timeout is simply "no decision POST ever arrives".
+  var gate = document.getElementById('approval-gate-form');
+  if (gate) {
+    var gateButtons = gate.querySelectorAll('button');
+    var disableGate = function () {
+      for (var i = 0; i < gateButtons.length; i++) { gateButtons[i].disabled = true; }
+    };
+    gate.addEventListener('submit', disableGate);
+    var gateDeadlineMs = 5 * 60 * 1000;
+    window.setTimeout(function () {
+      disableGate();
+      var panel = document.getElementById('gate-timeout');
+      if (panel) { panel.hidden = false; }
+    }, gateDeadlineMs);
   }
 })();
 </script>

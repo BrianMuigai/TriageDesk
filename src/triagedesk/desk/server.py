@@ -1,11 +1,11 @@
-"""The ONE desk presentation bridge (UX-02, UX-03, UX-04; D10-01…D10-16).
+"""The ONE desk presentation bridge (UX-02, UX-03, UX-04; D10-01…D10-19).
 
 This module is the phase's thin bridge (D10-02): it validates the vitals form through the
 ONE ``CaseInput`` schema (D10-13), runs the case to the approval gate over the shipped
 pause plumbing (``durable.run_to_gate``), renders the graph's own typed outputs as a
-**suggestion** card with its adjacent citations (D10-05/D10-06/D10-07), and resumes a paused
-thread with a named human decision through ``durable.approval_decision`` +
-``durable.resume_thread`` (D10-11).
+**suggestion** card with its adjacent citations and the attributed evidence grounding it
+(D10-05/D10-06/D10-07), and resumes a paused thread with a named human decision through
+``durable.approval_decision`` + ``durable.resume_thread`` (D10-11).
 
 It is **presentation-only** (D10-04): it holds no scoring, routing or gate logic, and it
 never re-derives a colour, a citation, a target time or a confidence value (D10-02/D10-07).
@@ -15,6 +15,12 @@ resumed ``approval_gate`` interrupt through the gated ``commit_priority`` tool; 
 imports neither the queue writer nor the module that hosts that tool. It binds loopback only
 (D10-03), serves a fixed two-name asset allowlist, escapes every rendered string, and adds no
 dependency (D10-16).
+
+The uncertainty signal (UX-01, D10-09/D10-17) is read from the graph's typed channels —
+``no_match`` OR ``confidence.deferral`` — never from a free-text reason, ``evidence.no_match``
+or ``missing_vitals`` alone. Because Phase 8 routes any ``no_match``/deferral to a safe
+terminal (D8-11/D8-12), a deferred case renders the loud banner plus a **read-only** card and
+NO gate, while a committable case renders the card plus the real gate and no banner.
 """
 
 from __future__ import annotations
@@ -31,8 +37,10 @@ from urllib.parse import parse_qs
 
 from pydantic import ValidationError
 
+from triagedesk.core.rules import get_tews
 from triagedesk.core.schema import CaseInput
 from triagedesk.durable import (
+    DurableError,
     PausedRun,
     approval_decision,
     resume_thread,
@@ -59,14 +67,30 @@ _ASSETS: dict[str, str] = {
 # might also carry, so the guard's exact-match scan is never tripped.
 _TRUTHY = frozenset({"true", "on", "1"})
 
-# The UI-SPEC copy the bridge selects between (no clinical value, no SATS literal).
+# The UI-SPEC copy the bridge selects between (no clinical value, no SATS literal). The
+# banner headline is verbatim from UX-01; the banner BODY varies with the trigger so the
+# banner never asserts a fact its trigger did not establish (D10-09).
+_BANNER_HEADLINE = "No discriminator matched / low confidence — nurse to confirm"
+_BANNER_NO_MATCH_BODY = (
+    "No discriminator matched this complaint, so this suggestion may be incomplete. "
+    "Confirm before you act."
+)
+_BANNER_LOW_CONFIDENCE_BODY = (
+    "Confidence is low for this suggestion, so it may be incomplete. Confirm before you act."
+)
 _EMPTY_HEADING = "No case yet"
 _EMPTY_BODY = "Enter the patient's vitals and complaint, then choose Get suggested priority."
+_CARD_FRAMING = "This is a suggestion, not a decision. You confirm the priority."
+_READ_ONLY_FRAMING = (
+    "Not confirmed and not queued — this is what the system computed from the vitals alone."
+)
+_NO_EVIDENCE_LINE = "No evidence excerpt matched this complaint."
 _DEFERRED_COPY = "This case was deferred for human review — no priority was committed."
 _ESCALATED_COPY = "This case was escalated for human review — no priority was committed."
 _RECOVERY_COPY = "A scored vital is missing. Re-measure before scoring."
 _UNREACHED_COPY = "This case did not reach the approval gate — nothing has been committed."
 _DISMISSED_COPY = "Dismissed — nothing has been committed."
+_TIMEOUT_COPY = "No decision was made — nothing has been committed."
 _FAILURE_COPY = (
     "The case could not be scored. Nothing has been committed. Try again, or check the desk log."
 )
@@ -172,6 +196,52 @@ async def decide(
     return await resume_thread(thread_id=thread_id, decision=decision, db_path=db_path)
 
 
+def banner_trigger(state: Mapping[str, Any]) -> str | None:
+    """The ONE banner rule (D10-09): the typed uncertainty signal, never a heuristic.
+
+    Returns ``"no_match"`` when the state's ``no_match`` channel is true, else ``"deferral"``
+    when the ``confidence`` channel is present and deferring, else ``None``. It deliberately
+    does NOT consult ``evidence.no_match`` (a different fact: "no excerpt matched"), NOT
+    ``missing_vitals`` alone (the recovery signal's job), and NOT any free-text reason string.
+    """
+    if bool(state.get("no_match")):
+        return "no_match"
+    confidence = state.get("confidence")
+    if confidence is not None and bool(getattr(confidence, "deferral", False)):
+        return "deferral"
+    return None
+
+
+def terminal_kind(state: Mapping[str, Any]) -> str | None:
+    """Select the terminal copy from the graph's typed channels (never a string heuristic).
+
+    ``"deferred"`` when the ``confidence`` channel defers (checked FIRST — a deferral always
+    routes to ``escalate``/``request_missing_info``, so an escalated state may also carry a
+    deferral); else ``"escalated"`` when the ``escalation`` channel is present; else
+    ``"recovery"`` when the ``recovery`` channel is present; else ``None``. The kind is never
+    inferred from ``Escalation.reason`` (a free-text field that varies).
+    """
+    confidence = state.get("confidence")
+    if confidence is not None and bool(getattr(confidence, "deferral", False)):
+        return "deferred"
+    if state.get("escalation") is not None:
+        return "escalated"
+    if state.get("recovery") is not None:
+        return "recovery"
+    return None
+
+
+def editable_colours() -> list[str]:
+    """The gate's own accepted colour set, in a stable order (D10-18).
+
+    Derived from ``{band.colour for band in get_tews().tews_to_colour}`` — the SAME expression
+    ``ApprovalToken`` validates ``final_colour`` against — so the surface can never offer a
+    decision the gate would refuse. Never a hard-coded list; never a colour that exists only
+    in ``target_times``.
+    """
+    return sorted({band.colour for band in get_tews().tews_to_colour})
+
+
 def _colour_class(colour: str) -> str:
     """Map a substrate colour string to its CSS swatch class (a lookup, never a computation).
 
@@ -191,38 +261,87 @@ def _panel(copy: str, kind: str) -> str:
     return f'<section class="state-panel state-{kind}" role="status"><p>{copy}</p></section>'
 
 
+def _banner_html(trigger: str) -> str:
+    """Render the loud uncertainty banner with a trigger-conditional body (D10-09).
+
+    The headline is verbatim from UX-01; the body is the no-match body when the trigger is
+    ``"no_match"`` and the low-confidence body when it is ``"deferral"`` — so the banner never
+    asserts a fact its trigger did not establish.
+    """
+    body = _BANNER_NO_MATCH_BODY if trigger == "no_match" else _BANNER_LOW_CONFIDENCE_BODY
+    return (
+        f'<p class="banner-headline">{_escaped(_BANNER_HEADLINE)}</p>'
+        f'<p class="banner-body">{_escaped(body)}</p>'
+    )
+
+
 def _form_echo(form: Mapping[str, str]) -> str:
     """Echo the submitted complaint, escaped, labelled as the nurse typed it (UI-SPEC)."""
     complaint = form.get("complaint")
     if not complaint:
         return ""
     return (
-        '<div class="form-echo">'
+        '<div class="form-echo complaint-block">'
         f'<p><span class="label">Complaint:</span> '
         f'<span class="value">{_escaped(complaint)}</span></p>'
         "</div>"
     )
 
 
-def _card_html(payload: Mapping[str, Any]) -> str:
-    """Render the priority card from the graph's own interrupt payload (D10-02/D10-05…D10-08).
+def _why_vitals_rows(payload: Mapping[str, Any]) -> str:
+    """One row per ``triggered_rules`` entry: its ``detail`` beside its own ``citation``.
 
-    Every value is read from the payload — the colour, its target, each fired rule's ``detail``
-    beside its adjacent citation, the missing vitals, the second-look flag and the case id —
-    and re-derived nowhere. The colour is rendered with its name as text (D10-08).
+    The baseline row is already one such entry (``core/scorer.py`` emits a ``tews_baseline``
+    rule for the rule-less TEWS-0 case), so the card never reads the substrate's baseline
+    citation directly (D10-06).
     """
-    colour = str(payload.get("colour") or "")
-    target = str(payload.get("target") or "")
-    case_id = str(payload.get("case_id") or "")
     rules = payload.get("triggered_rules") or []
-    missing = payload.get("missing_vitals") or []
-    second_look = payload.get("second_look")
-
-    rows = "".join(
+    return "".join(
         f'<li>{_escaped(rule.get("detail", ""))} '
         f'<span class="citation">{_escaped(rule.get("citation", ""))}</span></li>'
         for rule in rules
     )
+
+
+def _evidence_rows(evidence: Any) -> str:
+    """One ranked row per ``evidence.passages`` entry, or the verbatim no-evidence line.
+
+    The evidence list is read from the paused state snapshot's ``evidence`` channel (the
+    interrupt payload omits it) and is capped by the substrate's own ``MAX_PASSAGES``, never
+    by the surface.
+    """
+    passages = (
+        list(getattr(evidence, "passages", None) or []) if evidence is not None else []
+    )
+    if not passages:
+        return f'<li class="no-evidence">{_escaped(_NO_EVIDENCE_LINE)}</li>'
+    return "".join(
+        f'<li><span class="evidence-label">{_escaped(passage.label)}</span> '
+        f'<span class="citation">{_escaped(passage.citation)}</span></li>'
+        for passage in passages
+    )
+
+
+def _card_html(
+    payload: Mapping[str, Any], evidence: Any = None, *, read_only: bool = False
+) -> str:
+    """Render the priority card from the graph's own outputs (D10-02/D10-05…D10-08).
+
+    Every value is read from the payload (or a payload built from the state snapshot) — the
+    colour, its target, each fired rule's ``detail`` beside its adjacent citation, the
+    evidence grounding it, the missing vitals, the second-look flag and the case id — and
+    re-derived nowhere. The colour is rendered with its name as text (D10-08). ``read_only``
+    swaps the framing line for the deferred/read-only card (D10-17); the card itself is the
+    same presentation in both cases.
+    """
+    colour = str(payload.get("colour") or "")
+    target = str(payload.get("target") or "")
+    case_id = str(payload.get("case_id") or "")
+    missing = payload.get("missing_vitals") or []
+    second_look = payload.get("second_look")
+
+    rows = _why_vitals_rows(payload)
+    evidence_rows = _evidence_rows(evidence)
     missing_text = ", ".join(str(item) for item in missing) if missing else "None"
     if second_look:
         flagged = bool(second_look.get("flag"))
@@ -235,10 +354,11 @@ def _card_html(payload: Mapping[str, Any]) -> str:
     else:
         second_text = "—"
 
+    framing = _READ_ONLY_FRAMING if read_only else _CARD_FRAMING
     return (
         '<section class="priority-card" aria-labelledby="card-heading">'
         '<h2 id="card-heading">Suggested priority</h2>'
-        '<p class="framing">This is a suggestion, not a decision. You confirm the priority.</p>'
+        f'<p class="framing">{_escaped(framing)}</p>'
         f'<div class="colour-block {_colour_class(colour)}">'
         f'<span class="colour-name">{_escaped(colour)}</span></div>'
         f'<p><span class="label">Suggested colour:</span> '
@@ -247,6 +367,8 @@ def _card_html(payload: Mapping[str, Any]) -> str:
         f'<span class="value">{_escaped(target)}</span></p>'
         "<h3>Why these vitals:</h3>"
         f'<ul class="why-vitals-list">{rows}</ul>'
+        "<h3>Evidence from the SATS knowledge base:</h3>"
+        f'<ul class="evidence-list">{evidence_rows}</ul>'
         f'<p><span class="label">Not recorded:</span> '
         f'<span class="value">{_escaped(missing_text)}</span></p>'
         f'<p><span class="label">Second look (serial vitals):</span> '
@@ -257,23 +379,59 @@ def _card_html(payload: Mapping[str, Any]) -> str:
     )
 
 
-def _gate_html(payload: Mapping[str, Any]) -> str:
-    """Render the approval gate, carrying the paused thread identity as a hidden field (D10-11).
+def _card_payload_from_state(state: Mapping[str, Any], thread_id: str) -> dict[str, Any]:
+    """Build the card's payload-shaped facts from a paused STATE snapshot (D10-17/D10-19).
 
-    The hidden ``thread_id`` value is the payload's ``case_id`` — the ONE content-derived
-    thread id the ``/decision`` POST returns to :func:`decide`. The three actions are labelled
-    buttons (never colour-only controls).
+    The interrupt payload is absent on the deferred and repeat-submission paths, so the card
+    facts are read from the state's typed ``priority``/``second_look`` objects. Nothing is
+    re-derived: ``case_id`` is the paused thread id (the ONE content-derived id).
     """
-    case_id = str(payload.get("case_id") or "")
+    priority = state.get("priority")
+    second_look = state.get("second_look")
+    rules = (
+        [rule.model_dump(mode="json") for rule in priority.triggered_rules]
+        if priority is not None
+        else []
+    )
+    return {
+        "case_id": thread_id,
+        "colour": getattr(priority, "colour", None),
+        "target": getattr(priority, "target", None),
+        "triggered_rules": rules,
+        "missing_vitals": list(getattr(priority, "missing_vitals", None) or []),
+        "second_look": (
+            second_look.model_dump(mode="json") if second_look is not None else None
+        ),
+    }
+
+
+def _gate_html(thread_id: str) -> str:
+    """Render the approval gate, carrying the paused thread identity (D10-11/D10-18).
+
+    The hidden ``thread_id`` value is the paused thread id — the ONE content-derived id the
+    ``/decision`` POST returns to :func:`decide`. The three actions are labelled buttons
+    (never colour-only controls); the edit control is a radio group built from
+    :func:`editable_colours` with NO value preselected, so a missing choice is a rejected
+    decision rather than a silent default. The gate-scoped timeout panel is inert until the
+    inline client timer reveals it on expiry (D10-10); no decision is ever preselected.
+    """
+    radios = "".join(
+        '<label class="colour-choice">'
+        f'<input type="radio" name="colour" value="{_escaped(colour)}">'
+        f'<span class="colour-choice-name">{_escaped(colour)}</span></label>'
+        for colour in editable_colours()
+    )
     return (
         '<section class="approval-gate" aria-labelledby="gate-heading">'
         '<h2 id="gate-heading">Your decision</h2>'
-        '<form method="post" action="/decision">'
-        f'<input type="hidden" name="thread_id" value="{_escaped(case_id)}">'
+        '<form id="approval-gate-form" method="post" action="/decision">'
+        f'<input type="hidden" name="thread_id" value="{_escaped(thread_id)}">'
         '<div class="field"><label for="approver-name">Your name</label>'
         '<input id="approver-name" name="name" type="text" autocomplete="off"></div>'
         '<div class="field"><label for="approver-role">Your role</label>'
         '<input id="approver-role" name="role" type="text" autocomplete="off"></div>'
+        '<fieldset class="field colour-fieldset"><legend>Choose the priority colour</legend>'
+        f'<div class="colour-choices">{radios}</div></fieldset>'
         '<div class="gate-actions">'
         '<button type="submit" name="decision" value="approve" class="primary">'
         "Approve suggestion</button>"
@@ -281,34 +439,106 @@ def _gate_html(payload: Mapping[str, Any]) -> str:
         '<button type="submit" name="decision" value="dismiss">'
         "Dismiss (commit nothing)</button>"
         "</div></form></section>"
+        f'<section id="gate-timeout" class="state-panel state-muted" hidden>'
+        f"<p>{_escaped(_TIMEOUT_COPY)}</p></section>"
     )
 
 
-def _terminal_panel(result: Mapping[str, Any]) -> str:
+def _terminal_panel(state: Mapping[str, Any]) -> str:
     """Select the terminal copy from the graph's typed channels (never a string heuristic)."""
-    confidence = result.get("confidence")
-    if confidence is not None and getattr(confidence, "deferral", False):
+    kind = terminal_kind(state)
+    if kind == "deferred":
         return _panel(_DEFERRED_COPY, "muted")
-    if result.get("escalation") is not None:
+    if kind == "escalated":
         return _panel(_ESCALATED_COPY, "muted")
-    if result.get("recovery") is not None:
+    if kind == "recovery":
         return _panel(_RECOVERY_COPY, "muted")
     return _panel(_UNREACHED_COPY, "muted")
 
 
+def _empty_view(form: Mapping[str, str]) -> dict[str, str]:
+    """The view with no case submitted — the empty state, no card and no gate."""
+    return {
+        "state_panel": (
+            '<section class="state-panel state-empty" role="status">'
+            f"<h2>{_EMPTY_HEADING}</h2><p>{_EMPTY_BODY}</p></section>"
+        ),
+        "banner": "",
+        "card": "",
+        "gate": "",
+        "form_values": _form_echo(form),
+    }
+
+
 def _paused_view(paused: PausedRun, form: Mapping[str, str]) -> dict[str, str]:
-    """The view for a run that either paused at the gate or stopped at a terminal."""
+    """The view for a run that paused at the gate, deferred, escalated, or repeated (D10-17).
+
+    The banner fires only from :func:`banner_trigger`; a committable case (paused at the gate)
+    always has both triggers false, so it renders the card plus the real gate and no banner.
+    A deferred case renders the banner plus a READ-ONLY card and NO gate; an escalated or
+    recovery case renders its terminal copy with no card and no gate. A repeat submission
+    (``existed=True``) is re-rendered from the snapshot: a deferred repeat stays a deferred
+    terminal, while a committable repeat re-renders the card and gate with the SAME thread id
+    (D10-19).
+    """
+    state = paused.result
+    trigger = banner_trigger(state)
+    banner = _banner_html(trigger) if trigger is not None else ""
+    evidence = state.get("evidence")
+
     if paused.paused and paused.payload is not None:
         return {
             "state_panel": "",
-            "banner": "",
-            "card": _card_html(paused.payload),
-            "gate": _gate_html(paused.payload),
+            "banner": banner,
+            "card": _card_html(paused.payload, evidence),
+            "gate": _gate_html(str(paused.payload.get("case_id") or "")),
+            "form_values": _form_echo(form),
+        }
+
+    kind = terminal_kind(state)
+    if kind is not None:
+        card = (
+            _card_html(
+                _card_payload_from_state(state, paused.thread_id),
+                evidence,
+                read_only=True,
+            )
+            if kind == "deferred"
+            else ""
+        )
+        return {
+            "state_panel": _terminal_panel(state),
+            "banner": banner,
+            "card": card,
+            "gate": "",
+            "form_values": _form_echo(form),
+        }
+
+    # ``existed=True`` with no terminal: a repeat submission whose thread has a pending gate
+    # (D10-19). A thread that already committed shows the gate's own outcome instead of a
+    # fresh gate — the surface restates no gate logic.
+    commit = state.get("commit_result")
+    if commit is not None:
+        committed = bool(getattr(commit, "committed", False))
+        reason = getattr(commit, "reason", None) or _FAILURE_COPY
+        return {
+            "state_panel": _panel(_escaped(reason), "success" if committed else "error"),
+            "banner": banner,
+            "card": "",
+            "gate": "",
+            "form_values": _form_echo(form),
+        }
+    if paused.existed:
+        return {
+            "state_panel": "",
+            "banner": banner,
+            "card": _card_html(_card_payload_from_state(state, paused.thread_id), evidence),
+            "gate": _gate_html(paused.thread_id),
             "form_values": _form_echo(form),
         }
     return {
-        "state_panel": _terminal_panel(paused.result),
-        "banner": "",
+        "state_panel": _terminal_panel(state),
+        "banner": banner,
         "card": "",
         "gate": "",
         "form_values": _form_echo(form),
@@ -395,18 +625,7 @@ def render_state(
                 "form_values": _form_echo(form),
             }
         )
-    return _render(
-        {
-            "state_panel": (
-                f'<section class="state-panel state-empty" role="status">'
-                f"<h2>{_EMPTY_HEADING}</h2><p>{_EMPTY_BODY}</p></section>"
-            ),
-            "banner": "",
-            "card": "",
-            "gate": "",
-            "form_values": "",
-        }
-    )
+    return _render(_empty_view(form))
 
 
 class DeskServer(ThreadingHTTPServer):
@@ -474,8 +693,8 @@ class DeskHandler(BaseHTTPRequestHandler):
             return render_state(error=_validation_message(exc), form_values=form)
         try:
             paused = asyncio.run(submit_case(case, self.server.db_path))
-        except Exception as exc:  # noqa: BLE001 - any failure is reported, never an approve
-            return render_state(error=str(exc), form_values=form)
+        except Exception:  # noqa: BLE001 - any failure is reported, never an approve
+            return render_state(error=_FAILURE_COPY, form_values=form)
         return render_state(paused, form_values=form)
 
     def _handle_decision(self, form: Mapping[str, str]) -> str:
@@ -484,8 +703,12 @@ class DeskHandler(BaseHTTPRequestHandler):
             return render_state(error=_NO_THREAD_COPY, form_values=form)
         try:
             result = asyncio.run(decide(thread_id, form, self.server.db_path))
-        except Exception as exc:  # noqa: BLE001 - a failure leaves the decision unresolved
+        except DurableError as exc:
+            # The gate's OWN refusal (blank identity, missing colour, no pending gate): the
+            # surface shows that reason and restates no gate logic.
             return render_state(error=str(exc), form_values=form)
+        except Exception:  # noqa: BLE001 - a server/graph failure leaves the decision unresolved
+            return render_state(error=_FAILURE_COPY, form_values=form)
         return render_state(result=result, form_values=form)
 
 
@@ -519,10 +742,13 @@ __all__ = [
     "DeskHandler",
     "DeskServer",
     "STATIC_DIR",
+    "banner_trigger",
     "decide",
+    "editable_colours",
     "form_to_case",
     "make_server",
     "render_state",
     "serve",
     "submit_case",
+    "terminal_kind",
 ]
