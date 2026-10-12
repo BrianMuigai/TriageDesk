@@ -283,8 +283,16 @@ def _escaped(value: Any) -> str:
 
 
 def _panel(copy: str, kind: str) -> str:
-    """Render one state panel — the single surface for a non-card state (UI-SPEC)."""
-    return f'<section class="state-panel state-{kind}" role="status"><p>{copy}</p></section>'
+    """Render one state panel — the single surface for a non-card state (UI-SPEC).
+
+    The panel escapes its own copy, so every caller passes RAW text and there is exactly one
+    escaping rule for a panel (the sibling of :func:`_error_panel`); a caller that passed
+    dynamic text straight through can no longer leak markup.
+    """
+    return (
+        f'<section class="state-panel state-{kind}" role="status">'
+        f"<p>{_escaped(copy)}</p></section>"
+    )
 
 
 def _banner_html(trigger: str) -> str:
@@ -654,7 +662,7 @@ def _paused_view(paused: PausedRun, form: Mapping[str, str]) -> dict[str, str]:
         committed = bool(getattr(commit, "committed", False))
         reason = getattr(commit, "reason", None) or _FAILURE_COPY
         return {
-            "state_panel": _panel(_escaped(reason), "success" if committed else "error"),
+            "state_panel": _panel(reason, "success" if committed else "error"),
             "banner": banner,
             "card": "",
             "gate": "",
@@ -689,15 +697,15 @@ def _decision_view(result: Mapping[str, Any], form: Mapping[str, str]) -> dict[s
     elif commit is not None and getattr(commit, "committed", False):
         if decision == "edit":
             copy = (
-                f"Edited to {_escaped(form.get('colour', ''))} by {_escaped(name)} "
-                f"({_escaped(role)}) — committed to the queue."
+                f"Edited to {form.get('colour', '')} by {name} "
+                f"({role}) — committed to the queue."
             )
         else:
-            copy = f"Approved by {_escaped(name)} ({_escaped(role)}) — committed to the queue."
+            copy = f"Approved by {name} ({role}) — committed to the queue."
         panel = _panel(copy, "success")
     else:
         reason = getattr(commit, "reason", None) or _FAILURE_COPY
-        panel = _panel(_escaped(reason), "error")
+        panel = _panel(reason, "error")
 
     return {
         "state_panel": panel,
@@ -710,7 +718,7 @@ def _decision_view(result: Mapping[str, Any], form: Mapping[str, str]) -> dict[s
 
 def _error_panel(message: str) -> str:
     """The error view — a failure leaves the decision unresolved; a failure is never an approve."""
-    return _panel(_escaped(message), "error")
+    return _panel(message, "error")
 
 
 def _render(view: Mapping[str, str], form: Mapping[str, str]) -> str:

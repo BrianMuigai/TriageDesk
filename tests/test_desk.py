@@ -757,6 +757,14 @@ def test_decision_without_a_thread_id_renders_the_error_panel(
     assert injected_store.rows == []
 
 
+def test_state_panel_escapes_its_copy() -> None:
+    """A state panel escapes its own copy, so a caller cannot leak markup (IN-05)."""
+    markup = '<img src=x onerror="alert(1)">'
+    body = desk_server.render_state(error=markup)
+    assert html.escape(markup) in body
+    assert markup not in body
+
+
 def test_timeout_is_no_approve(tmp_path: Path, injected_store: Any) -> None:
     """No decision POST leaves the queue empty; the gate preselects no decision/colour (D10-10)."""
     with _running_server(tmp_path / "checkpoints.db") as server:
