@@ -43,6 +43,50 @@ approval gate. `--beat <name>` runs just that beat; the beat names are exactly t
 `uv run triagedesk demo --list` prints. Add `--online` only to drive the pulled local model instead of
 the offline golden fixture.
 
+## Durable mode (two-command durability story)
+
+The bare one-command path above is unchanged and hermetic — it runs the in-memory saver and needs no
+file state and no model. Durable mode is the OPT-IN path that makes the headline property demonstrable:
+a case paused at the approval gate survives a process restart. It runs exactly **one** beat to the gate
+over `checkpoints.db`, prints the content-derived `thread_id` and the exact `resume` command, then
+**exits without resuming** — a single in-process pause would prove nothing about persistence.
+
+```bash
+# 1. Run one case to the approval gate over the durable saver; note the printed thread_id.
+uv run triagedesk demo --durable --beat escalation
+```
+
+On screen — `[durable] thread_id=` is the **only** line carrying that marker, and the `thread_id` is a
+hash of the note, so a reviewer can recompute it by hand and it is the same id from any entry point:
+
+```text
+[durable] thread_id=<content-id> paused at approval gate
+[durable] resume: uv run triagedesk resume --thread-id <content-id> --decision approve --approver NAME --role ROLE --db checkpoints.db
+```
+
+```bash
+# 2. In a FRESH process, resume the SAME thread through the gate to a committed handover:
+uv run triagedesk resume --thread-id <content-id> --decision approve --approver "Nurse Demo" --role "triage nurse"
+```
+
+The gate refuses a dismissal — it writes no queue row (the durable analogue of the refusal beat).
+Dismiss a **pending** thread (a fresh pause on a throwaway checkpoint file, so the refusal is shown
+rather than a completed case):
+
+```bash
+uv run triagedesk demo --durable --beat escalation --db /tmp/durable-dismiss.db
+uv run triagedesk resume --thread-id <content-id> --decision dismiss --db /tmp/durable-dismiss.db
+```
+
+`resume --decision approve|edit` needs `--approver` and `--role` (the gate refuses a fabricated
+identity); a `dismiss` needs neither. Resuming a thread that has no pending gate exits non-zero naming
+the thread id.
+
+`--durable` resolves the real store seam, so it **may launch the borrowed `npx mcp-sqlite`** server
+(`triage.db`) the first time a write lands; the default demo never does. The checkpoint file is
+`checkpoints.db` (override with `--db`). A durable thread already exists for a case once it has paused,
+so **removing `checkpoints.db` replays the story** from a clean checkpoint.
+
 ## Beat-by-beat runbook
 
 Each storyboard timing band maps to the beat(s) it plays and the command to run for that band. Every
