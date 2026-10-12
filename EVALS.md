@@ -31,7 +31,7 @@ results, wall-clock latency, token counts, and model/settings hash.
 
 | Metric | Definition | How reported | Measured |
 | --- | --- | --- | --- |
-| Colour accuracy | final colour equals expected colour | per case | 20/20 (100.0%) |
+| Colour accuracy | final colour equals expected colour | per case | 20/20 of colour-expected runs correct (100.0%); 3 case(s) failing the gate |
 | Error direction | under-triage vs over-triage reported **separately** | aggregate | under-triage 0 · over-triage 0 |
 | Citation completeness | every priority cites ≥1 vital/discriminator entry | per case (invariant) | 16/16 cases |
 | Gate delivery | every colour outcome reached the approval gate and produced a handover card; no run aborted at `END` | per case | 16/16 cases |

@@ -103,8 +103,16 @@ def _measured_metrics(report: Report, analysis: Analysis) -> dict[str, str]:
     )
     invariants_ok = sum(1 for held in report.invariants.values() if held)
     accuracy = f"{analysis.colour_accuracy * 100:.1f}%"
+    # The colour denominator deliberately EXCLUDES terminal outcomes (D-03) and the gate can
+    # still fail on other cases, so the cell names both facts: a bare "100.0%" beside a failing
+    # gate reads as "nothing failed" (IN-03). ``failed`` is the report's OWN gate verdict.
+    failed = len(report.gate.unexpected_failures)
+    gate_status = "gate passes" if report.gate.passed else f"{failed} case(s) failing the gate"
     return {
-        "Colour accuracy": f"{analysis.colour_correct}/{analysis.colour_runs} ({accuracy})",
+        "Colour accuracy": (
+            f"{analysis.colour_correct}/{analysis.colour_runs} of colour-expected runs correct "
+            f"({accuracy}); {gate_status}"
+        ),
         "Error direction": (
             f"under-triage {analysis.under_triage_count} · "
             f"over-triage {analysis.over_triage_count}"
