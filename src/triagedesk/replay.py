@@ -41,6 +41,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
+
 from triagedesk.graph.build import CHECKPOINTS_DB_PATH, open_checkpointer
 from triagedesk.mcp import server as server_module
 from triagedesk.observability.spans import read_spans
@@ -65,7 +67,7 @@ async def read_recorded(thread_id: str, db_path: str | Path) -> dict[str, Any]:
     + ``CREATE TABLE IF NOT EXISTS``), so opening the checkpoint may create/touch
     ``checkpoints.db`` — but no application row is ever written (WR-01).
     """
-    config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
+    config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
     async with open_checkpointer(db_path) as saver:
         tup = await saver.aget_tuple(config)
     if tup is None:

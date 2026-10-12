@@ -53,7 +53,10 @@ def harden_offline() -> None:
     except ImportError:
         return
 
-    langsmith_utils.get_env_var.cache_clear()
+    # ``get_env_var`` is ``@functools.lru_cache``-wrapped, so ``cache_clear`` exists at
+    # runtime; mypy only sees the two ``@overload`` signatures (which omit the wrapper
+    # attribute), hence the narrow ignore — [attr-defined] otherwise (IN-01).
+    langsmith_utils.get_env_var.cache_clear()  # type: ignore[attr-defined]
     if langsmith_utils.tracing_is_enabled():
         raise RuntimeError("cloud tracing is still enabled (D7-03): egress is not inert")
 
