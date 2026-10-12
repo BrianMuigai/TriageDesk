@@ -1426,11 +1426,30 @@ def test_served_css_declares_wrapping_rules() -> None:
         assert not re.search(r"(?<!-)\bwidth\s*:", block), f"{selector} has a fixed width"
 
 
-def test_css_declares_exactly_the_editable_colour_swatches() -> None:
-    """The stylesheet declares a swatch for exactly the editable colours — no dead rule (IN-02)."""
+def test_css_declares_every_substrate_colour_token() -> None:
+    """The stylesheet declares a swatch for every colour the substrate names (the five tokens).
+
+    The expected set is the substrate's own ``target_times`` keys — the five SATS colours the
+    10-UI-SPEC declares — derived from the loaded data, never restated as a Python literal
+    (CONVENTIONS §1). ``--colour-blue`` is declared even though the current ``tews_to_colour``
+    bands never produce BLUE: the surface renders whatever colour string the graph supplies and
+    must never decide a colour is unreachable (10-UI-SPEC §Color), so a BLUE band must not
+    render an uncoloured block. The gate's own offerable colours are a subset of the swatches,
+    so the gate can never offer a colour it cannot render.
+    """
     css = (ASSET_DIR / "styles.css").read_text(encoding="utf-8")
+    expected = {colour.lower() for colour in get_tews().target_times}
+    for colour in expected:
+        assert f"--colour-{colour}:" in css, f"--colour-{colour} is not declared"
+        block = _css_block(css, f".colour-{colour}")
+        assert "background:" in block, f".colour-{colour} has no fill"
+        assert "color:" in block, f".colour-{colour} has no on-colour text colour"
+
     swatches = set(re.findall(r"\.colour-([a-z]+)\s*\{[^}]*background:", css))
-    expected = {colour.lower() for colour in desk_server.editable_colours()}
     assert swatches == expected, (
-        f"CSS swatches {sorted(swatches)} do not equal the editable colours {sorted(expected)}"
+        f"CSS swatches {sorted(swatches)} do not equal the substrate colours {sorted(expected)}"
+    )
+    editable = {colour.lower() for colour in desk_server.editable_colours()}
+    assert editable <= swatches, (
+        f"the CSS swatches {sorted(swatches)} omit an editable colour {sorted(editable)}"
     )

@@ -18,6 +18,11 @@
   --colour-orange: #9A3412;
   --colour-yellow: #FACC15;
   --colour-green: #15803D;
+  /* Declared for completeness (10-UI-SPEC §Color): the substrate's ``target_times`` names
+   * BLUE even though the current ``tews_to_colour`` bands never produce it. The surface
+   * renders whatever colour string the graph supplies and never decides a colour is
+   * unreachable, so the token must exist or a future BLUE band would render uncoloured. */
+  --colour-blue: #0B3D91;
 
   --caution-bg: #FEF3C7;
   --caution-border: #B45309;
@@ -237,6 +242,11 @@ button[disabled] {
 
 .colour-green {
   background: var(--colour-green);
+  color: var(--surface);
+}
+
+.colour-blue {
+  background: var(--colour-blue);
   color: var(--surface);
 }
 
