@@ -11,10 +11,14 @@ It is **presentation-only** (D10-04): it holds no scoring, routing or gate logic
 never re-derives a colour, a citation, a target time or a confidence value (D10-02/D10-07).
 The only mapping it owns is presentation — a substrate colour string to a CSS class name.
 The surface can never commit on its own (D10-12): the only route to a queue row is the
-resumed ``approval_gate`` interrupt through the gated ``commit_priority`` tool; this package
-imports neither the queue writer nor the module that hosts that tool. It binds loopback only
-(D10-03), serves a fixed two-name asset allowlist, escapes every rendered string, and adds no
-dependency (D10-16).
+resumed ``approval_gate`` interrupt through the gated ``commit_priority`` tool; this package's
+import graph — its static ``import`` statements AND its literal-argument
+``importlib.import_module`` / ``__import__`` calls — reaches neither the queue writer nor the
+module that hosts that tool. A *string-built* dynamic attribute access (e.g.
+``getattr(mod, "commit_" + "priority")``) is not statically provable, so the guard's claim is
+deliberately scoped to the literal import graph it scans, never asserted beyond it (WR-01). It
+binds loopback only (D10-03), serves a fixed two-name asset allowlist, escapes every rendered
+string, and adds no dependency (D10-16).
 
 The uncertainty signal (UX-01, D10-09/D10-17) is read from the graph's typed channels —
 ``no_match`` OR ``confidence.deferral`` — never from a free-text reason, ``evidence.no_match``

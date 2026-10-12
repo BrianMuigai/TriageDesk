@@ -601,6 +601,33 @@ def test_commit_path_guard_resolves_relative_and_symbol_imports() -> None:
     assert "triagedesk.mcp.server.commit_priority" in symbol
 
 
+def test_commit_path_guard_catches_literal_dynamic_imports() -> None:
+    """A literal ``import_module``/``__import__`` of a commit path is caught (WR-01).
+
+    The static scan alone would miss a dynamic import; the resolver now also reads a
+    literal-argument ``importlib.import_module``/``__import__`` call. A *string-built* name is
+    honestly reported as unresolvable — the guard's claim is scoped to the literal import graph
+    it scans, never asserted beyond it.
+    """
+    parts = ["triagedesk", "desk"]
+    dynamic_module = set(
+        resolved_imports("importlib.import_module('triagedesk.store.queue')\n", parts)
+    )
+    assert "triagedesk.store.queue" in dynamic_module
+
+    dynamic_dunder = set(
+        resolved_imports("__import__('triagedesk.mcp.server')\n", parts)
+    )
+    assert "triagedesk.mcp.server" in dynamic_dunder
+
+    built = set(
+        resolved_imports(
+            "importlib.import_module('triagedesk.store.' + 'queue')\n", parts
+        )
+    )
+    assert "triagedesk.store.queue" not in built
+
+
 def test_make_server_binds_localhost_only(tmp_path: Path) -> None:
     """The server binds ``127.0.0.1`` explicitly, never a wildcard (D10-03)."""
     server = make_server("127.0.0.1", 0, tmp_path / "checkpoints.db")

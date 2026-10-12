@@ -84,6 +84,13 @@ def resolved_imports(source: str, package_parts: list[str]) -> list[str]:
     for a forbidden absolute module cannot be evaded by a relative import.
     ``from a.b import c`` contributes both ``a.b`` and ``a.b.c`` (so a forbidden submodule
     imported through its parent package is still caught).
+
+    Literal-argument dynamic imports are resolved too (WR-01): ``importlib.import_module("a.b")``
+    and ``__import__("a.b")`` contribute ``a.b``, so a guard cannot be evaded by reaching a
+    forbidden module through a dynamic import. A *string-built* argument
+    (``import_module("a." + "b")``) or a string-built attribute name is not statically
+    resolvable and is therefore out of this helper's scope — the caller's claim must be scoped
+    to what a static scan can prove.
     """
     tree = ast.parse(source)
     resolved: list[str] = []
@@ -100,7 +107,26 @@ def resolved_imports(source: str, package_parts: list[str]) -> list[str]:
             if node.module:
                 resolved.append(".".join(module))
             resolved.extend(".".join(module + [alias.name]) for alias in node.names)
+        elif isinstance(node, ast.Call):
+            resolved.extend(_literal_dynamic_imports(node))
     return sorted(set(resolved))
+
+
+def _literal_dynamic_imports(call: ast.Call) -> list[str]:
+    """The module name of a literal-argument ``importlib.import_module``/``__import__`` call.
+
+    ``import_module``/``__import__`` are recognised by their called name (the attribute for a
+    qualified call, the bare identifier otherwise); only a first argument that is a string
+    constant is resolved, so a computed name is honestly reported as unresolvable (WR-01).
+    """
+    func = call.func
+    name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+    if name not in ("import_module", "__import__") or not call.args:
+        return []
+    first = call.args[0]
+    if isinstance(first, ast.Constant) and isinstance(first.value, str):
+        return [first.value]
+    return []
 
 
 class RecordingStore(InMemoryStore):
