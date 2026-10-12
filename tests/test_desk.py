@@ -1181,6 +1181,31 @@ def test_schema_rejection_renders_the_message_and_writes_nothing(
     assert injected_store.rows == []
 
 
+def test_schema_rejection_renders_beside_the_offending_field(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """An invalid field's schema message renders beside that field, and the field is highlighted.
+
+    The UI-SPEC ``## UI Considerations`` row for ``error | vitals-form`` requires the schema's
+    own message **beside that field**, and the mandated copy says "Check the highlighted field";
+    both hold only when the offending ``.field`` carries an error style and the message sits
+    inside it — not only in a panel below the form.
+    """
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        form = _form_from_case(COMPLETE_CASE)
+        form["heart_rate"] = "999"
+        body = _post(_base(server) + "/case", form)
+
+    assert injected_store.rows == []
+    field = re.search(r'<div class="field field-error">.*?</div>', body, re.DOTALL)
+    assert field, "the offending field was not highlighted"
+    assert 'id="heart_rate"' in field.group(0)
+    assert 'aria-invalid="true"' in field.group(0)
+    assert "Check the highlighted field and try again." in field.group(0)
+    # The schema rejection is not merely a panel below the form.
+    assert 'class="state-panel state-error"' not in body
+
+
 def test_existed_repeat_submission_reuses_the_thread(
     tmp_path: Path, injected_store: Any
 ) -> None:

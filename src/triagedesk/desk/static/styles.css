@@ -143,6 +143,21 @@ p {
   gap: var(--space-sm);
 }
 
+/* A schema-rejected field: the control is outlined in the error colour and the schema's own
+ * message renders inside the field, beside it (the UI-SPEC ``## UI Considerations`` requirement
+ * for ``error | vitals-form``). The message is prose, so it uses the Body treatment, not a new
+ * size/weight. */
+.field-error input,
+.field-error select,
+.field-error textarea {
+  border-color: var(--error-border);
+}
+
+.field-error-message {
+  color: var(--error-text);
+  margin: var(--space-xs) 0 0;
+}
+
 input,
 select,
 textarea {

@@ -388,10 +388,27 @@ def _option_label(value: str) -> str:
     return value.replace("_", " ").capitalize()
 
 
-def _vitals_field(name: str, label: str, form: Mapping[str, str]) -> str:
-    """Render one vitals field, repopulated from *form* and bounded by the schema (D10-13)."""
+def _vitals_field(
+    name: str,
+    label: str,
+    form: Mapping[str, str],
+    field_error: tuple[str, str] | None = None,
+) -> str:
+    """Render one vitals field, repopulated from *form* and bounded by the schema (D10-13).
+
+    The controls are generated from the ONE ``CaseInput`` schema: a numeric field's ``min``/
+    ``max`` come from its own ``FieldInfo`` bounds and a select's options from its ``Literal``,
+    so no range or option is restated in markup and the form can never offer a value the schema
+    would reject.
+
+    When *field_error* names this field, the control is marked ``aria-invalid`` and the ONE
+    schema's own rejection renders inside this ``.field`` — the UI-SPEC ``## UI Considerations``
+    requirement that an invalid field's message appear **beside that field**, which is what makes
+    the mandated "Check the highlighted field" copy literally true.
+    """
     kind = _annotation_kind(name)
     raw = str(form.get(name, ""))
+    checked_layout = kind == "checkbox"
     if kind in ("int", "float"):
         low, high = _bounds(name)
         step = "1" if kind == "int" else "0.1"
@@ -401,11 +418,7 @@ def _vitals_field(name: str, label: str, form: Mapping[str, str]) -> str:
             f'min="{_escaped(_fmt_bound(low))}" max="{_escaped(_fmt_bound(high))}" '
             f'value="{_escaped(raw.strip())}">'
         )
-        return (
-            f'<div class="field"><label for="{name}">{_escaped(label)}</label>'
-            f"{control}</div>"
-        )
-    if kind == "checkbox":
+    elif kind == "checkbox":
         checked = " checked" if raw.strip().lower() in _TRUTHY else ""
         # A checkbox alone cannot express False: an unchecked box is not a successful control,
         # so the browser omits the key entirely and the ONE schema reads the field as absent
@@ -419,11 +432,7 @@ def _vitals_field(name: str, label: str, form: Mapping[str, str]) -> str:
             f'<input id="{name}" name="{name}" type="checkbox" value="true"{checked}>'
             f'<input type="hidden" name="{name}" value="false">'
         )
-        return (
-            f'<div class="field field-check">{control}'
-            f'<label for="{name}">{_escaped(label)}</label></div>'
-        )
-    if kind == "select":
+    elif kind == "select":
         options = "".join(
             f'<option value="{_escaped(value)}"'
             f'{" selected" if raw.strip() == value else ""}>'
@@ -434,27 +443,38 @@ def _vitals_field(name: str, label: str, form: Mapping[str, str]) -> str:
             f'<select id="{name}" name="{name}">'
             f'<option value="">—</option>{options}</select>'
         )
-        return (
-            f'<div class="field"><label for="{name}">{_escaped(label)}</label>'
-            f"{control}</div>"
+    else:
+        control = f'<textarea id="{name}" name="{name}" rows="3">{_escaped(raw)}</textarea>'
+
+    label_html = f'<label for="{name}">{_escaped(label)}</label>'
+    classes = "field field-check" if checked_layout else "field"
+    if field_error is not None and field_error[0] == name:
+        classes += " field-error"
+        # Mark the control itself invalid for assistive tech (the first ``>`` closes the
+        # opening tag), then render the ONE schema's own message beside it inside this field.
+        control = control.replace(">", ' aria-invalid="true">', 1)
+        message = (
+            f'<p class="field-error-message" role="alert">{_escaped(field_error[1])}</p>'
         )
-    control = f'<textarea id="{name}" name="{name}" rows="3">{_escaped(raw)}</textarea>'
-    return (
-        f'<div class="field"><label for="{name}">{_escaped(label)}</label>'
-        f"{control}</div>"
-    )
+    else:
+        message = ""
+    inner = f"{control}{label_html}" if checked_layout else f"{label_html}{control}"
+    return f'<div class="{classes}">{inner}{message}</div>'
 
 
-def _vitals_fields(form: Mapping[str, str]) -> str:
+def _vitals_fields(form: Mapping[str, str], field_error: tuple[str, str] | None = None) -> str:
     """Render the vitals form's field block, repopulated from *form* (WR-03).
 
     The controls are generated from the ONE ``CaseInput`` schema (D10-13): a numeric
     field's ``min``/``max`` come from its own ``FieldInfo`` bounds and a select's options
     from its ``Literal``, so no range or option is restated in markup and the form can
     never offer a value the schema would reject. The submitted values are rendered back,
-    so a rejected submission never discards what the nurse typed.
+    so a rejected submission never discards what the nurse typed. *field_error* names the
+    offending field so its message renders beside it (never only below the form).
     """
-    return "".join(_vitals_field(name, label, form) for name, label in _VITALS_LAYOUT)
+    return "".join(
+        _vitals_field(name, label, form, field_error) for name, label in _VITALS_LAYOUT
+    )
 
 
 def _why_vitals_rows(payload: Mapping[str, Any]) -> str:
@@ -745,17 +765,23 @@ def _error_panel(message: str) -> str:
     return _panel(message, "error")
 
 
-def _render(view: Mapping[str, str], form: Mapping[str, str], csrf_token: str | None = None) -> str:
+def _render(
+    view: Mapping[str, str],
+    form: Mapping[str, str],
+    csrf_token: str | None = None,
+    field_error: tuple[str, str] | None = None,
+) -> str:
     """Substitute the server-rendered regions into the hand-authored page (string.Template).
 
     ``string.Template`` (not ``str.format``) is used because the markup carries CSS braces; the
     page's only ``$`` characters are its placeholders. The vitals field block is rendered
-    from *form* (the submitted values), so a rejected submission repopulates the form. The
+    from *form* (the submitted values), so a rejected submission repopulates the form and — when
+    *field_error* names the offending field — renders the schema's own message beside it. The
     ``csrf_field`` region carries the per-server token into the vitals form (WR-01).
     """
     template = string.Template((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
     return template.substitute(
-        vitals_fields=_vitals_fields(form),
+        vitals_fields=_vitals_fields(form, field_error),
         csrf_field=_csrf_field(csrf_token),
         state_panel=view["state_panel"],
         banner=view["banner"],
@@ -769,6 +795,7 @@ def render_state(
     *,
     result: Mapping[str, Any] | None = None,
     error: str | None = None,
+    field_error: tuple[str, str] | None = None,
     form_values: Mapping[str, str] | None = None,
     csrf_token: str | None = None,
 ) -> str:
@@ -777,6 +804,10 @@ def render_state(
     With no case submitted it renders the quickstart panel and the empty vitals form with the
     ``No case yet`` heading and body and NO ``priority-card`` or ``approval-gate`` region. On
     the committable path (``paused is True``) it renders the card plus the gate and no banner.
+    *error* is a server/graph failure and renders in the state panel (the ``state-panel`` is the
+    single surface for that copy). *field_error* is a schema rejection — ``(field, message)`` —
+    and renders beside the offending field instead, so the mandated "Check the highlighted field"
+    copy is literally true (the UI-SPEC ``## UI Considerations`` ``error | vitals-form`` row).
     *csrf_token* is the per-server secret the rendered forms carry (WR-01); it is optional so a
     direct (non-request) render — a test or a proof — needs no server.
     """
@@ -795,6 +826,13 @@ def render_state(
             },
             form,
             csrf_token,
+        )
+    if field_error is not None:
+        return _render(
+            {"state_panel": "", "banner": "", "card": "", "gate": ""},
+            form,
+            csrf_token,
+            field_error,
         )
     return _render(_empty_view(), form, csrf_token)
 
@@ -987,7 +1025,16 @@ class DeskHandler(BaseHTTPRequestHandler):
         try:
             case = form_to_case(form)
         except ValidationError as exc:
-            return self._page(error=_validation_message(exc), form_values=form)
+            # A schema rejection renders BESIDE the offending field (the UI-SPEC ``## UI
+            # Considerations`` ``error | vitals-form`` row), so the mandated "Check the
+            # highlighted field" copy is literally true. A model-level error with no field
+            # falls back to the error panel rather than mis-highlighting a field.
+            field = _validation_field(exc)
+            if field is None:
+                return self._page(error=_validation_message(exc), form_values=form)
+            return self._page(
+                field_error=(field, _validation_message(exc)), form_values=form
+            )
         except (TypeError, ValueError):
             # Defence in depth: any coercion failure that somehow bypassed the schema's own
             # validator is still reported, never an approve (the surface's stated contract).
@@ -1014,6 +1061,17 @@ class DeskHandler(BaseHTTPRequestHandler):
         except Exception:  # noqa: BLE001 - a server/graph failure leaves the decision unresolved
             return self._page(error=_FAILURE_COPY, form_values=form)
         return self._page(result=result, form_values=form)
+
+
+def _validation_field(exc: ValidationError) -> str | None:
+    """The field the schema's first error names (the ``loc`` head), or ``None``.
+
+    Used to render a schema rejection beside the offending field. ``CaseInput`` carries only
+    field-level constraints, so a real rejection always names a field; ``None`` is the honest
+    fallback for a hypothetical model-level error, which then renders in the error panel.
+    """
+    location = exc.errors()[0].get("loc", ())
+    return str(location[0]) if location else None
 
 
 def _validation_message(exc: ValidationError) -> str:
