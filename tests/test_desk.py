@@ -1053,3 +1053,13 @@ def test_served_css_declares_wrapping_rules() -> None:
     for selector in ("button", ".gate-actions"):
         block = _css_block(css, selector)
         assert not re.search(r"(?<!-)\bwidth\s*:", block), f"{selector} has a fixed width"
+
+
+def test_css_declares_exactly_the_editable_colour_swatches() -> None:
+    """The stylesheet declares a swatch for exactly the editable colours — no dead rule (IN-02)."""
+    css = (ASSET_DIR / "styles.css").read_text(encoding="utf-8")
+    swatches = set(re.findall(r"\.colour-([a-z]+)\s*\{[^}]*background:", css))
+    expected = {colour.lower() for colour in desk_server.editable_colours()}
+    assert swatches == expected, (
+        f"CSS swatches {sorted(swatches)} do not equal the editable colours {sorted(expected)}"
+    )

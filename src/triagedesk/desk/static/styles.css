@@ -18,7 +18,6 @@
   --colour-orange: #9A3412;
   --colour-yellow: #FACC15;
   --colour-green: #15803D;
-  --colour-blue: #0B3D91;
 
   --caution-bg: #FEF3C7;
   --caution-border: #B45309;
@@ -243,11 +242,6 @@ button[disabled] {
 
 .colour-green {
   background: var(--colour-green);
-  color: var(--surface);
-}
-
-.colour-blue {
-  background: var(--colour-blue);
   color: var(--surface);
 }
 
