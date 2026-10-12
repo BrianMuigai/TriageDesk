@@ -160,9 +160,11 @@ unreachable and no model is called.
 Reading a finished thread's channels with the checkpointer's read method (no graph compile) is stronger
 than a reduced tool map — there is no tool surface at all — and an asserted inert tracer is the only way
 to guarantee the default LangChain/LangSmith packages already in the environment cannot egress.
-**Consequence:** adding the audit field **widens** the `audit` table, so a **stale local `triage.db`
-must be deleted before a durable run** (no migration; synthetic, disposable data — the same posture D9
-and the Phase-6 key change took). The span sink is a new gitignored runtime artefact. Because the trace
+**Consequence:** adding the audit field **widens** the `audit` table; when the column is absent,
+`ensure_schema` applies an idempotent `ALTER TABLE … ADD COLUMN trace_id` (no migration framework —
+synthetic, disposable data, the same posture D9 and the Phase-6 key change took), and pre-phase-7 rows
+still **verify** because an empty `trace_id` is omitted from the canonical digest (WR-03). The span sink
+is a new gitignored runtime artefact. Because the trace
 runs on content-addressed identity, two storyboard beats sharing a case share one trace (documented, not
 a bug). No new dependency and no new graph node were added: the phase is wiring plus one projection.
 The trace binding travels in a per-task `contextvars` value and so does **not** cross the owned-MCP

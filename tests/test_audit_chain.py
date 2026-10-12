@@ -18,6 +18,7 @@ from typing import Any
 
 from mcp import Client
 
+from triagedesk.core.hashing import hash_value
 from triagedesk.core.schema import CaseInput, ExtractionResult
 from triagedesk.mcp import server as server_module
 from triagedesk.store.audit import (
@@ -84,6 +85,31 @@ def test_canonical_record_hash_is_independent_of_key_order() -> None:
     second = AuditRecord(**common, inputs={"b": 2, "a": 1}, outputs={"y": 2, "x": 1})
 
     assert record_digest(first) == record_digest(second)
+
+
+async def test_a_pre_trace_id_row_still_verifies_after_the_phase_7_migration(
+    memory_store,
+) -> None:
+    """A row sealed before ``trace_id`` existed still verifies after the migration (WR-03).
+
+    A pre-phase-7 record's stored ``hash`` covers the field set WITHOUT ``trace_id``. After the
+    ``ALTER TABLE`` back-fills the new column with ``''``, ``record_digest`` omits an empty
+    ``trace_id``, so the legacy hash still matches and the chain verifies instead of silently
+    reading as broken at the first pre-phase-7 row.
+    """
+    ts = datetime(2026, 10, 9, 16, 0, tzinfo=UTC)
+    legacy = AuditRecord(
+        seq=0, ts=ts, case_id="c-1", tool="normalize_case", actor="agent", prev_hash=GENESIS
+    )
+    # The pre-phase-7 sealing rule: the digest over the fields present before trace_id existed.
+    legacy_hash = hash_value(legacy.model_dump(mode="json", exclude={"hash", "trace_id"}))
+    sealed = legacy.model_copy(update={"hash": legacy_hash})
+    await memory_store.append_audit_record(sealed)
+    await memory_store.write_chain_head(sealed.hash)
+
+    result = await verify(memory_store)
+
+    assert result.valid is True, result.reason
 
 
 async def test_approver_and_role_are_captured_on_an_approval_record(memory_store) -> None:

@@ -73,8 +73,18 @@ def record_digest(record: AuditRecord) -> str:
     whitespace never churn the digest (M-13) while any real field change does. Both
     :func:`append` and :func:`verify` call THIS, so the append and the verification can
     never drift (DRY).
+
+    An **empty** ``trace_id`` is treated as absent and omitted from the sealed payload.
+    Phase 7 added ``trace_id`` after pre-phase-7 rows were already sealed over a field set
+    that did not include it, and the ``ALTER TABLE`` migration back-fills those rows with
+    ``""``. Omitting the empty value keeps their stored ``hash`` valid — so a legacy chain
+    still verifies rather than silently reading as broken — while a non-empty ``trace_id``
+    is still sealed, so the trace link stays tamper-evident (WR-03).
     """
-    return hash_value(record.model_dump(mode="json", exclude={"hash"}))
+    payload = record.model_dump(mode="json", exclude={"hash"})
+    if not payload.get("trace_id"):
+        payload.pop("trace_id", None)
+    return hash_value(payload)
 
 
 class ChainVerification(BaseModel):
