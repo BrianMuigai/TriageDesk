@@ -117,16 +117,48 @@ def _literal_dynamic_imports(call: ast.Call) -> list[str]:
 
     ``import_module``/``__import__`` are recognised by their called name (the attribute for a
     qualified call, the bare identifier otherwise); only a first argument that is a string
-    constant is resolved, so a computed name is honestly reported as unresolvable (WR-01).
+    constant is resolved, so a computed name is honestly reported as unresolvable (WR-01). A
+    *relative* ``import_module`` name is resolved against a literal ``package=`` second argument
+    (or, when that is absent, reported unresolved), so ``import_module("..store.queue",
+    "triagedesk.desk")`` matches the same module as its absolute form (IN-02).
     """
     func = call.func
     name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
     if name not in ("import_module", "__import__") or not call.args:
         return []
     first = call.args[0]
-    if isinstance(first, ast.Constant) and isinstance(first.value, str):
-        return [first.value]
-    return []
+    if not (isinstance(first, ast.Constant) and isinstance(first.value, str)):
+        return []
+    module = first.value
+    if name == "import_module" and module.startswith("."):
+        package = _literal_str_arg(call, 1)
+        resolved = _resolve_relative(module, package) if package else None
+        return [resolved] if resolved else []
+    return [module]
+
+
+def _literal_str_arg(call: ast.Call, index: int) -> str | None:
+    """The string-constant positional argument at *index*, or ``None`` (IN-02)."""
+    if len(call.args) > index:
+        arg = call.args[index]
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+            return arg.value
+    return None
+
+
+def _resolve_relative(name: str, package: str) -> str | None:
+    """Resolve a relative import *name* against *package* — ``importlib``'s own algorithm (IN-02).
+
+    ``import_module("..store.queue", "triagedesk.desk")`` resolves to
+    ``"triagedesk.store.queue"``; a name that climbs beyond the package resolves to ``None``.
+    """
+    level = len(name) - len(name.lstrip("."))
+    remainder = name[level:]
+    bits = package.rsplit(".", level - 1)
+    if len(bits) < level:
+        return None
+    base = bits[0]
+    return f"{base}.{remainder}" if remainder else base
 
 
 class RecordingStore(InMemoryStore):

@@ -780,6 +780,14 @@ def test_commit_path_guard_catches_literal_dynamic_imports() -> None:
     )
     assert "triagedesk.store.queue" not in built
 
+    # A relative literal resolved against a literal ``package=`` argument is caught too (IN-02).
+    relative = set(
+        resolved_imports(
+            "importlib.import_module('..store.queue', 'triagedesk.desk')\n", parts
+        )
+    )
+    assert "triagedesk.store.queue" in relative
+
 
 def test_make_server_binds_localhost_only(tmp_path: Path) -> None:
     """The server binds ``127.0.0.1`` explicitly, never a wildcard (D10-03)."""
