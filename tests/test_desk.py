@@ -131,21 +131,28 @@ def _post(url: str, data: dict[str, str]) -> str:
         return response.read().decode("utf-8")
 
 
-def _post_status(
-    url: str, data: dict[str, str], headers: dict[str, str] | None = None
+def _request_status(
+    url: str, data: bytes | None = None, headers: dict[str, str] | None = None
 ) -> tuple[int, str]:
-    """POST *data* with NO CSRF token injection; return ``(status, body)``.
+    """Send a request with NO CSRF token injection; return ``(status, body)``.
 
-    Used by the CSRF proofs: a request that omits the token, or carries a foreign ``Origin``,
-    must be refused (a 403 or the documented failure panel) and write nothing (WR-01).
+    Used by the CSRF proofs: a request that omits the token, or carries a foreign
+    ``Origin``/``Host``, must be refused (a 403 or the documented failure panel) and write
+    nothing (WR-01, WR-02).
     """
-    encoded = urllib.parse.urlencode(data).encode("utf-8")
-    request = urllib.request.Request(url, data=encoded, headers=headers or {})
+    request = urllib.request.Request(url, data=data, headers=headers or {})
     try:
         with urllib.request.urlopen(request) as response:
             return response.status, response.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
         return exc.code, exc.read().decode("utf-8")
+
+
+def _post_status(
+    url: str, data: dict[str, str], headers: dict[str, str] | None = None
+) -> tuple[int, str]:
+    """POST *data* with NO CSRF token injection; return ``(status, body)`` (WR-01)."""
+    return _request_status(url, urllib.parse.urlencode(data).encode("utf-8"), headers)
 
 
 def _raw_post(server: Any, request_bytes: bytes) -> bytes:
@@ -410,7 +417,7 @@ def test_malformed_request_renders_the_failure_panel(
     """A bad ``Content-Length`` or a non-UTF-8 body fails cleanly, never by dropping (WR-01)."""
     with _running_server(tmp_path / "checkpoints.db") as server:
         bad_length = (
-            b"POST /case HTTP/1.1\r\nHost: x\r\nContent-Length: abc\r\n"
+            b"POST /case HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: abc\r\n"
             b"Connection: close\r\n\r\n"
         )
         response = _raw_post(server, bad_length)
@@ -418,7 +425,7 @@ def test_malformed_request_renders_the_failure_panel(
         assert b"The case could not be scored." in response
 
         bad_body = (
-            b"POST /case HTTP/1.1\r\nHost: x\r\nContent-Length: 4\r\n"
+            b"POST /case HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 4\r\n"
             b"Connection: close\r\n\r\n\xff\xfe\xfd\xfc"
         )
         response = _raw_post(server, bad_body)
@@ -438,7 +445,7 @@ def test_oversized_content_length_is_refused_without_reading(
     """
     with _running_server(tmp_path / "checkpoints.db") as server:
         oversized = (
-            b"POST /case HTTP/1.1\r\nHost: x\r\nContent-Length: 999999999\r\n"
+            b"POST /case HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 999999999\r\n"
             b"Connection: close\r\n\r\n"
         )
         response = _raw_post(server, oversized)
@@ -520,6 +527,62 @@ def test_cross_origin_post_is_refused(tmp_path: Path, injected_store: Any) -> No
         )
     assert status == 403
     assert injected_store.rows == []
+
+
+def test_dns_rebinding_foreign_host_is_refused(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A POST with a foreign ``Host`` and a matching ``Origin`` is refused (WR-02).
+
+    A DNS-rebinding page is same-origin with the surface, so it can read the token and post a
+    ``Host``/``Origin`` pair that ``_cross_origin`` would call "same-origin". Pinning the
+    accepted ``Host`` to loopback refuses it before dispatch — the queue is never written.
+    """
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        base = _base(server)
+        form = {**_form_from_case(COMPLETE_CASE), "csrf_token": _csrf_token(base)}
+        status, body = _post_status(
+            base + "/case",
+            form,
+            headers={"Host": "evil.example", "Origin": "http://evil.example"},
+        )
+    assert status == 200
+    assert "The case could not be scored." in body
+    assert 'class="priority-card"' not in body
+    assert injected_store.rows == []
+
+
+def test_foreign_host_get_is_refused(tmp_path: Path, injected_store: Any) -> None:
+    """A GET with a foreign ``Host`` is refused (403), so the token page is not served (WR-02)."""
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        status, _body = _request_status(
+            _base(server) + "/", headers={"Host": "evil.example"}
+        )
+    assert status == 403
+
+
+def test_loopback_host_accepts_only_loopback() -> None:
+    """The ``Host`` parser accepts loopback (port / IPv6 brackets) and nothing else (WR-02)."""
+    for accepted in (
+        "127.0.0.1",
+        "127.0.0.1:8765",
+        "127.5.6.7",
+        "localhost",
+        "localhost:8765",
+        "[::1]",
+        "[::1]:8765",
+    ):
+        assert desk_server._loopback_host(accepted), f"{accepted!r} should be loopback"
+    for refused in (
+        "",
+        "evil.example",
+        "evil.example:8765",
+        "192.0.2.1",
+        "0.0.0.0",
+        "[::1",  # malformed IPv6
+        "evil@127.0.0.1",  # userinfo trick: the hostname is not the tail
+    ):
+        assert not desk_server._loopback_host(refused), f"{refused!r} should be refused"
 
 
 def test_decision_without_the_csrf_token_cannot_commit(

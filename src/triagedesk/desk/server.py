@@ -78,6 +78,13 @@ _TRUTHY = frozenset({"true", "on", "1"})
 # server on ``GET /`` and required on every POST, so a cross-origin page cannot satisfy it.
 _CSRF_FIELD = "csrf_token"
 
+# The host names the surface answers to beyond a loopback IP (WR-02). ``127.0.0.0/8`` and
+# ``::1`` are recognised by ``ipaddress.is_loopback``; this set only adds the one name that is
+# not an IP literal. A request whose ``Host`` is not loopback is refused before dispatch, so a
+# DNS-rebinding page — same-origin with the surface and able to read the token — cannot satisfy
+# the ``Origin`` check with a matching foreign ``Host``.
+_LOOPBACK_HOSTNAMES = frozenset({"localhost"})
+
 # The largest POST body the surface will read. A form is a few hundred bytes; an unbounded
 # ``Content-Length`` would otherwise pin the request thread (IN-01). A body above this cap is
 # refused with the documented failure panel, never read.
@@ -826,6 +833,33 @@ class DeskServer(ThreadingHTTPServer):
         self.db_lock = threading.Lock()
 
 
+def _loopback_host(host_header: str) -> bool:
+    """True when a ``Host`` header names loopback (WR-02).
+
+    The port is deliberately ignored: a DNS-rebinding page reaches the real server port, so the
+    port matches in the attack and cannot be the discriminator — the *hostname* is. The hostname
+    is parsed by hand (the bracketed IPv6 form, else the part before the last colon) rather than
+    by ``urlsplit``, which would silently accept a ``user@host`` userinfo trick; ``ipaddress``
+    then accepts any ``127.0.0.0/8`` address and ``::1``. Anything else — a foreign name, a
+    malformed header, an absent ``Host`` — is not loopback, so the request is refused before it
+    can reach a commit path.
+    """
+    host = host_header.strip()
+    if host.startswith("["):
+        end = host.find("]")
+        if end == -1:
+            return False
+        hostname = host[1:end]
+    else:
+        hostname = host.rsplit(":", 1)[0]
+    if hostname.lower() in _LOOPBACK_HOSTNAMES:
+        return True
+    try:
+        return ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        return False
+
+
 class DeskHandler(BaseHTTPRequestHandler):
     """The desk bridge's request handler — loopback only, allowlisted assets, escaped output."""
 
@@ -842,6 +876,17 @@ class DeskHandler(BaseHTTPRequestHandler):
     def _page(self, **kwargs: Any) -> str:
         """Render a state with the per-server CSRF token threaded into the forms (WR-01)."""
         return render_state(csrf_token=self.server.csrf_token, **kwargs)
+
+    def _host_ok(self) -> bool:
+        """True only for a loopback ``Host`` header (WR-02).
+
+        The ``Host`` header is client-controlled, so it can never be the trust anchor for
+        "same origin": a DNS-rebinding page is same-origin with the surface and can read the
+        token, then POST with a matching foreign ``Host``/``Origin``. Pinning the accepted host
+        to loopback refuses that request before dispatch, which is what makes the ``Origin``
+        comparison below meaningful.
+        """
+        return _loopback_host(self.headers.get("Host") or "")
 
     def _cross_origin(self) -> bool:
         """True when a present ``Origin`` header is not this surface's own origin (WR-01).
@@ -873,11 +918,15 @@ class DeskHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802 (stdlib naming)
         """Render the page for ``/``; serve the CSS by allowlist; anything else is a 404.
 
-        ``/`` (and ``/index.html``) render the empty state through the ONE template rather than
-        serving the raw file, so no unsubstituted placeholder is ever exposed. Only the CSS is
-        served as raw bytes, and only when its name is in the fixed allowlist — no path is built
-        from ``self.path``.
+        A non-loopback ``Host`` is refused with 403 (WR-02), so the token page is never served
+        under a foreign host a DNS-rebinding page could read. ``/`` (and ``/index.html``) render
+        the empty state through the ONE template rather than serving the raw file, so no
+        unsubstituted placeholder is ever exposed. Only the CSS is served as raw bytes, and only
+        when its name is in the fixed allowlist — no path is built from ``self.path``.
         """
+        if not self._host_ok():
+            self.send_error(HTTPStatus.FORBIDDEN)
+            return
         path = self.path.split("?", 1)[0]
         name = "index.html" if path in ("/", "") else path.lstrip("/")
         if name not in _ASSETS:
@@ -896,13 +945,18 @@ class DeskHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802 (stdlib naming)
         """Dispatch ``/case`` and ``/decision`` over the ONE pause/resume plumbing.
 
-        Two defences run before dispatch: a cross-origin ``Origin`` is refused with 403
-        (WR-01); and a POST missing the per-server CSRF token renders the documented failure
-        panel (WR-01). The header/body parse is guarded too: a malformed ``Content-Length``
-        (non-numeric, negative or above ``_MAX_BODY_BYTES``) or a body that is not valid UTF-8
-        renders the same panel rather than crashing the handler, dropping the connection, or
-        pinning the thread on a body that never arrives (IN-01).
+        Three defences run before dispatch: a non-loopback ``Host`` renders the documented
+        failure panel (WR-02), so a DNS-rebinding page cannot satisfy the origin check with a
+        matching foreign ``Host``; a cross-origin ``Origin`` is refused with 403 (WR-01); and a
+        POST missing the per-server CSRF token renders the same failure panel (WR-01). The
+        header/body parse is guarded too: a malformed ``Content-Length`` (non-numeric, negative
+        or above ``_MAX_BODY_BYTES``) or a body that is not valid UTF-8 renders that panel rather
+        than crashing the handler, dropping the connection, or pinning the thread on a body that
+        never arrives (IN-01).
         """
+        if not self._host_ok():
+            self._send_html(self._page(error=_FAILURE_COPY))
+            return
         if self._cross_origin():
             self.send_error(HTTPStatus.FORBIDDEN)
             return
