@@ -21,6 +21,8 @@ never asserted).
 
 from __future__ import annotations
 
+import asyncio
+import json
 from pathlib import Path
 
 import pytest
@@ -32,7 +34,7 @@ from triagedesk.evals.case import CaseSpec, load_cases
 from triagedesk.evals.tools import build_tools
 from triagedesk.evals.usage import UsageRecorder
 from triagedesk.mcp import server as server_module
-from triagedesk.observability.spans import read_spans
+from triagedesk.observability.spans import SPANS_PATH, read_spans
 from triagedesk.replay import ReplayError, replay_case
 from triagedesk.store.audit import verify
 
@@ -213,3 +215,87 @@ def test_replay_cli_reports_an_absent_thread_cleanly(
     assert "absent" in err
     assert "Traceback" not in err
     assert launched == []
+
+
+def test_read_spans_skips_a_truncated_line_and_keeps_the_valid_ones(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A corrupt/truncated span line is skipped (and reported); valid lines survive (WR-01).
+
+    The sink is append-only, so a crash between the write's ``open`` and ``write`` (or any
+    external truncation) can leave a partial final line. One bad line must not make the whole
+    stream unreadable: the reader returns the valid rows and reports the skip on ``stderr``.
+    """
+    sink = tmp_path / SPANS_PATH.name
+    valid = {"trace_id": "tr-1", "kind": "tool", "name": "normalize_case"}
+    sink.write_text(
+        json.dumps(valid) + "\n" + '{"trace_id": "tr-1", "kind": "tool"',
+        encoding="utf-8",
+    )
+
+    rows = read_spans()
+
+    assert rows == [valid], "the valid line was lost to a neighbouring corrupt one"
+    err = capsys.readouterr().err
+    assert "corrupt span line 2" in err, "the skipped line was not reported"
+
+
+def test_replay_cli_survives_a_corrupt_span_sink(
+    tmp_path: Path,
+    injected_store,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A corrupt/truncated span line no longer turns ``triagedesk replay`` into a traceback (WR-01).
+
+    Before the fix the reader's unguarded ``json.loads`` raised ``JSONDecodeError`` — a
+    ``ValueError`` the CLI did not catch — so a truncated sink produced a raw traceback. The
+    corrupt line is now skipped, the valid timeline stays readable, and the CLI exits cleanly.
+    """
+    db_path = tmp_path / "checkpoints.db"
+    _case_spec, thread_id, _final = asyncio.run(
+        _run_to_commit(case_id="E-02", db_path=db_path, monkeypatch=monkeypatch)
+    )
+    sink = tmp_path / SPANS_PATH.name
+    assert sink.exists(), "the run emitted no spans to corrupt"
+    sink.write_text(
+        sink.read_text(encoding="utf-8") + '{"trace_id": "tr-1", "kind": ',
+        encoding="utf-8",
+    )
+
+    code = main(["replay", "--thread-id", thread_id, "--db", str(db_path)])
+
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "Traceback" not in captured.err
+    assert thread_id in captured.out
+    assert read_spans(), "the valid span lines are no longer readable"
+
+
+def test_replay_cli_reports_a_decode_failure_cleanly(
+    tmp_path: Path,
+    injected_store,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A decode ``ValueError`` from the replay path exits non-zero with no traceback (WR-01).
+
+    The reader now skips corrupt lines, but the CLI still catches ``ValueError`` so the
+    promised clean error can never regress into a raw traceback.
+    """
+    db_path = tmp_path / "checkpoints.db"
+    _case_spec, thread_id, _final = asyncio.run(
+        _run_to_commit(case_id="E-02", db_path=db_path, monkeypatch=monkeypatch)
+    )
+
+    def _boom(*args: object, **kwargs: object) -> list[dict]:
+        raise json.JSONDecodeError("truncated", "doc", 0)
+
+    monkeypatch.setattr("triagedesk.replay.read_spans", _boom)
+
+    code = main(["replay", "--thread-id", thread_id, "--db", str(db_path)])
+
+    assert code == 1
+    err = capsys.readouterr().err
+    assert "Traceback" not in err
+    assert "truncated" in err

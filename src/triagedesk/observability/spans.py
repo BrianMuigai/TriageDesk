@@ -69,6 +69,23 @@ def _report_sink_failure(exc: BaseException) -> None:
         pass
 
 
+def _report_skipped_line(line_number: int, exc: BaseException) -> None:
+    """Report a corrupt/unparsable span line without ever raising (WR-01).
+
+    The sink is local, append-only and best-effort: a crash between ``open`` and ``write``
+    (or a full disk, or any external truncation) can leave a partial final line. One bad
+    line must not make the whole stream unreadable, so the reader skips it — surfacing the
+    skip on ``stderr`` so the corruption is visible rather than silent — and continues.
+    """
+    try:
+        print(
+            f"triagedesk: skipping corrupt span line {line_number} (ignored): {exc}",
+            file=sys.stderr,
+        )
+    except Exception:  # noqa: BLE001 — a broken stderr must not propagate either
+        pass
+
+
 def emit_span(
     *,
     trace_id: str,
@@ -123,17 +140,27 @@ def read_spans(
     parses each non-empty line as one JSON object; and returns the rows in file order.
     When *trace_id* is given the result is filtered to that case's trace, so the shared
     stream projects one case's timeline (D7-05). A missing file is an empty stream, never
-    an error — a case that predates tracing simply has no spans. Read-only: nothing here
-    writes, so a reader can never perturb the sink.
+    an error — a case that predates tracing simply has no spans. A corrupt or truncated
+    line (the sink is append-only, so a crash mid-write can leave a partial final line) is
+    skipped and reported on ``stderr``, so one bad line degrades gracefully rather than
+    making the whole stream unreadable (WR-01). Read-only: nothing here writes, so a reader
+    can never perturb the sink.
     """
     resolved = path if path is not None else (_sink if _sink is not None else SPANS_PATH)
     if not resolved.exists():
         return []
     rows: list[dict[str, Any]] = []
-    for raw_line in resolved.read_text(encoding="utf-8").splitlines():
+    for line_number, raw_line in enumerate(
+        resolved.read_text(encoding="utf-8").splitlines(), start=1
+    ):
         if not raw_line.strip():
             continue
-        row = json.loads(raw_line)
+        try:
+            row = json.loads(raw_line)
+        except json.JSONDecodeError as exc:
+            # A truncated/corrupt line is skipped, never fatal to a best-effort reader.
+            _report_skipped_line(line_number, exc)
+            continue
         if trace_id is None or row.get("trace_id") == trace_id:
             rows.append(row)
     return rows
