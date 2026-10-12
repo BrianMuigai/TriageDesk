@@ -41,9 +41,9 @@ def tokenize(text: str) -> list[str]:
     return _TOKEN_PATTERN.findall(text.lower())
 
 
-# The internal name the three call sites below (:60, :65) and the module's former
-# private helper used. It is an alias of the public ``tokenize`` so there is exactly
-# ONE owner and no second regex anywhere.
+# The internal name the call sites below (``match_discriminators``) and the module's
+# former private helper used. It is an alias of the public ``tokenize`` so there is
+# exactly ONE owner and no second regex anywhere.
 _tokens = tokenize
 
 
