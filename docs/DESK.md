@@ -27,6 +27,9 @@ Then open **http://127.0.0.1:8765** in a browser and stop the server with `Ctrl-
 
 ## What you will see
 
+_An illustrative transcript: the edit colours and the target time shown are read from the
+loaded SATS substrate, and a guard in the test suite keeps them equal to it._
+
 ```text
 Start here
   1. Enter the vitals and the complaint.
@@ -50,7 +53,7 @@ Suggested priority
 
 Your decision
   Your name: ______    Your role: ______
-  Choose the priority colour:  GREEN   ORANGE   YELLOW   RED
+  Choose the priority colour:  GREEN   ORANGE   RED   YELLOW
   [ Approve suggestion ]   [ Edit colour ]   [ Dismiss (commit nothing) ]
 
 Approved by NAME (ROLE) — committed to the queue.

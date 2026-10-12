@@ -26,6 +26,7 @@ from typing import Any
 import pytest
 
 from triagedesk.cli import main
+from triagedesk.core.rules import get_tews
 from triagedesk.desk import server as desk_server
 from triagedesk.graph.build import TRACER_NODES
 
@@ -88,6 +89,28 @@ def test_runbook_states_the_fail_safe_clauses() -> None:
     assert "timeout" in text and "no approve" in text
     assert "dismiss" in text and "commits nothing" in text
     assert "never commits on its own" in text
+
+
+def test_runbook_transcript_matches_the_substrate() -> None:
+    """The quickstart's illustrative colours/target equal the ONE sources (IN-03).
+
+    The transcript is marked illustrative, but it is still checked against the gate's own
+    edit set and the substrate's GREEN target time, so it cannot silently drift (the DRY
+    "documentation restates content" anti-pattern).
+    """
+    text = _runbook_text()
+    colours = desk_server.editable_colours()
+
+    documented = re.search(r"Choose the priority colour:\s*(.+)", text)
+    assert documented, "the quickstart documents no edit colour set"
+    assert documented.group(1).split() == colours, (
+        f"the documented colours {documented.group(1).split()} != the gate's {colours}"
+    )
+
+    green = "GREEN"
+    assert green in colours
+    assert f"Suggested colour: {green}" in text
+    assert f"Target time: {get_tews().target_times[green].target}" in text
 
 
 def test_runbook_names_no_graph_internal_identifier() -> None:
