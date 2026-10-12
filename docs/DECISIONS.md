@@ -146,6 +146,27 @@ auditable.
 **Consequence:** a violation blocks a phase. Rules live once (YAML data / a single helper); a new
 capability means a **new** tool + **new** node, leaving existing code untouched.
 
+### D19 — Local span tracing with a content-addressed `trace_id`; replay is read-only by construction
+**Decision:** tool, node and model spans are emitted from the **existing** seams — the `@audited`
+interceptor, the composition-root node wrapper, and the `llm/client` boundary — to **ONE** local,
+append-only JSONL sink (`spans.jsonl`) written by **ONE** module (`observability/spans.py`). The
+`trace_id` reuses the existing `case_id_for(raw_note)` derivation, so one case has exactly one trace
+across a restart and across replay (never a random uuid), and every audit record gains a first-class
+`trace_id` (additive; sealed in the canonical digest). Cloud tracing is neutralised and **asserted**
+inert at startup. Replay (`replay.py`) reconstructs a past case **read-only** from the checkpoint plus
+the audit/span stream; it compiles no graph and builds no tool map, so the gated commit is structurally
+unreachable and no model is called.
+**Why:** "nothing left the machine" and "replay cannot write" must be *provable*, not asserted in prose.
+Reading a finished thread's channels with the checkpointer's read method (no graph compile) is stronger
+than a reduced tool map — there is no tool surface at all — and an asserted inert tracer is the only way
+to guarantee the default LangChain/LangSmith packages already in the environment cannot egress.
+**Consequence:** adding the audit field **widens** the `audit` table, so a **stale local `triage.db`
+must be deleted before a durable run** (no migration; synthetic, disposable data — the same posture D9
+and the Phase-6 key change took). The span sink is a new gitignored runtime artefact. Because the trace
+runs on content-addressed identity, two storyboard beats sharing a case share one trace (documented, not
+a bug). No new dependency and no new graph node were added: the phase is wiring plus one projection.
+Rationale and the guaranteed properties: `SECURITY.md` §10.
+
 ---
 
 ## Disclosed third-party components (DQ-8)

@@ -92,13 +92,34 @@ names the versions that produced it, so any priority can be reproduced or shown 
 Synthetic data only; **no egress**. Production would additionally require de-identification, consent
 management, and a retention policy (`docs/PROJECT.md` §9).
 
-## 10. Known limitations (declared)
+## 10. Local observability & read-only replay
+
+- **No egress.** Tool, node and model spans go to **one** local, append-only JSONL sink
+  (`spans.jsonl`) written by one module. The transitive tracer environment is neutralised at
+  startup — the tracer vars are popped and langsmith's cached env read is cleared — and then
+  **asserted** inert (`tracing_is_enabled() is False`), so the default LangChain/LangSmith and
+  OTel packages already in the environment cannot export anything. The only OTel package
+  installed is the API (no SDK), so no exporter can be constructed.
+- **Minimal span content.** A span carries ids, timings and counts only — never the complaint,
+  prompt or completion — so the sink never becomes a second, uncontrolled copy of clinical text.
+- **Sealed binding.** The `trace_id` is content-derived (the same `case_id_for(raw_note)` the
+  durable thread uses) and is a first-class audit field sealed in the record's canonical digest;
+  one case has one trace across restart and replay.
+- **Replay cannot write.** `triagedesk replay` reconstructs a case from the checkpoint plus the
+  audit/span stream. It compiles no graph and builds no tool map, so the gated `commit_priority`
+  is structurally unreachable; the zero-write proof asserts replay adds no queue row and no commit
+  audit record. The checkpoint read reuses the **one** explicit `JsonPlusSerializer` allowlist
+  (never `True`), so a tampered `checkpoints.db` cannot deserialise an arbitrary type.
+
+Design rationale and the guaranteed properties are recorded once in
+[`docs/DECISIONS.md`](docs/DECISIONS.md) **D19**.
+
+## 11. Known limitations (declared)
 
 - Approver **authentication** not implemented (identity recorded only).
-- No span-based **tracing** (JSONL audit log only).
 - No token/cost **budget enforcement**.
 - Borrowed MCP server reviewed but not OS-sandboxed.
 
-## 11. Reporting
+## 12. Reporting
 
 Security findings are logged in the audit trail and raised as issues in the repository.
