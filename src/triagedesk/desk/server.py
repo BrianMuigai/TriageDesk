@@ -34,6 +34,7 @@ import html
 import ipaddress
 import secrets
 import string
+import threading
 from collections.abc import Mapping
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -796,6 +797,7 @@ class DeskServer(ThreadingHTTPServer):
 
     db_path: Path
     csrf_token: str
+    db_lock: threading.Lock
 
     def __init__(
         self,
@@ -810,6 +812,9 @@ class DeskServer(ThreadingHTTPServer):
         # One token per server lifetime: minted before any request, so ``GET /`` always
         # renders the token the surface will require on the next POST (WR-01).
         self.csrf_token = secrets.token_urlsafe(32)
+        # Serialise the checkpoint-touching submissions: each POST runs its own event loop
+        # against the one SQLite file, so concurrent writes could contend for the lock (IN-03).
+        self.db_lock = threading.Lock()
 
 
 class DeskHandler(BaseHTTPRequestHandler):
@@ -918,7 +923,9 @@ class DeskHandler(BaseHTTPRequestHandler):
             # validator is still reported, never an approve (the surface's stated contract).
             return self._page(error=_FAILURE_COPY, form_values=form)
         try:
-            paused = asyncio.run(submit_case(case, self.server.db_path))
+            # The lock serialises submissions over the one checkpoint file (IN-03).
+            with self.server.db_lock:
+                paused = asyncio.run(submit_case(case, self.server.db_path))
         except Exception:  # noqa: BLE001 - any failure is reported, never an approve
             return self._page(error=_FAILURE_COPY, form_values=form)
         return self._page(paused=paused, form_values=form)
@@ -928,7 +935,8 @@ class DeskHandler(BaseHTTPRequestHandler):
         if not thread_id:
             return self._page(error=_NO_THREAD_COPY, form_values=form)
         try:
-            result = asyncio.run(decide(thread_id, form, self.server.db_path))
+            with self.server.db_lock:
+                result = asyncio.run(decide(thread_id, form, self.server.db_path))
         except DurableError as exc:
             # The gate's OWN refusal (blank identity, missing colour, no pending gate): the
             # surface shows that reason and restates no gate logic.
