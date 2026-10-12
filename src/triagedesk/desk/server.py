@@ -793,7 +793,13 @@ def render_state(
 
 
 class DeskServer(ThreadingHTTPServer):
-    """The desk bridge's threaded HTTP server, carrying the checkpoint file path."""
+    """The desk bridge's threaded HTTP server, carrying the checkpoint file path.
+
+    Safe by construction: the loopback guard runs in ``__init__`` (IN-04), so a direct
+    ``DeskServer((host, port), DeskHandler)`` cannot bind a wildcard the way ``make_server``
+    would refuse. The per-server CSRF token (WR-01) and the submission lock (IN-03) are minted
+    here too, so every construction path — factory or direct — is protected identically.
+    """
 
     db_path: Path
     csrf_token: str
@@ -804,8 +810,11 @@ class DeskServer(ThreadingHTTPServer):
         server_address: tuple[str, int],
         request_handler: type[BaseHTTPRequestHandler],
         *,
+        allow_non_loopback: bool = False,
         bind_and_activate: bool = True,
     ) -> None:
+        if not allow_non_loopback:
+            _refuse_non_loopback(server_address[0])
         super().__init__(
             server_address, request_handler, bind_and_activate=bind_and_activate
         )
@@ -986,11 +995,12 @@ def make_server(
 
     A non-loopback *host* is refused unless the caller passes ``allow_non_loopback=True``
     explicitly — the surface is an unauthenticated local prototype, so binding a wildcard
-    is never the default (WR-02).
+    is never the default (WR-02). The refusal lives in :class:`DeskServer` itself (IN-04), so
+    this factory and a direct construction are protected identically.
     """
-    if not allow_non_loopback:
-        _refuse_non_loopback(host)
-    server = DeskServer((host, port), DeskHandler)
+    server = DeskServer(
+        (host, port), DeskHandler, allow_non_loopback=allow_non_loopback
+    )
     server.db_path = Path(db_path)
     return server
 

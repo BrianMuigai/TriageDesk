@@ -681,6 +681,16 @@ def test_non_loopback_bind_requires_explicit_opt_in(tmp_path: Path) -> None:
         server.server_close()
 
 
+def test_desk_server_refuses_a_non_loopback_bind_by_construction() -> None:
+    """Constructing the exported ``DeskServer`` directly cannot bind a wildcard (IN-04).
+
+    The guard lives in the class, not only the factory, so the exported name is safe by
+    construction: a direct construction is refused exactly as ``make_server`` would refuse it.
+    """
+    with pytest.raises(ValueError):
+        desk_server.DeskServer(("0.0.0.0", 0), desk_server.DeskHandler)
+
+
 def test_serve_refuses_a_non_loopback_host() -> None:
     """``serve`` fails closed on a non-loopback host before binding (WR-02)."""
     with pytest.raises(ValueError):
