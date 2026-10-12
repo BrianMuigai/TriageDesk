@@ -59,7 +59,9 @@ class ReportCase(BaseModel):
     runs) and ``invariant_reasons`` names WHY a failed invariant broke; ``invariants_pass``
     is the fold of that map. ``passed`` is the accuracy verdict: every run's outcome equals
     ``expected`` AND every invariant holds AND colour and matched-set are stable.
-    ``tokens_in``/``tokens_out`` are the case's totals across runs; ``latency_s`` is per-run.
+    ``tokens_in``/``tokens_out`` are the case's totals across runs; ``latency_s`` is per-run —
+    an errored run contributes ``None`` (it produced no timed result), so it is EXCLUDED from
+    the percentiles while staying run-aligned with ``run_errors`` (IN-04).
 
     ``held_out`` records the declared calibration split (a held-out case bounds the declared
     failure and is never iterated against, D8-13). ``confidence_levels`` / ``deferrals`` /
@@ -88,7 +90,7 @@ class ReportCase(BaseModel):
     invariants_pass: bool = False
     invariant_reasons: dict[str, str] = Field(default_factory=dict)
     passed: bool = False
-    latency_s: list[float] = Field(default_factory=list)
+    latency_s: list[float | None] = Field(default_factory=list)
     tokens_in: int = 0
     tokens_out: int = 0
     declared_failure: bool = False

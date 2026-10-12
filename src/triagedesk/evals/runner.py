@@ -317,7 +317,9 @@ async def _run_case(
     """Run one case ``runs`` times and reduce the captures into a :class:`ReportCase`."""
     recorder = UsageRecorder()
     captures: list[dict[str, Any]] = []
-    latency_s: list[float] = []
+    # A run contributes ``None`` when it errored (no timed result): the sample stays
+    # run-aligned with ``run_errors`` but such a run is EXCLUDED from the percentiles (IN-04).
+    latency_s: list[float | None] = []
     invariant_reports: list[InvariantReport] = []
     run_errors: list[str | None] = []
     tokens_in = 0
@@ -338,11 +340,14 @@ async def _run_case(
             # invariants are recorded as not held (they cannot be shown to hold on a run that
             # produced no result). A partially-lost run is therefore still reported.
             captured = _error_capture(exc)
-            latency = 0.0
+            # An errored run produced no timed result, so it contributes ``None`` — excluded
+            # from the latency percentiles — rather than a spurious ``0.0`` sample (IN-04).
+            run_latency: float | None = None
             run_errors.append(captured["error"])
             invariant_reports.append(_errored_invariant_report(captured["error"]))
         else:
             rows_after = len(await store.read_queue_rows())
+            run_latency = latency
             # The invariants run INSIDE this same loop, so the report and the exit code can
             # never disagree (DRY, EVAL-03).
             invariant_reports.append(
@@ -350,7 +355,7 @@ async def _run_case(
             )
             run_errors.append(None)
         captures.append(captured)
-        latency_s.append(latency)
+        latency_s.append(run_latency)
         run_in, run_out = recorder.totals()
         tokens_in += run_in
         tokens_out += run_out

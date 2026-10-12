@@ -114,7 +114,7 @@ def _report_case(
     *,
     colour_stable: bool = True,
     field_stable: bool = True,
-    latency_s: tuple[float, ...] = (0.1, 0.2, 0.3),
+    latency_s: tuple[float | None, ...] = (0.1, 0.2, 0.3),
     tokens_in: int = 10,
     tokens_out: int = 5,
     declared_failure: bool = False,
@@ -242,6 +242,38 @@ def test_report_carries_latency_and_cost_and_fails_when_missing() -> None:
     missing = _report([_report_case("C", "GREEN", ["GREEN"], latency_s=())])
     with pytest.raises(ValueError):
         analyse(missing)
+
+
+def test_errored_run_latency_is_excluded_from_the_percentiles() -> None:
+    """A ``None`` latency (an errored run) is dropped from the p50/p95 sample (IN-04).
+
+    An errored run has no valid latency, so it must not inject a spurious ``0.0`` into the
+    percentile sample and understate the published figure.
+    """
+    report = _report(
+        [
+            _report_case("A", "GREEN", ["GREEN"], latency_s=(1.0, 2.0, None)),
+            _report_case("B", "GREEN", ["GREEN"], latency_s=(None, None, None)),
+        ]
+    )
+    analysis = analyse(report)
+
+    # Only A's two timed runs reach the sample: [1.0, 2.0] — the ``None``s are excluded.
+    assert analysis.latency_p50 == pytest.approx(1.0)
+    assert analysis.latency_p95 == pytest.approx(2.0)
+
+
+def test_a_report_where_every_run_errored_still_analyses() -> None:
+    """A report whose every run errored (latency all ``None``) analyses, never raises (IN-04).
+
+    WR-04 requires an errored suite to still produce a report: an all-``None`` latency sample
+    is present-but-unmeasurable, so it analyses to ``0.0`` rather than aborting the analyser.
+    """
+    report = _report([_report_case("A", "GREEN", ["GREEN"] * 3, latency_s=(None, None, None))])
+    analysis = analyse(report)
+
+    assert analysis.latency_p50 == 0.0
+    assert analysis.latency_p95 == 0.0
 
 
 # --------------------------------------------- 4. report_digest reproducibility (D-08)

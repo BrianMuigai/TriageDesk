@@ -171,9 +171,13 @@ def analyse(report: Report, *, urgency: Mapping[str, int] | None = None) -> Anal
     cases = report.cases
     if not cases:
         raise ValueError("cannot analyse a report with no cases")
-    latency = [sample for case in cases for sample in case.latency_s]
-    if not latency:
+    samples = [sample for case in cases for sample in case.latency_s]
+    if not samples:
         raise ValueError("cannot analyse a report with no latency samples")
+    # An errored run contributes ``None`` (it has no valid latency): it stays run-aligned in
+    # the report but is EXCLUDED from the percentile sample, so a spurious zero cannot bias
+    # the published p50/p95 (IN-04).
+    latency = [sample for sample in samples if sample is not None]
 
     terminals = set(TERMINAL_OUTCOMES)
     # The most urgent colour is the substrate's own — the top of the loaded ordering,
