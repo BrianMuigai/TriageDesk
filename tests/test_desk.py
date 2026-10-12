@@ -458,3 +458,232 @@ def test_evidence_list_renders_the_no_evidence_line(
     assert "No evidence excerpt matched this complaint." in card
 
 
+# ------------------------------------------- Task 2: the fail-safe gate (UX-03, D10-10/D10-13)
+
+
+def test_gate_carries_the_paused_thread_id(tmp_path: Path, injected_store: Any) -> None:
+    """The gate's hidden ``thread_id`` is the submit's ``PausedRun.thread_id`` (D10-11)."""
+    db = tmp_path / "checkpoints.db"
+    paused = asyncio.run(submit_case(COMPLETE_CASE, db))
+    assert paused.paused and paused.payload is not None
+    assert _thread_id(desk_server.render_state(paused)) == paused.thread_id
+
+
+def test_dismiss_commits_nothing(tmp_path: Path, injected_store: Any) -> None:
+    """A dismiss returns ``refused=True``/``committed=False`` and writes no row (D10-10)."""
+    db = tmp_path / "checkpoints.db"
+    paused = asyncio.run(submit_case(COMPLETE_CASE, db))
+    thread_id = _thread_id(desk_server.render_state(paused))
+    assert thread_id == paused.thread_id
+
+    result = asyncio.run(decide(thread_id, {"decision": "dismiss"}, db))
+    commit = result["commit_result"]
+    assert commit.refused is True
+    assert commit.committed is False
+    assert injected_store.rows == []
+
+    rendered = desk_server.render_state(result=result, form_values={"decision": "dismiss"})
+    assert "Dismissed — nothing has been committed." in rendered
+
+
+def test_a_failure_is_never_an_approve(
+    tmp_path: Path, injected_store: Any, monkeypatch: Any
+) -> None:
+    """A server/graph failure renders the error copy and leaves the queue untouched (fail-safe)."""
+
+    def boom(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("graph exploded")
+
+    monkeypatch.setattr("triagedesk.desk.server.decide", boom)
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        body = _post(
+            _base(server) + "/decision",
+            {"thread_id": "whatever", "decision": "approve", "name": "N", "role": "R"},
+        )
+
+    assert 'class="state-panel state-error"' in body
+    assert (
+        "The case could not be scored. Nothing has been committed. Try again, or check the "
+        "desk log." in body
+    )
+    assert injected_store.rows == []
+
+
+def test_absent_thread_renders_an_error_panel(tmp_path: Path, injected_store: Any) -> None:
+    """A decision whose thread has no pending gate renders the gate's own refusal (D10-11)."""
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        body = _post(
+            _base(server) + "/decision",
+            {"thread_id": "absent-thread", "decision": "approve", "name": "N", "role": "R"},
+        )
+    assert 'class="state-panel state-error"' in body
+    assert "no pending approval gate" in body
+    assert injected_store.rows == []
+
+
+def test_decision_without_a_thread_id_renders_the_error_panel(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A decision POST with no thread id renders the error panel and writes nothing (D10-11)."""
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        body = _post(
+            _base(server) + "/decision",
+            {"decision": "approve", "name": "N", "role": "R"},
+        )
+    assert 'class="state-panel state-error"' in body
+    assert "There is no paused case to decide. Submit the vitals first." in body
+    assert injected_store.rows == []
+
+
+def test_timeout_is_no_approve(tmp_path: Path, injected_store: Any) -> None:
+    """No decision POST leaves the queue empty; the gate preselects no decision/colour (D10-10)."""
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        body = _post(_base(server) + "/case", _form_from_case(COMPLETE_CASE))
+        # deliberately no /decision POST — a timeout is "no decision ever arrives"
+
+    assert injected_store.rows == [], "a timeout committed a queue row"
+    gate = _section(body, "approval-gate")
+    assert "checked" not in gate, "the gate preselected a colour"
+    assert "selected" not in gate, "the gate preselected a decision"
+    assert 'id="gate-timeout"' in body
+    assert "No decision was made — nothing has been committed." in body
+
+
+def test_edit_set_equals_the_gate_set(tmp_path: Path, injected_store: Any) -> None:
+    """The edit control offers exactly the colours the gate validates against (D10-18)."""
+    colours = desk_server.editable_colours()
+    derived = sorted({band.colour for band in get_tews().tews_to_colour})
+    assert colours == derived
+    assert "BLUE" not in colours, "the gate would refuse a BLUE edit"
+
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        body = _post(_base(server) + "/case", _form_from_case(COMPLETE_CASE))
+    gate = _section(body, "approval-gate")
+    rendered = sorted(re.findall(r'name="colour" value="([^"]+)"', gate))
+    assert rendered == colours
+
+    # The SAME set the token validator accepts: every offered colour is a valid edit.
+    for colour in colours:
+        ApprovalToken(
+            decision="edit",
+            approved_at=datetime.now(UTC),
+            approved_by="Nurse Demo",
+            role="triage nurse",
+            final_colour=colour,
+        )
+
+
+def test_schema_rejection_renders_the_message_and_writes_nothing(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """An invalid field surfaces the ONE schema's own message; nothing is scored (D10-13)."""
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        form = _form_from_case(COMPLETE_CASE)
+        form["heart_rate"] = "999"
+        body = _post(_base(server) + "/case", form)
+
+    assert "heart_rate" in body
+    assert "Check the highlighted field and try again." in body
+    assert 'class="priority-card"' not in body
+    assert injected_store.rows == []
+
+
+def test_existed_repeat_submission_reuses_the_thread(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A repeat submission re-renders the card and gate with the SAME thread id (D10-19)."""
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        base = _base(server)
+        first = _post(base + "/case", _form_from_case(COMPLETE_CASE))
+        second = _post(base + "/case", _form_from_case(COMPLETE_CASE))
+
+    assert _thread_id(first) == _thread_id(second)
+    assert 'class="priority-card"' in second
+    assert 'class="approval-gate"' in second
+    assert injected_store.rows == [], "a repeat submission wrote a queue row"
+
+
+def test_repeat_submission_after_commit_adds_no_row(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A repeat after a commit shows the gate's own outcome and adds no second row (D10-19)."""
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        base = _base(server)
+        first = _post(base + "/case", _form_from_case(COMPLETE_CASE))
+        _post(
+            base + "/decision",
+            {
+                "thread_id": _thread_id(first),
+                "decision": "approve",
+                "name": "Nurse Demo",
+                "role": "triage nurse",
+            },
+        )
+        assert len(injected_store.rows) == 1
+        again = _post(base + "/case", _form_from_case(COMPLETE_CASE))
+
+    assert 'class="approval-gate"' not in again
+    assert "committed case" in again
+    assert len(injected_store.rows) == 1, "a repeat submission added a second queue row"
+
+
+def test_blank_identity_surfaces_the_builder_error(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A blank name surfaces the ONE decision builder's error and writes nothing (WR-06)."""
+    db = tmp_path / "checkpoints.db"
+    paused = asyncio.run(submit_case(COMPLETE_CASE, db))
+    with _running_server(db) as server:
+        body = _post(
+            _base(server) + "/decision",
+            {
+                "thread_id": paused.thread_id,
+                "decision": "approve",
+                "name": "   ",
+                "role": "triage nurse",
+            },
+        )
+    assert 'class="state-panel state-error"' in body
+    assert "approver" in body
+    assert injected_store.rows == []
+
+
+def test_missing_edit_colour_surfaces_the_builder_error(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A missing edit colour surfaces the builder's error and writes nothing (D10-18)."""
+    db = tmp_path / "checkpoints.db"
+    paused = asyncio.run(submit_case(COMPLETE_CASE, db))
+    with _running_server(db) as server:
+        body = _post(
+            _base(server) + "/decision",
+            {
+                "thread_id": paused.thread_id,
+                "decision": "edit",
+                "name": "Nurse Demo",
+                "role": "triage nurse",
+            },
+        )
+    assert 'class="state-panel state-error"' in body
+    assert "colour" in body
+    assert injected_store.rows == []
+
+
+def test_baseline_why_vitals_row_is_never_an_empty_list(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """An all-normal-vitals case renders the scorer's ``tews_baseline`` row (UI-SPEC)."""
+    case = _e09()
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        body = _post(_base(server) + "/case", _form_from_case(case.case))
+
+    card = _section(body, "priority-card")
+    match = matcher.match_discriminators(case.case.complaint)
+    priority = scorer.score_priority(case.case, match.matched_ids)
+    baseline = next(
+        rule for rule in priority.triggered_rules if rule.rule_id == "tews_baseline"
+    )
+    assert baseline.detail in card, "the baseline why-vitals detail did not render"
+    assert baseline.citation in card, "the baseline why-vitals citation did not render"
+
+
