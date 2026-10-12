@@ -30,9 +30,21 @@ from triagedesk.core.schema import MatchResult
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 
 
-def _tokens(text: str) -> list[str]:
-    """Tokenise *text* into lower-case alphanumeric runs (the shared boundary rule)."""
+def tokenize(text: str) -> list[str]:
+    """Tokenise *text* into lower-case alphanumeric runs (the shared boundary rule).
+
+    The ONE normalisation owner (CONVENTIONS §1): the matcher and the retrieval
+    module both reuse this, so the two sides compare identically and no second
+    token pattern is introduced. Behaviour is unchanged from the former private
+    ``_tokens`` helper.
+    """
     return _TOKEN_PATTERN.findall(text.lower())
+
+
+# The internal name the three call sites below (:60, :65) and the module's former
+# private helper used. It is an alias of the public ``tokenize`` so there is exactly
+# ONE owner and no second regex anywhere.
+_tokens = tokenize
 
 
 def _contains_sequence(haystack: list[str], needle: list[str]) -> bool:

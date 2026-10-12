@@ -152,6 +152,53 @@ class ConfidenceResult(BaseModel):
     reason: str = ""
 
 
+class EvidencePassage(BaseModel):
+    """One attributed KB excerpt retrieved for a complaint (D9-03, D9-10).
+
+    ``discriminator_id`` is always a member of the closed discriminator set read
+    from ``data/sats_discriminators.yaml`` (D9-10) — an id outside it is
+    unconstructible because the passage is built *from* that loader. ``label`` is
+    the excerpt text read from the substrate (never inlined), ``citation`` is
+    produced by the ONE citation helper, and ``score`` is a deterministic integer
+    lexical score — never a float or a probability. There is deliberately no
+    colour, target, priority or destination field: retrieval can *show* the
+    evidence grounding a colour but can never *set* one, so a colour is
+    *unrepresentable* rather than merely unused (D9-03, mirrors
+    :class:`ConfidenceResult`'s no-float posture). ``extra="forbid"`` rejects an
+    undeclared field — including a smuggled colour — at construction.
+    """
+
+    # An undeclared field is rejected rather than silently carried (D9-03).
+    model_config = ConfigDict(extra="forbid")
+
+    discriminator_id: str
+    label: str
+    citation: str
+    score: int
+    rank: int
+
+
+class EvidenceResult(BaseModel):
+    """The attributed retrieval contract (D9-03): closed-set excerpts or no_match.
+
+    ``passages`` are the ranked, attributed discriminator excerpts (empty when
+    nothing clears the bar), ``no_match`` is ``True`` when nothing matched, and
+    ``reason`` carries the substrate's own coverage-gap text on a ``no_match``
+    (read from ``get_discriminators().no_match.warning``, never restated). There
+    is deliberately no colour, target, priority or citation-string field: the
+    evidence is advisory and sets no priority, so a colour is unrepresentable
+    rather than merely unused. ``extra="forbid"`` rejects an undeclared field at
+    construction.
+    """
+
+    # An undeclared field is rejected rather than silently carried (D9-03).
+    model_config = ConfigDict(extra="forbid")
+
+    passages: list[EvidencePassage] = Field(default_factory=list)
+    no_match: bool = False
+    reason: str = ""
+
+
 class VitalChange(BaseModel):
     """One scored vital compared across two serial cases (D-08).
 
