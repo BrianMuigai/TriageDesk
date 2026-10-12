@@ -34,6 +34,7 @@ from triagedesk.evals.usage import UsageRecorder
 from triagedesk.mcp import server as server_module
 from triagedesk.observability.spans import read_spans
 from triagedesk.replay import ReplayError, replay_case
+from triagedesk.store.audit import verify
 
 # The bundled synthetic fixtures, resolved from the repo root (the same cases the demo runs).
 CASES_DIR = Path(__file__).resolve().parents[1] / "evals" / "cases"
@@ -115,6 +116,33 @@ async def test_replay_writes_nothing(
     rows = await injected_store.read_queue_rows()
     assert len(rows) == 1, "the run did not commit exactly one queue row"
     assert rows[0].colour == priority.colour
+
+
+async def test_replay_leaves_the_queue_and_audit_chain_unchanged(
+    tmp_path: Path, injected_store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Replay adds no queue row and no commit/audit record, and the chain still verifies (WR-01).
+
+    The replay SQLite open is not file-level read-only (the checkpointer runs its idempotent
+    ``setup()`` DDL), so the guarantee proven here is the *row-level* one the roadmap requires:
+    the queue, the audit record count and the chain head are byte-for-byte unchanged, and the
+    chain still verifies.
+    """
+    db_path = tmp_path / "checkpoints.db"
+    _case_spec, thread_id, _final = await _run_to_commit(
+        case_id="E-02", db_path=db_path, monkeypatch=monkeypatch
+    )
+
+    rows_before = len(await injected_store.read_queue_rows())
+    records_before = len(await injected_store.read_audit_records())
+    chain_head_before = injected_store.chain_head
+
+    await replay_case(thread_id, db_path=db_path)
+
+    assert len(await injected_store.read_queue_rows()) == rows_before
+    assert len(await injected_store.read_audit_records()) == records_before
+    assert injected_store.chain_head == chain_head_before
+    assert (await verify(injected_store)).valid is True
 
 
 async def test_replay_never_calls_the_model(

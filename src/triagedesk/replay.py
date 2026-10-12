@@ -6,18 +6,30 @@ including ``approval``/``commit_result``/``handover``/``priority``) plus the aud
 and the local span stream, joined by the content-derived ``trace_id``. It reconstructs and
 renders a view; it re-runs nothing.
 
-Read-only is **structural, not conventional** (D7-10, T-07-05): this module compiles no
-graph and constructs no tool mapping, so no code path here can reach a write-capable tool
-such as the gated commit — there is simply no tool surface to call. It never touches the
-model either (D7-09, D7-16): it reads the recorded spans rather than producing new ones.
-The functions it does use are published read seams: the saver's checkpoint-read method for
-the recorded state (deserialised with the ONE explicit msgpack allowlist, T-07-06), the
-store's ``read_audit_records`` (D7-15), and
+Read-only is **structural and row-level** (D7-10, T-07-05). Structurally, this module
+compiles no graph and constructs no tool mapping, so no code path here can reach a
+write-capable tool such as the gated commit — there is simply no tool surface to call. At
+the row level it adds **no queue row and no commit/audit record**: that is the ROADMAP
+"replay cannot write" criterion. It never touches the model either (D7-09, D7-16): it reads
+the recorded spans rather than producing new ones. The functions it does use are published
+read seams: the saver's checkpoint-read method for the recorded state (deserialised with the
+ONE explicit msgpack allowlist, T-07-06), the store's ``read_audit_records`` (D7-15), and
 :func:`triagedesk.observability.spans.read_spans`.
 
+**Declared caveat (WR-01).** The read is not read-only at the *SQLite* level. The
+checkpointer's read method necessarily runs its own idempotent ``setup()`` (``PRAGMA
+journal_mode=WAL`` + ``CREATE TABLE IF NOT EXISTS``), so reading a checkpoint may create or
+touch ``checkpoints.db`` — including materialising it for an absent thread; and resolving
+the default audit store runs the borrowed server's ``ensure_schema`` (idempotent DDL).
+These are schema initialisations only, never a queue write or a commit. A truly
+non-mutating open is not available through the existing seams (``AsyncSqliteSaver``'s
+``from_conn_string`` offers no read-only/URI form and its read method always calls
+``setup()``; the borrowed server owns its own connection), so the property is documented
+rather than overstated.
+
 It sits ABOVE ``store``/``durable`` and owes them nothing new: the audit store is resolved
-through the SAME injectable seam the commit path uses (``mcp.server._resolve_store``), so a
-test injects a double and no borrowed subprocess is launched (T-07-07).
+through the SAME injectable store seam the commit path uses, so a test injects a double and
+no borrowed subprocess is launched (T-07-07).
 
 Error posture mirrors ``durable.DurableError``: an absent thread raises :class:`ReplayError`
 naming the thread id and the checkpoint file, so the CLI reports it cleanly.
@@ -51,6 +63,10 @@ async def read_recorded(thread_id: str, db_path: str | Path) -> dict[str, Any]:
     ``commit_result``, ``handover``, ``matched_ids``, ...), exactly as the run wrote them.
     No invoke, no resume, no graph. An absent thread raises :class:`ReplayError` naming the
     thread id and the file.
+
+    The saver's read method runs its own idempotent ``setup()`` (``PRAGMA journal_mode=WAL``
+    + ``CREATE TABLE IF NOT EXISTS``), so opening the checkpoint may create/touch
+    ``checkpoints.db`` — but no application row is ever written (WR-01).
     """
     config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
     async with AsyncSqliteSaver.from_conn_string(str(db_path)) as saver:
@@ -130,7 +146,9 @@ async def replay_case(
     :class:`ReplayError` without ever launching the borrowed store (mirroring the durable
     ``resume`` posture: an absent thread touches no store). Resolving first would open the
     borrowed SQLite MCP server and run its schema DDL on an error path — a write replay must
-    never perform (T-07-07).
+    never perform (T-07-07). The checkpoint *read* is likewise not file-level read-only (the
+    saver's ``setup()`` runs its WAL/DDL — see :func:`read_recorded`); the guarantee this
+    function makes is the row-level one: it adds no queue row and no audit record (WR-01).
     """
     values = await read_recorded(thread_id, db_path)
     resolved = store if store is not None else await server_module._resolve_store()

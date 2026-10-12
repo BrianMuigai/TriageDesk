@@ -107,9 +107,15 @@ management, and a retention policy (`docs/PROJECT.md` §9).
   one case has one trace across restart and replay.
 - **Replay cannot write.** `triagedesk replay` reconstructs a case from the checkpoint plus the
   audit/span stream. It compiles no graph and builds no tool map, so the gated `commit_priority`
-  is structurally unreachable; the zero-write proof asserts replay adds no queue row and no commit
-  audit record. The checkpoint read reuses the **one** explicit `JsonPlusSerializer` allowlist
-  (never `True`), so a tampered `checkpoints.db` cannot deserialise an arbitrary type.
+  is structurally unreachable; the zero-write proof asserts replay adds **no queue row and no
+  commit or audit record** — the *row-level* property the roadmap requires. The checkpoint read
+  reuses the **one** explicit `JsonPlusSerializer` allowlist (never `True`), so a tampered
+  `checkpoints.db` cannot deserialise an arbitrary type. *Declared caveat:* the SQLite open is
+  not itself read-only — the checkpointer's read method runs its idempotent `setup()` (`PRAGMA
+  journal_mode=WAL` + `CREATE TABLE IF NOT EXISTS`), so reading a checkpoint may create/touch
+  `checkpoints.db` (including materialising it for an absent thread), and resolving the default
+  audit store runs the borrowed server's `ensure_schema` (idempotent DDL). These are schema
+  initialisations only, never queue/commit writes.
 
 Design rationale and the guaranteed properties are recorded once in
 [`docs/DECISIONS.md`](docs/DECISIONS.md) **D19**.
