@@ -51,6 +51,7 @@ __all__ = [
     "build_graph",
     "checkpointed_graph",
     "load_graph_tools",
+    "open_checkpointer",
     "route_after_normalize",
     "route_after_score",
     "route_after_verify",
@@ -271,22 +272,31 @@ async def run_case(
 
 
 @asynccontextmanager
+async def open_checkpointer(db_path: str | Path) -> AsyncIterator[AsyncSqliteSaver]:
+    """Open the SQLite checkpointer with the ONE explicit state-type allowlist (D-09, T-07-06).
+
+    The ONE saver factory: the durable graph (:func:`checkpointed_graph`) and the read-only
+    replay projection (:func:`triagedesk.replay.read_recorded`) both open their checkpointer
+    here, so the serializer allowlist AND the saver wiring exist once (DRY, SOLID: D). The
+    allowlist is explicit — never ``True`` — so a tampered checkpoint cannot deserialise an
+    arbitrary type.
+    """
+    async with AsyncSqliteSaver.from_conn_string(str(db_path)) as saver:
+        saver.serde = JsonPlusSerializer(allowed_msgpack_modules=_allowed_msgpack_modules())
+        yield saver
+
+
+@asynccontextmanager
 async def checkpointed_graph(
     tools: ToolMap, db_path: Path = CHECKPOINTS_DB_PATH
 ) -> AsyncIterator[Any]:
     """Compile the graph over the durable SQLite checkpointer (D-09, M-6).
 
-    Opens ``AsyncSqliteSaver`` over *db_path* (``checkpoints.db`` by default — a
-    file separate from the domain store) and yields the compiled graph. The paused
-    state survives a process restart: reopening the same file with a fresh saver
-    still reports the pending interrupt.
-
-    The saver's serializer is given an explicit allowlist of the schema types the
-    state carries — so custom contracts (``CaseInput``, ``PriorityResult``, ...) are
-    registered deliberately rather than tripping the future strict-msgpack block.
+    Opens the durable saver through :func:`open_checkpointer` (the ONE saver factory) and
+    yields the compiled graph. The paused state survives a process restart: reopening the
+    same file with a fresh saver still reports the pending interrupt.
     """
-    async with AsyncSqliteSaver.from_conn_string(str(db_path)) as saver:
-        saver.serde = JsonPlusSerializer(allowed_msgpack_modules=_allowed_msgpack_modules())
+    async with open_checkpointer(db_path) as saver:
         yield build_graph(tools, checkpointer=saver)
 
 

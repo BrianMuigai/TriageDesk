@@ -63,11 +63,13 @@ def set_store(store: Store | None) -> None:
     _store = store
 
 
-async def _resolve_store() -> Store:
-    """Resolve the store through the injectable seam, else the borrowed factory.
+async def resolve_store() -> Store:
+    """Resolve the store through the injectable seam, else the borrowed factory (D-10, D-13).
 
-    The commit path calls THIS, never a concrete import, so a World-B store swap is a
-    single injection (D-10, D-13, SOLID: D/L).
+    The published store-resolution seam: the commit path, the durable demo's ``--durable``
+    flow and the read-only replay projection all resolve their store through THIS, never a
+    concrete import, so a World-B store swap is a single injection (SOLID: D/L) and there is
+    exactly one resolver (DRY).
     """
     if _store is not None:
         return _store
@@ -130,7 +132,7 @@ def audited(*, approval: bool = False) -> Callable[[Callable[..., Any]], Callabl
                 if isinstance(token, Mapping):
                     approved_by = token.get("approved_by")
                     role = token.get("role")
-            store = await _resolve_store()
+            store = await resolve_store()
             await append(
                 store,
                 {
@@ -260,7 +262,7 @@ async def commit_priority(
         )
 
     committed_colour = token.final_colour if token.decision == "edit" else colour
-    store = await _resolve_store()
+    store = await resolve_store()
     row, created = await commit_to_queue(
         store,
         case_id=case_id,

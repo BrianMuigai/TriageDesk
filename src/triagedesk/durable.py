@@ -9,7 +9,7 @@ It exists so ``demo --durable`` and ``triagedesk resume`` cannot drift: both dri
 same ``invoke_graph`` primitive and the same derivation. It sits ABOVE ``graph``,
 ``evals`` and ``store`` and never imports ``demo`` (so ``resume`` never depends on the
 demo). It adds NO store resolver of its own: the gated commit and its audit interceptor
-resolve the store through the ONE existing seam (``mcp.server._resolve_store``).
+resolve the store through the ONE existing seam (``mcp.server.resolve_store``).
 
 Design rules honoured here (DRY/SOLID):
 
@@ -230,7 +230,7 @@ async def resume_thread(
     called in-process, so no owned MCP server is launched and no model is needed); the
     pre-gate nodes that would read the case are short-circuited by the checkpoint. The
     store is NOT resolved or injected here: the gated commit and its audit interceptor
-    resolve it through the ONE existing seam (``mcp.server._resolve_store``), so there is
+    resolve it through the ONE existing seam (``mcp.server.resolve_store``), so there is
     exactly one store-resolution path.
     """
     from triagedesk.evals.tools import build_tools

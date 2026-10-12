@@ -41,10 +41,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-
-from triagedesk.graph.build import CHECKPOINTS_DB_PATH, _allowed_msgpack_modules
+from triagedesk.graph.build import CHECKPOINTS_DB_PATH, open_checkpointer
 from triagedesk.mcp import server as server_module
 from triagedesk.observability.spans import read_spans
 from triagedesk.store import Store
@@ -69,8 +66,7 @@ async def read_recorded(thread_id: str, db_path: str | Path) -> dict[str, Any]:
     ``checkpoints.db`` — but no application row is ever written (WR-01).
     """
     config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
-    async with AsyncSqliteSaver.from_conn_string(str(db_path)) as saver:
-        saver.serde = JsonPlusSerializer(allowed_msgpack_modules=_allowed_msgpack_modules())
+    async with open_checkpointer(db_path) as saver:
         tup = await saver.aget_tuple(config)
     if tup is None:
         raise ReplayError(f"no checkpoint for thread_id {thread_id} in {db_path}")
@@ -137,7 +133,7 @@ async def replay_case(
 
     Reads the recorded channels with :func:`read_recorded`, filters the audit records to
     *thread_id*'s ``trace_id`` (resolving the audit store through the ONE injectable seam,
-    ``mcp.server._resolve_store``, exactly as the durable demo does), reads that case's
+    ``mcp.server.resolve_store``, exactly as the durable demo does), reads that case's
     spans through the ONE span reader, and renders the view. It calls only read-only store
     methods, and because it holds no tool mapping it cannot write or re-commit (T-07-05,
     T-07-07).
@@ -151,7 +147,7 @@ async def replay_case(
     function makes is the row-level one: it adds no queue row and no audit record (WR-01).
     """
     values = await read_recorded(thread_id, db_path)
-    resolved = store if store is not None else await server_module._resolve_store()
+    resolved = store if store is not None else await server_module.resolve_store()
     records = [
         record
         for record in await resolved.read_audit_records()

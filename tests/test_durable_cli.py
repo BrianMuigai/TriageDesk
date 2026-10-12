@@ -192,7 +192,7 @@ async def test_durable_demo_resolves_the_injected_store_seam(
     """``demo --durable`` (no ``store=``) uses the INJECTED seam, not the borrowed default (WR-01).
 
     The durable path must resolve its store through the ONE seam
-    (``mcp.server._resolve_store``); running with no explicit ``store=`` must still honour a
+    (``mcp.server.resolve_store``); running with no explicit ``store=`` must still honour a
     store injected via ``set_store`` so the suite never launches ``npx mcp-sqlite``. Before the
     fix this test fails: ``_run_durable`` called the borrowed factory directly, launching the
     subprocess and leaving the injected store untouched.
