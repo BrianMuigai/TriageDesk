@@ -145,10 +145,10 @@ def main(argv: list[str] | None = None) -> int:
     # imported lazily below this line, never at module import.
     harden_offline()
     from triagedesk.demo.run import list_beats, run_demo
-    from triagedesk.durable import DurableError, approval_decision, resume_thread
+    from triagedesk.durable import approval_decision, resume_thread
     from triagedesk.evals.runner import run_eval
     from triagedesk.graph.build import CHECKPOINTS_DB_PATH
-    from triagedesk.replay import ReplayError, replay_case
+    from triagedesk.replay import replay_case
 
     args = _build_parser().parse_args(argv)
     if args.command == "eval":
@@ -188,12 +188,12 @@ def main(argv: list[str] | None = None) -> int:
                     db_path=args.db or CHECKPOINTS_DB_PATH,
                 )
             )
-        except (DurableError, ValueError, RuntimeError, sqlite3.Error, ExceptionGroup) as exc:
-            # ``DurableError`` is a ``RuntimeError``; the borrowed store and the SQLite
-            # checkpointer surface as ``RuntimeError`` (sometimes wrapped in an
+        except (ValueError, RuntimeError, sqlite3.Error, ExceptionGroup) as exc:
+            # ``durable.DurableError`` is a ``RuntimeError``; the borrowed store and the
+            # SQLite checkpointer surface as ``RuntimeError`` (sometimes wrapped in an
             # ``ExceptionGroup``) or ``sqlite3.Error``; a decode/deserialisation failure is
-            # a ``ValueError``. A clinical CLI reports the failure
-            # cleanly with a non-zero exit rather than a raw traceback (WR-04).
+            # a ``ValueError``. A clinical CLI reports the failure cleanly with a non-zero
+            # exit rather than a raw traceback (WR-04).
             print(str(exc), file=sys.stderr)
             return 1
         # Surface the gate's outcome so a refused approve/edit is never mistaken for a
@@ -213,13 +213,13 @@ def main(argv: list[str] | None = None) -> int:
                     replay_case(args.thread_id, db_path=args.db or CHECKPOINTS_DB_PATH)
                 )
             )
-        except (ReplayError, ValueError, RuntimeError, sqlite3.Error, ExceptionGroup) as exc:
-            # ``ReplayError`` is a ``RuntimeError``; the SQLite checkpointer surfaces as
-            # ``sqlite3.Error`` (sometimes wrapped in an ``ExceptionGroup``); a corrupt
-            # span line is a ``ValueError`` (the reader skips these, but the CLI catches
-            # one anyway so a decode failure can never traceback). A clinical CLI reports
-            # the failure cleanly with a non-zero exit rather than a raw traceback (WR-04).
-            # Replay is read-only, so there is nothing to roll back.
+        except (ValueError, RuntimeError, sqlite3.Error, ExceptionGroup) as exc:
+            # ``replay.ReplayError`` is a ``RuntimeError``; the SQLite checkpointer surfaces as
+            # ``sqlite3.Error`` (sometimes wrapped in an ``ExceptionGroup``); a corrupt span
+            # line is a ``ValueError`` (the reader skips these, but the CLI catches one anyway
+            # so a decode failure can never traceback). A clinical CLI reports the failure
+            # cleanly with a non-zero exit rather than a raw traceback (WR-04). Replay is
+            # read-only, so there is nothing to roll back.
             print(str(exc), file=sys.stderr)
             return 1
         return 0
