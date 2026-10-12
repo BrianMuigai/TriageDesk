@@ -40,6 +40,8 @@ results, wall-clock latency, token counts, and model/settings hash.
 | Field stability | identical citations/triggered rules across 3 runs | per case | 15/16 cases |
 | Latency | wall-clock seconds per case (p50, p95) | aggregate | p50 13.62 s · p95 17.21 s |
 | Cost per run | tokens in/out + wall-clock (local CPU → no monetary cost) | aggregate | in 55068 · out 6866 tokens |
+| Deferral rate | coverage deferrals ÷ runs that reached the confidence check (a fraction, never a percentage) | aggregate | TBD |
+| Calibration (small-sample) | offline ECE + risk–coverage over a declared split, with both sample sizes named | aggregate | TBD |
 
 <!-- BEGIN GENERATED: source -->
 > **Measured source:** `evals/results/report.json` · mode `real` · `report_digest: ea5ac20d8decf862bbd2938ce596e393c851162fd48822f5930edc33d9cd4daf` · 3 runs/case.
@@ -64,6 +66,23 @@ results, wall-clock latency, token counts, and model/settings hash.
 
 This is the "known cost per run" the brief asks for: token counts and wall-clock, reproducible because
 every setting is hashed (§8).
+
+### 3.2 Calibration — a declared small-sample measure
+
+The `Calibration (small-sample)` row above is the only place the offline **expected calibration error
+(ECE)** and the **risk–coverage** sweep are published, and it is generated from `report.json` — never a
+hand-typed number (D8-14, D8-16). ECE is computed over a **declared held-out split**: the generated cell
+names both sample sizes (`n_calibration`, `n_held_out`), so the split is auditable rather than chosen
+after seeing the result (D8-13).
+
+This is explicitly a **small-sample** measure — a *declared bound on the named sample*, **never** a
+validated calibrated probability, and never a model probability or a percentage shown as clinical risk
+(D8-04, D8-15). The underlying ranking is the deterministic coverage signal, not a model score.
+
+The `Deferral rate` row reports the coverage deferrals as a **fraction** of the runs that reached the
+confidence check, kept separate from the colour-accuracy figure: a deferral is reduced **coverage**, not
+an answered-and-wrong run (D8-10, D8-16). The deferral case ids are in the report's
+`analysis.deferral_cases`.
 
 ## 4. Test cases
 
@@ -116,6 +135,23 @@ based on vitals alone. The patient is under-triaged relative to the guideline.
   3. add a **"discriminator confidence" field** so the nurse sees when the complaint was not matched.
 
 > The failure is shown in the demo video on purpose. Hiding it would forfeit the reliability points.
+
+### 6.1 Coverage deferrals — the `no_match` class now defers
+
+Phase 8 adds a deterministic **coverage/deferral signal** (never a model probability). One rule it
+enforces: a complaint that matches **no** discriminator (`no_match`) is never reported as a colour on
+vitals alone — it **defers** to a safe terminal (`escalate` / `request_missing_info`) instead of a scored
+colour. This trades **coverage** for safety, and it is reported as reduced coverage, never as an
+answered-and-wrong run (D8-11, D8-16):
+
+- **E-01, E-08, E-09, E-13 and E-14** now show the **deferral marker** in §4 (they previously delivered a
+  colour); the deferral rate and the moved case ids are published in the generated §3 rows above.
+- **E-07** keeps its deterministic **RECHECK** outcome — it also defers, but its raised recheck finding is
+  preserved and is never demoted to a bare abstention.
+
+The moved cases are visible as reduced coverage. No fixture, threshold or expectation was tuned, and
+**E-09 remains the one declared failure** (§6): it is now recorded as a declared *deferral*, not a
+delivered under-triage.
 
 ## 7. Clinician validation (declared gap)
 

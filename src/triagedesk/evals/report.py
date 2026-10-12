@@ -293,6 +293,12 @@ def _digest_payload(report: Report) -> dict[str, Any]:
     reproduce the same digest, while a real change (an outcome, a stability flag or an
     invariant verdict) does not. Only the case ids, expected/measured outcomes, the
     stability flags, the invariant verdicts, the gate and the provenance block are covered.
+
+    The per-case coverage/deferral facts (``held_out``, ``confidence_levels``, ``deferrals``)
+    are sealed too: a flipped deferral is a change in the published safety behaviour, so it
+    must move ``report_digest`` (D8-14). The aggregate ``Calibration`` block is left in
+    ``Analysis`` (which the digest never covers — it carries the volatile cost totals), so
+    only the deterministic per-case content is sealed here.
     """
     return {
         "provenance": report.provenance.model_dump(mode="json"),
@@ -314,6 +320,9 @@ def _digest_payload(report: Report) -> dict[str, Any]:
                 "invariants": case.invariants,
                 "invariants_pass": case.invariants_pass,
                 "declared_failure": case.declared_failure,
+                "held_out": case.held_out,
+                "confidence_levels": case.confidence_levels,
+                "deferrals": case.deferrals,
             }
             for case in report.cases
         ],

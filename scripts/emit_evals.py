@@ -9,8 +9,9 @@ What the generator writes (and nothing else):
 
 * the §3 reliability-metrics table gains a ``Measured`` column (colour accuracy, the
   under/over direction split, the gate-delivery count, the invariant/stability counts,
-  latency p50/p95, cost);
-* the §4 per-case ``Runs (3×)`` and ``Result`` cells;
+  latency p50/p95, cost, the deferral rate and the small-sample calibration);
+* the §4 per-case ``Runs (3×)`` and ``Result`` cells — an all-deferred failing case renders
+  the deferral marker, never a bare failure (a coverage deferral is reduced coverage);
 * the §5 invariant ``Result`` cells;
 * a generated source line naming the report and its ``report_digest`` so each figure is
   traceable to the raw artefact.
@@ -41,6 +42,10 @@ _END = "<!-- END GENERATED: source -->"
 
 _PASS = "\u2705"  # ✅
 _FAIL = "\u274c"  # ❌
+# The §4 marker for a coverage deferral: an all-deferred case that missed its expected colour
+# is reduced COVERAGE, not an answered-and-wrong run, so it is never rendered as a bare ❌
+# (D8-11, D8-16, T-08-10). Derived from ``ReportCase.deferrals`` — never hand-entered.
+_DEFERRAL = "\u23f8 deferral"  # ⏸ deferral
 
 
 def _split_row(line: str) -> list[str]:
@@ -102,6 +107,16 @@ def _measured_metrics(report: Report, analysis: Analysis) -> dict[str, str]:
         "Field stability": f"{len(analysis.field_stable_cases)}/{total} cases",
         "Latency": f"p50 {analysis.latency_p50:.2f} s · p95 {analysis.latency_p95:.2f} s",
         "Cost per run": f"in {analysis.tokens_in} · out {analysis.tokens_out} tokens",
+        # The deferral rate is a FRACTION, never a percentage: a coverage deferral is reduced
+        # coverage, not a probability or a risk figure (D8-04, D8-10).
+        "Deferral rate": f"{analysis.deferral_count}/{analysis.deferral_runs}",
+        # ECE + risk–coverage with both sample sizes NAMED; it is a small-sample measure,
+        # never a validated calibrated probability (D8-13, D8-15).
+        "Calibration (small-sample)": (
+            f"ECE {analysis.calibration.ece:.3f} · "
+            f"n_calibration={analysis.calibration.n_calibration} · "
+            f"n_held_out={analysis.calibration.n_held_out}"
+        ),
     }
 
 
@@ -144,7 +159,16 @@ def _render_case_table(lines: list[str], report: Report) -> list[str]:
         case = by_id.get(cells[0])
         if case is not None:
             cells[runs_index] = str(report.runs)
-            cells[result_index] = _PASS if case.passed else _FAIL
+            if (
+                not case.passed
+                and case.deferrals
+                and all(deferral is True for deferral in case.deferrals)
+            ):
+                # An all-deferred FAILING case reads as a coverage deferral, not a wrong answer.
+                # A case that passed (E-07's RECHECK) keeps its ✅ — the deferral is not a failure.
+                cells[result_index] = _DEFERRAL
+            else:
+                cells[result_index] = _PASS if case.passed else _FAIL
         rows.append(_render_row(cells))
     return lines[:start] + rows + lines[end:]
 

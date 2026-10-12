@@ -80,6 +80,8 @@ _TEMPLATE = """# EVALS — test fixture
 | Field stability | x | per case |
 | Latency | x | aggregate |
 | Cost per run | x | aggregate |
+| Deferral rate | x | aggregate |
+| Calibration (small-sample) | x | aggregate |
 
 ## 4. Test cases
 
@@ -346,6 +348,13 @@ def test_deferral_rate_and_declared_split_calibration_are_measured() -> None:
     second = _EMIT.render_evals(first, sealed)
     assert first == second
 
+    # The generated §3 cells carry the measured deferral rate (a FRACTION) and the NAMED
+    # sample sizes — no hand-entered figure (D8-10, D8-14, D8-15).
+    assert _cell(first, "| Deferral rate ", -2) == "3/9"
+    calibration_cell = _cell(first, "| Calibration (small-sample) ", -2)
+    assert "n_calibration=2" in calibration_cell
+    assert "n_held_out=1" in calibration_cell
+
 
 # --------------------------- 5c. the nested default_factory contract (build shape)
 
@@ -384,3 +393,35 @@ def test_declared_failure_is_shown_and_not_counted_as_a_pass() -> None:
     assert _cell(output, "| E-09 ", -2) == "\u274c", "the declared failure was shown as a pass"
     # The dangerous direction is explicit, not hidden behind an average.
     assert "under-triage 3" in output
+
+
+# ------------------- 7. the digest seals the deferral facts; a deferral renders visible (D8-14)
+
+
+def test_report_digest_seals_the_per_case_deferral_facts() -> None:
+    """Flipping a ``ReportCase.deferrals`` entry changes ``compute_report_digest`` (D8-14)."""
+    report = _report(
+        [_report_case("A", "GREEN", ["ABSTAIN"] * 3, deferrals=[True] * 3, passed=False)]
+    )
+    sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
+    assert compute_report_digest(sealed) == sealed.report_digest
+
+    # Mutating the per-run deferral facts is a change in the published safety behaviour.
+    mutated_case = sealed.cases[0].model_copy(update={"deferrals": [False, True, True]})
+    mutated = sealed.model_copy(update={"cases": [mutated_case]})
+    assert compute_report_digest(mutated) != sealed.report_digest
+
+
+def test_generator_renders_a_coverage_deferral_as_a_marker_not_a_failure() -> None:
+    """An all-deferred failing case renders the deferral marker; a bare fail still renders ❌."""
+    report = _report(
+        [
+            _report_case("E-01", "GREEN", ["ABSTAIN"] * 3, deferrals=[True] * 3, passed=False),
+            _report_case("E-09", "ORANGE", ["GREEN"] * 3, declared_failure=True, passed=False),
+        ]
+    )
+    sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
+    output = _EMIT.render_evals(_TEMPLATE, sealed)
+
+    assert _cell(output, "| E-01 ", -2) == "\u23f8 deferral", "a deferral read as a wrong answer"
+    assert _cell(output, "| E-09 ", -2) == "\u274c", "a non-deferred failure stopped showing ❌"
