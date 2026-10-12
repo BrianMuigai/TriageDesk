@@ -22,7 +22,6 @@ from typing import Any
 
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
-from langgraph.types import Command
 
 from triagedesk.evals.analysis import analyse
 from triagedesk.evals.case import ABORT_OUTCOME, CaseSpec, load_cases
@@ -149,7 +148,15 @@ def _checkpointer() -> InMemorySaver:
 async def _run_once(
     case: CaseSpec, run_index: int, tools: ToolMap
 ) -> tuple[dict[str, Any], float, Any]:
-    """Invoke the graph once, resume past the gate if paused, and time the whole run."""
+    """Invoke the graph once, resume past the gate if paused, and time the whole run.
+
+    Delegates the invoke→interrupt→resume step to the ONE shared primitive
+    (``durable.invoke_graph``), imported here to avoid the ``evals`` <-> ``durable``
+    import cycle. The eval runner keeps its OWN per-run ``thread_id`` (deliberate
+    isolation — runs must not share a durable thread; Pitfall 3).
+    """
+    from triagedesk.durable import invoke_graph
+
     graph = build_graph(tools, checkpointer=_checkpointer())
     config = {"configurable": {"thread_id": f"{case.id}-{run_index}"}}
     initial: dict[str, Any] = {"raw_note": case.note, "case": case.case}
@@ -158,11 +165,7 @@ async def _run_once(
         initial["previous_case"] = previous
 
     started = time.perf_counter()
-    result = await graph.ainvoke(initial, config)
-    payload: dict[str, Any] | None = None
-    if result.get("__interrupt__"):
-        payload = dict(result["__interrupt__"][0].value)
-        result = await graph.ainvoke(Command(resume=dict(_UNAPPROVED_RESUME)), config)
+    result, payload = await invoke_graph(graph, initial, config, _UNAPPROVED_RESUME)
     latency = time.perf_counter() - started
     return _capture(result, payload), latency, result
 

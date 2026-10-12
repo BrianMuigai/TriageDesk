@@ -19,21 +19,20 @@ from __future__ import annotations
 import json
 import sys
 from collections.abc import Awaitable, Callable, Mapping
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import yaml
-from langgraph.types import Command
 from pydantic import BaseModel
 
+from triagedesk.durable import approval_decision, invoke_graph, run_to_gate
 from triagedesk.evals.case import CaseSpec, load_cases
 from triagedesk.evals.runner import _capture, _checkpointer
 from triagedesk.evals.tools import ToolMap, build_tools
 from triagedesk.evals.usage import UsageRecorder
-from triagedesk.graph.build import build_graph
+from triagedesk.graph.build import CHECKPOINTS_DB_PATH, build_graph
 from triagedesk.mcp import server as server_module
-from triagedesk.store import Store
+from triagedesk.store import Store, default_store
 from triagedesk.store.memory import InMemoryStore
 
 # The demo manifest and its default fixture directory, named once so the CLI and the
@@ -114,16 +113,11 @@ def _print_tool_call(name: str, inputs: Mapping[str, Any], outputs: Any) -> None
 def _named_approval() -> dict[str, Any]:
     """A well-formed named approval — the demo's synthetic nurse (T-05-11).
 
-    Carries every field ``ApprovalToken`` requires, including ``approved_at``, so the
-    gated commit validates the token and writes exactly one queue row. ``final_colour``
-    is filled by the graph from the scored colour for an ``approve`` decision.
+    Delegates to the ONE decision builder (``durable.approval_decision``), so the demo
+    and ``triagedesk resume`` cannot drift on the token shape. ``final_colour`` is filled
+    by the graph from the scored colour for an ``approve`` decision.
     """
-    return {
-        "decision": "approve",
-        "approved_by": DEMO_NURSE_NAME,
-        "role": DEMO_NURSE_ROLE,
-        "approved_at": datetime.now(UTC).isoformat(),
-    }
+    return approval_decision("approve", approver=DEMO_NURSE_NAME, role=DEMO_NURSE_ROLE)
 
 
 def _resume_for(beat: Beat) -> dict[str, Any]:
@@ -186,14 +180,70 @@ async def _run_beat(
         initial["previous_case"] = case.previous_case
 
     rows_before = len(await store.read_queue_rows())
-    result = await graph.ainvoke(initial, config)
-    payload: dict[str, Any] | None = None
-    if result.get("__interrupt__"):
-        payload = dict(result["__interrupt__"][0].value)
-        result = await graph.ainvoke(Command(resume=_resume_for(beat)), config)
+    result, payload = await invoke_graph(graph, initial, config, _resume_for(beat))
     rows_added = len(await store.read_queue_rows()) - rows_before
     _print_outcome(case, payload, result, rows_added=rows_added)
     print()
+
+
+async def _run_durable(
+    selected: list[Beat],
+    cases: Mapping[str, CaseSpec],
+    *,
+    offline: bool,
+    store: Store | None,
+    db_path: str | Path | None,
+) -> int:
+    """Run ONE beat to the durable approval gate, print the resume command, and exit.
+
+    The two-command storyboard's first half (D6-11): resolve the store seam, run the case
+    over ``checkpoints.db`` to the gate, print the content-derived ``thread_id`` and the
+    exact ``resume`` command, then exit WITHOUT resuming — a single in-process pause would
+    not demonstrate persistence. Returns 2 when anything but exactly one beat is selected,
+    because the durable thread is content-addressed (two beats on one case would collide).
+    """
+    if len(selected) != 1:
+        print(
+            f"--durable runs exactly one beat at a time; selected {len(selected)}. "
+            "Select one with --beat <name>.",
+            file=sys.stderr,
+        )
+        return 2
+
+    beat = selected[0]
+    case = cases[beat.case]
+    resume_db = Path(db_path) if db_path is not None else CHECKPOINTS_DB_PATH
+    # ``--durable`` resolves the real store seam so the queue row survives the restart
+    # (D6-14); a test injects the in-memory double so no borrowed subprocess is launched.
+    resolved_store = store if store is not None else await default_store()
+    tools = build_tools(case, offline=offline, recorder=UsageRecorder())
+    server_module.set_store(resolved_store)
+    try:
+        paused = await run_to_gate(
+            _traced_tools(tools, _print_tool_call),
+            raw_note=case.note,
+            case=case.case,
+            db_path=resume_db,
+            previous_case=case.previous_case,
+        )
+    finally:
+        server_module.set_store(None)
+
+    if paused.existed:
+        print(
+            "[durable] a durable thread already exists for this case; "
+            f"remove {resume_db} to replay the story."
+        )
+        return 0
+    if not paused.paused:
+        print("[durable] the case reached a terminal without pausing at the approval gate.")
+        return 0
+    print(f"[durable] thread_id={paused.thread_id} paused at approval gate")
+    print(
+        f"[durable] resume: uv run triagedesk resume --thread-id {paused.thread_id} "
+        f"--decision approve --approver NAME --role ROLE --db {resume_db}"
+    )
+    return 0
 
 
 def _select(storyboard: list[Beat], names: list[str] | None) -> list[Beat]:
@@ -213,6 +263,8 @@ async def run_demo(
     offline: bool = True,
     fixture_dir: str | Path = DEFAULT_FIXTURE_DIR,
     store: Store | None = None,
+    durable: bool = False,
+    db_path: str | Path | None = None,
 ) -> int:
     """Run the selected storyboard beats offline through the real graph; return 0.
 
@@ -222,6 +274,10 @@ async def run_demo(
     runs from a clean clone with no model pulled (D-01). The store is injected through
     ``mcp.server.set_store`` and restored in a ``finally``, so the offline path never
     falls through to the borrowed ``npx mcp-sqlite`` subprocess (T-05-10).
+
+    ``durable`` swaps the in-memory saver for ``checkpointed_graph`` over *db_path*
+    (``checkpoints.db`` by default) and runs exactly ONE beat to the gate, printing the
+    resume command instead of resuming (D6-08, D6-11). The default path is unchanged.
     """
     storyboard = load_storyboard()
     try:
@@ -231,6 +287,10 @@ async def run_demo(
         return 2
 
     cases = {case.id: case for case in load_cases(fixture_dir)}
+    if durable:
+        return await _run_durable(
+            selected, cases, offline=offline, store=store, db_path=db_path
+        )
     resolved_store = store if store is not None else InMemoryStore()
     server_module.set_store(resolved_store)
     try:
