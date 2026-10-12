@@ -366,6 +366,38 @@ def test_serve_declares_a_localhost_default() -> None:
     assert inspect.signature(serve).parameters["host"].default == "127.0.0.1"
 
 
+def test_non_loopback_bind_is_refused(tmp_path: Path) -> None:
+    """A wildcard/routable bind fails closed, never exposing the surface (WR-02, D10-03)."""
+    for host in ("0.0.0.0", "::", "192.0.2.1", "localhost"):
+        with pytest.raises(ValueError):
+            make_server(host, 0, tmp_path / "checkpoints.db")
+
+
+def test_non_loopback_bind_requires_explicit_opt_in(tmp_path: Path) -> None:
+    """The only route to a non-loopback bind is the explicit opt-in flag (WR-02)."""
+    server = make_server(
+        "0.0.0.0", 0, tmp_path / "checkpoints.db", allow_non_loopback=True
+    )
+    try:
+        assert server.server_address[0] == "0.0.0.0"
+    finally:
+        server.server_close()
+
+
+def test_serve_refuses_a_non_loopback_host() -> None:
+    """``serve`` fails closed on a non-loopback host before binding (WR-02)."""
+    with pytest.raises(ValueError):
+        serve(host="0.0.0.0", port=0)
+
+
+def test_desk_command_refuses_a_non_loopback_host(tmp_path: Path) -> None:
+    """``main(['desk', '--host', '0.0.0.0', …])`` reports the refusal and exits non-zero (WR-02)."""
+    code = main(
+        ["desk", "--host", "0.0.0.0", "--port", "0", "--db", str(tmp_path / "c.db")]
+    )
+    assert code == 1
+
+
 def test_desk_entry_point_hardens_offline_before_serve(
     monkeypatch: Any, tmp_path: Path
 ) -> None:

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import html
+import ipaddress
 import string
 from collections.abc import Mapping
 from http import HTTPStatus
@@ -740,8 +741,41 @@ def _validation_message(exc: ValidationError) -> str:
     return f"{detail}. {_SCHEMA_HINT}"
 
 
-def make_server(host: str, port: int, db_path: str | Path) -> DeskServer:
-    """Construct the desk bridge bound to *host* (loopback only — D10-03) over *db_path*."""
+def _refuse_non_loopback(host: str) -> None:
+    """Fail closed on a non-loopback bind (D10-03).
+
+    The surface has no authentication and gates the approve-to-queue path, so a wildcard
+    or routable bind would expose patient vitals/complaints and the commit path to the
+    whole network. A host that is not a literal loopback address (including a name that
+    cannot be proven loopback) is refused; the caller must opt in explicitly to override.
+    """
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError as exc:
+        raise ValueError(
+            f"the desk surface binds loopback only (D10-03); refusing {host!r}"
+        ) from exc
+    if not address.is_loopback:
+        raise ValueError(
+            f"the desk surface binds loopback only (D10-03); refusing {host!r}"
+        )
+
+
+def make_server(
+    host: str,
+    port: int,
+    db_path: str | Path,
+    *,
+    allow_non_loopback: bool = False,
+) -> DeskServer:
+    """Construct the desk bridge bound to *host* (loopback only — D10-03) over *db_path*.
+
+    A non-loopback *host* is refused unless the caller passes ``allow_non_loopback=True``
+    explicitly — the surface is an unauthenticated local prototype, so binding a wildcard
+    is never the default (WR-02).
+    """
+    if not allow_non_loopback:
+        _refuse_non_loopback(host)
     server = DeskServer((host, port), DeskHandler)
     server.db_path = Path(db_path)
     return server
@@ -752,9 +786,15 @@ def serve(
     host: str = "127.0.0.1",
     port: int = 8765,
     db_path: str | Path = CHECKPOINTS_DB_PATH,
+    allow_non_loopback: bool = False,
 ) -> None:
-    """Serve the desk surface until interrupted (loopback only — D10-03)."""
-    make_server(host, port, db_path).serve_forever()
+    """Serve the desk surface until interrupted (loopback only — D10-03).
+
+    A non-loopback *host* is refused unless ``allow_non_loopback=True`` is passed (WR-02).
+    """
+    make_server(
+        host, port, db_path, allow_non_loopback=allow_non_loopback
+    ).serve_forever()
 
 
 __all__ = [
