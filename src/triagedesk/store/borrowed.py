@@ -280,12 +280,13 @@ class BorrowedStore:
 
         Additive and diagnostic: it demonstrates that ``db_info``, ``list_tables``,
         ``get_table_schema`` and ``read_records`` are actually reached through the
-        guarded seam. Every probe is individually wrapped so that ANY failure — an
-        unverified wire shape (the real ``mcp-sqlite@1.0.9`` arg shapes for
-        ``read_records``/``get_table_schema`` are unverified), a missing tool or a
+        guarded seam. Every probe is individually wrapped so that ANY failure at the
+        call — an unverified wire shape (the real ``mcp-sqlite@1.0.9`` arg shapes for
+        ``read_records``/``get_table_schema`` are unverified), a tool-call error or a
         decode error — is RECORDED as a degradation string and never raised: a shape
         mismatch must not crash the store-open path the demo, eval, resume and commit
-        all depend on (T-09-22).
+        all depend on (T-09-22). A tool *missing* from the injected mapping is refused
+        loudly by ``__init__`` (before this probe runs), so it is not a degraded path.
         """
         report: dict[str, Any] = {}
 
