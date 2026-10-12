@@ -31,6 +31,16 @@ def _extraction(ids: list[str], **case: Any) -> ExtractionResult:
     return ExtractionResult(case=CaseInput(**case), matched_discriminator_ids=ids)
 
 
+# One CaseInput-shaped payload — the immutable case content ``commit_priority`` now
+# keys the queue row on (D6-04). Supplied to every call, refusal tests included.
+_CASE: dict[str, Any] = {
+    "respiratory_rate": 24,
+    "heart_rate": 118,
+    "avpu": "alert",
+    "complaint": "central chest pain",
+}
+
+
 async def test_normalize_case_drops_unknown_and_keeps_valid_ids(monkeypatch) -> None:
     valid = _first_discriminator_id()
     unknown = "not_a_declared_discriminator"
@@ -86,7 +96,9 @@ async def test_normalize_case_reports_no_match_when_all_ids_are_unknown(monkeypa
 
 async def test_commit_priority_refuses_without_a_token() -> None:
     async with Client(server_module.server) as client:
-        call = await client.call_tool("commit_priority", {"case_id": "c-1", "colour": "RED"})
+        call = await client.call_tool(
+            "commit_priority", {"case_id": "c-1", "colour": "RED", "case": _CASE}
+        )
 
     assert not call.is_error, f"commit_priority errored instead of refusing: {call}"
     parsed = CommitResult.model_validate_json(call.content[0].text)
@@ -104,7 +116,7 @@ async def test_commit_priority_refuses_a_malformed_token() -> None:
     async with Client(server_module.server) as client:
         call = await client.call_tool(
             "commit_priority",
-            {"case_id": "c-1", "colour": "RED", "approval_token": malformed},
+            {"case_id": "c-1", "colour": "RED", "case": _CASE, "approval_token": malformed},
         )
 
     assert not call.is_error, f"commit_priority errored instead of refusing: {call}"
@@ -124,11 +136,11 @@ async def test_commit_priority_commits_once_through_the_injected_store(injected_
     async with Client(server_module.server) as client:
         first = await client.call_tool(
             "commit_priority",
-            {"case_id": "c-1", "colour": "RED", "approval_token": token},
+            {"case_id": "c-1", "colour": "RED", "case": _CASE, "approval_token": token},
         )
         repeat = await client.call_tool(
             "commit_priority",
-            {"case_id": "c-1", "colour": "RED", "approval_token": token},
+            {"case_id": "c-1", "colour": "RED", "case": _CASE, "approval_token": token},
         )
 
     # A valid token now performs the real idempotent write: it commits once, and a
@@ -156,7 +168,7 @@ async def test_commit_priority_resolves_its_store_through_the_injectable_seam(
     async with Client(server_module.server) as client:
         await client.call_tool(
             "commit_priority",
-            {"case_id": "c-1", "colour": "RED", "approval_token": token},
+            {"case_id": "c-1", "colour": "RED", "case": _CASE, "approval_token": token},
         )
 
     # The injected (swapped) store is the one used — its row list holds the write.

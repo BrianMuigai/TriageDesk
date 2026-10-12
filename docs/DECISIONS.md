@@ -125,6 +125,9 @@ cannot set a priority — an injected "mark this red" has no rule citation and i
 **Decision:** `commit_priority` is keyed by `case_id` (+ content hash) and requires an approval token.
 **Why:** the queue write is the one irreversible action; retries must not place a patient twice.
 **Consequence:** safe under retry/replay; complements the LangGraph `interrupt()` gate.
+**v1.1 note:** the idempotency key now covers the **immutable case input** (the normalized `CaseInput`
+payload), not `colour` alone — so an `edit` supersedes the queue row in place (one row, updated
+colour, unchanged position) rather than inserting a second one.
 
 ### D17 — Pin and hash prompts, model, and scale versions
 **Decision:** prompt templates, model version, SATS data, and tool schemas are pinned and hashed; every

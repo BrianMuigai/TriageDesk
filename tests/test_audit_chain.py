@@ -45,6 +45,16 @@ def _fields(**overrides: Any) -> dict[str, Any]:
     return base
 
 
+# One CaseInput-shaped payload — the immutable case content the commit now keys on
+# (D6-04). Shared so the key is meaningful wherever a case crosses into the tool.
+_CASE: dict[str, Any] = {
+    "respiratory_rate": 24,
+    "heart_rate": 118,
+    "avpu": "alert",
+    "complaint": "central chest pain",
+}
+
+
 # ------------------------------------------------------------------- Task 1: the helper
 
 
@@ -132,7 +142,9 @@ async def test_verify_on_an_empty_chain_is_valid(memory_store) -> None:
 
 async def test_reconcile_reports_a_queue_row_without_an_approval_record(memory_store) -> None:
     """A queue row with no matching approval audit record is detected (D-09, T-03-08)."""
-    await commit_to_queue(memory_store, case_id="c-1", colour="RED", content={"colour": "RED"})
+    await commit_to_queue(
+        memory_store, case_id="c-1", colour="RED", content=CaseInput(**_CASE)
+    )
 
     before = await reconcile(memory_store)
     assert before.ok is False
@@ -184,7 +196,9 @@ async def test_interceptor_appends_exactly_one_record_per_call(injected_store) -
 async def test_interceptor_records_a_refused_commit_as_refused(injected_store) -> None:
     """A refused commit is recorded as a clinician call that wrote nothing (AUDIT-01)."""
     async with Client(server_module.server) as client:
-        await client.call_tool("commit_priority", {"case_id": "c-1", "colour": "RED"})
+        await client.call_tool(
+            "commit_priority", {"case_id": "c-1", "colour": "RED", "case": _CASE}
+        )
 
     record = injected_store.audit_records[0]
     assert record.tool == COMMIT_TOOL
@@ -198,7 +212,7 @@ async def test_interceptor_records_the_named_approver_on_a_commit(injected_store
     async with Client(server_module.server) as client:
         await client.call_tool(
             "commit_priority",
-            {"case_id": "c-1", "colour": "RED", "approval_token": _token()},
+            {"case_id": "c-1", "colour": "RED", "case": _CASE, "approval_token": _token()},
         )
 
     record = injected_store.audit_records[0]
@@ -220,12 +234,7 @@ async def test_every_tool_call_appends_exactly_one_chained_record(
             case=CaseInput(respiratory_rate=24), matched_discriminator_ids=[]
         ),
     )
-    case = {
-        "respiratory_rate": 24,
-        "heart_rate": 118,
-        "avpu": "alert",
-        "complaint": "central chest pain",
-    }
+    case = _CASE
     async with Client(server_module.server) as client:
         await client.call_tool("normalize_case", {"raw_note": "RR 24"})
         await client.call_tool("score_priority", {"case": case})
@@ -233,7 +242,7 @@ async def test_every_tool_call_appends_exactly_one_chained_record(
         await client.call_tool("raise_recheck_flag", {"previous": case, "current": case})
         await client.call_tool(
             "commit_priority",
-            {"case_id": "c-1", "colour": "RED", "approval_token": _token()},
+            {"case_id": "c-1", "colour": "RED", "case": case, "approval_token": _token()},
         )
 
     records = injected_store.audit_records

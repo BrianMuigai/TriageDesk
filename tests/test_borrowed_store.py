@@ -138,7 +138,8 @@ async def test_upsert_queue_row_inserts_through_the_query_tool() -> None:
 
     name, arguments = fake.calls[-1]
     assert name == TOOL_QUERY
-    assert f"INSERT OR IGNORE INTO {QUEUE_TABLE}" in arguments["sql"]
+    assert f"INSERT INTO {QUEUE_TABLE}" in arguments["sql"]
+    assert "ON CONFLICT(case_id, content_hash) DO UPDATE" in arguments["sql"]
     assert arguments["values"][0] == "c-1"
     assert arguments["values"][1] == "abc123"
 

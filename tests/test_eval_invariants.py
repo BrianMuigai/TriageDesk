@@ -22,6 +22,7 @@ from pathlib import Path
 import yaml  # type: ignore[import-untyped]  # no PyYAML stubs pinned (dev-only, no new dep)
 
 from triagedesk.core.schema import (
+    CaseInput,
     CommitResult,
     Escalation,
     HandoverCard,
@@ -90,7 +91,12 @@ async def test_inv2_fails_on_an_unapproved_queue_row_and_passes_clean() -> None:
     """INV-2 fails on a queue row without its approval record, passes on a clean store."""
     dirty = InMemoryStore()
     # A queue row written WITHOUT its approval audit record — the window INV-2 closes.
-    await commit_to_queue(dirty, case_id="injected", colour="GREEN", content={"colour": "GREEN"})
+    await commit_to_queue(
+        dirty,
+        case_id="injected",
+        colour="GREEN",
+        content=CaseInput(respiratory_rate=24, heart_rate=118, complaint="central chest pain"),
+    )
     report = await evaluate(
         RunEvidence(
             case_id="E-01",
