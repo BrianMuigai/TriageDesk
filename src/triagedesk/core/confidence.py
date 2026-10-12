@@ -105,8 +105,13 @@ def _band_distance(tews: int) -> int:
 
     The band is the inclusive ``get_tews().tews_to_colour`` band containing *tews*,
     with a missing ``max`` treated as an open (unbounded) upper end. No band edge is
-    inlined (CONVENTIONS §1); a total outside every band is treated as maximally
-    distant so the case is not deferred merely for sitting outside the known bands.
+    inlined (CONVENTIONS §1).
+
+    The loop always returns for the loaded data: the top band is open-ended (its ``max``
+    is ``None``) and TEWS is a non-negative sum, so every value matches some band. The
+    fallback below is therefore UNREACHABLE today; it is retained (rather than left as an
+    implicit ``None``) purely as an explicit sentinel, so a future data edit that removed
+    the open-ended top band could not silently make this fall through.
     """
     for band in get_tews().tews_to_colour:
         high = band.max
@@ -115,6 +120,8 @@ def _band_distance(tews: int) -> int:
             if high is not None:
                 distance = min(distance, high - tews)
             return distance
+    # Unreachable with the loaded (open-ended top) bands — an explicit sentinel, not a
+    # negative-total handler.
     return _TEWS_BAND_EDGE_TOLERANCE + 1
 
 
