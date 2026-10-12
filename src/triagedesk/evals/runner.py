@@ -74,6 +74,10 @@ def _capture(result: Any, payload: dict[str, Any] | None) -> dict[str, Any]:
     recovery = result.get("recovery")
     escalation = result.get("escalation")
     second_look = result.get("second_look")
+    # The graph's OWN confidence channel (written by ``assess``) is read here — the runner
+    # never re-derives the signal (D8-08, T-08-08). ``None`` when the run short-circuited
+    # before ``assess`` (a recovery/abstention case that never reached the scored path).
+    confidence = result.get("confidence")
     if payload is not None:
         colour = payload.get("colour")
         citations = list(payload.get("citations") or [])
@@ -102,6 +106,7 @@ def _capture(result: Any, payload: dict[str, Any] | None) -> dict[str, Any]:
         "delivered": result.get("handover") is not None,
         "route": result.get("route"),
         "attempt": int(result.get("attempt") or 0),
+        "confidence": confidence.model_dump(mode="json") if confidence is not None else None,
     }
 
 
@@ -109,20 +114,27 @@ def _outcome(captured: dict[str, Any], expected: str) -> str | None:
     """Map one run's graph terminal state to a first-class outcome (EVALS §4).
 
     Precedence, reading the graph's own terminals — never a re-derived colour: a set
-    ``escalation`` -> ``ABSTAIN``; a set ``recovery`` -> ``RECOVER``; a set ``second_look``
-    flag for a case whose declared expectation is ``RECHECK`` -> ``RECHECK``; otherwise a
-    colour is recorded ONLY when the run DELIVERED a handover card through the gate. A run
-    that ended at ``END`` without a card (a fail-closed ``verify``) is the declared
-    :data:`ABORT_OUTCOME` — a card-less colour is never reported as a delivered terminal,
-    so it can never be counted as a pass (G-2, T-04-26).
+    ``second_look`` flag for a case whose declared expectation is ``RECHECK`` -> ``RECHECK``
+    (surfaced AHEAD of the escalation/recovery collapse: the deterministic deterioration
+    recheck must always run and a later confidence deferral must not demote a raised flag to a
+    bare ``ABSTAIN``); a set ``escalation`` -> ``ABSTAIN``; a set ``recovery`` -> ``RECOVER``;
+    otherwise a colour is recorded ONLY when the run DELIVERED a handover card through the
+    gate. A run that ended at ``END`` without a card (a fail-closed ``verify``) is the declared
+    :data:`ABORT_OUTCOME` — a card-less colour is never reported as a delivered terminal, so it
+    can never be counted as a pass (G-2, T-04-26).
+
+    The RECHECK precedence is a semantic, not a tuned exception: a ``second_look`` flag is only
+    ever set on a case that already passed ``verify``, so it can never coincide with the
+    ``out_of_scope``/``missing_vitals`` short-circuits; the only way an escalation and a raised
+    flag co-occur is a deferral on a ``RECHECK``-expected case (E-07).
     """
+    second_look = captured["second_look"]
+    if second_look is not None and second_look.get("flag") and expected == "RECHECK":
+        return "RECHECK"
     if captured["escalation"]:
         return "ABSTAIN"
     if captured["recovery"]:
         return "RECOVER"
-    second_look = captured["second_look"]
-    if second_look is not None and second_look.get("flag") and expected == "RECHECK":
-        return "RECHECK"
     colour: str | None = captured["colour"]
     if colour is not None and not captured["delivered"]:
         return ABORT_OUTCOME
@@ -220,6 +232,13 @@ def _build_gate(report_cases: list[ReportCase]) -> GateResult:
     invariant break is never excused by an expected accuracy miss); a case that failed
     accuracy or stability and is not the declared failure is an unexpected failure. The
     gate passes only when both lists are empty.
+
+    A **coverage deferral** is excluded from ``unexpected_failures`` ONLY when EVERY run was a
+    signal deferral (``all(d is True for d in case.deferrals)``): an abstention is reduced
+    coverage, not an answered-but-wrong run (D8-10). A case with a wrong colour — any
+    ``False``/``None`` deferral, or none at all — is NEVER excluded, so the exclusion cannot
+    mask a wrong colour (T-08-07). The exclusion is never silent: the moved cases are surfaced
+    in ``Analysis.deferral_cases``/``deferral_rate`` (Task 1).
     """
     violations = [
         GateViolation(
@@ -234,7 +253,9 @@ def _build_gate(report_cases: list[ReportCase]) -> GateResult:
     unexpected = [
         case.case_id
         for case in report_cases
-        if not case.passed and not case.declared_failure
+        if not case.passed
+        and not case.declared_failure
+        and not (case.deferrals and all(deferral is True for deferral in case.deferrals))
     ]
     return GateResult(
         passed=not violations and not unexpected,
@@ -281,6 +302,26 @@ async def _run_case(
     delivered = [captured["delivered"] for captured in captures]
     routes = [captured["route"] for captured in captures]
     attempts = [captured["attempt"] for captured in captures]
+    # The per-run coverage-signal facts, read straight from the graph's own confidence
+    # channel — never re-derived. ``None`` marks a run that short-circuited before ``assess``;
+    # a reached-but-non-deferring run is ``False`` (a literal ``or None`` would spuriously fold
+    # it into ``None`` and skew the rate), so the ternary is deliberate (D8-10).
+    confidence_levels = [
+        captured["confidence"]["level"] if captured["confidence"] is not None else None
+        for captured in captures
+    ]
+    deferrals = [
+        captured["confidence"]["deferral"] if captured["confidence"] is not None else None
+        for captured in captures
+    ]
+    confidence_satisfied = [
+        (
+            sum(1 for component in captured["confidence"]["components"] if component["satisfied"])
+            if captured["confidence"] is not None
+            else None
+        )
+        for captured in captures
+    ]
 
     colour_stable = len(set(colours)) == 1
     matched_set_stable = len({tuple(ids) for ids in matched}) == 1
@@ -317,6 +358,10 @@ async def _run_case(
         tokens_in=tokens_in,
         tokens_out=tokens_out,
         declared_failure=case.declared_failure,
+        held_out=case.held_out,
+        confidence_levels=confidence_levels,
+        deferrals=deferrals,
+        confidence_satisfied=confidence_satisfied,
     )
 
 

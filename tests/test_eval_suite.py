@@ -88,14 +88,18 @@ def test_all_declared_and_held_out_cases_load() -> None:
 async def test_exactly_one_declared_failure_is_recorded_failing(
     suite: tuple[int, Report, InMemoryStore],
 ) -> None:
-    """E-09 is the sole declared failure and the run records it failing (D-04)."""
-    code, report, _ = suite
+    """E-09 is the sole declared failure, records a terminal deferral, and fails (D-04)."""
+    code, report, store = suite
     declared = [case.id for case in load_cases(CASES_DIR) if case.declared_failure]
     assert declared == ["E-09"], f"unexpected declared failures: {declared}"
 
     e09 = _report_case(report, "E-09")
     assert e09.declared_failure is True
     assert e09.passed is False, "the declared failure was silently passed"
+    # Under D8-11 E-09 defers to a terminal — a recorded deferral, not a delivered colour.
+    assert e09.outcomes == ["ABSTAIN"] * 3, "the no_match deferral did not fire for E-09"
+    assert e09.deferrals == [True, True, True]
+    assert store.rows == [], "the deferred declared failure wrote a queue row"
     # Only the declared failure misses, so the run must exit 0 (EVAL honesty).
     assert code == 0
 
@@ -143,12 +147,53 @@ async def test_terminal_outcomes_are_first_class_and_write_no_queue_row(
 
     assert _report_case(report, "E-05").outcomes == ["RECOVER"] * 3
     assert _report_case(report, "E-06").outcomes == ["ABSTAIN"] * 3
+    # E-07 keeps its deterministic RECHECK outcome AND is a coverage deferral (dual nature).
     assert _report_case(report, "E-07").outcomes == ["RECHECK"] * 3
+    assert _report_case(report, "E-07").deferrals == [True, True, True]
     assert _report_case(report, "E-12").outcomes == ["RECOVER"] * 3
 
     assert store.rows == [], "a recovery/abstention/recheck case wrote a queue row"
-    # T-04-09: the E-12 injected fault did not leak — a non-injected case still passes.
-    assert _report_case(report, "E-01").passed is True
+
+    # E-01 is now a COVERAGE DEFERRAL: the no_match override denies it the gate, so it must be
+    # reported as a deferral (surfaced in ``deferral_cases``), never silently excused (D8-11).
+    e01 = _report_case(report, "E-01")
+    assert e01.outcomes == ["ABSTAIN"] * 3
+    assert e01.deferrals == [True, True, True]
+    assert e01.passed is False
+
+    # The gate's exclusion can never be silent: every moved non-declared case is surfaced.
+    assert {"E-01", "E-08", "E-13", "E-14"} <= set(report.analysis.deferral_cases)
+
+
+# ----------------------------- 5b. the deferral-aware gate never masks a wrong colour
+
+
+def test_deferral_gate_excludes_a_covered_run_but_never_a_wrong_colour() -> None:
+    """An all-deferred case is excluded from ``unexpected_failures``; a wrong colour is not."""
+    from triagedesk.evals.runner import _build_gate
+
+    def case(case_id: str, deferrals: list[bool | None]) -> ReportCase:
+        return ReportCase(
+            case_id=case_id,
+            expected="GREEN",
+            runs=len(deferrals),
+            outcomes=["ABSTAIN"] * len(deferrals),
+            invariants={"INV-1": True, "INV-2": True, "INV-3": True, "INV-4": True},
+            invariants_pass=True,
+            passed=False,
+            deferrals=deferrals,
+        )
+
+    gate = _build_gate(
+        [
+            case("covered", [True, True, True]),
+            case("wrong", [False, False, False]),
+            case("partial", [True, False, True]),
+        ]
+    )
+    assert "covered" not in gate.unexpected_failures
+    assert "wrong" in gate.unexpected_failures
+    assert "partial" in gate.unexpected_failures, "a partially-deferred case was excused"
 
 
 # -------------------------------------- 6. the injected fault exercises the real retry
