@@ -32,7 +32,7 @@ from triagedesk.evals.tools import ToolMap, build_tools
 from triagedesk.evals.usage import UsageRecorder
 from triagedesk.graph.build import CHECKPOINTS_DB_PATH, build_graph
 from triagedesk.mcp import server as server_module
-from triagedesk.store import Store, default_store
+from triagedesk.store import Store
 from triagedesk.store.memory import InMemoryStore
 
 # The demo manifest and its default fixture directory, named once so the CLI and the
@@ -213,9 +213,12 @@ async def _run_durable(
     beat = selected[0]
     case = cases[beat.case]
     resume_db = Path(db_path) if db_path is not None else CHECKPOINTS_DB_PATH
-    # ``--durable`` resolves the real store seam so the queue row survives the restart
-    # (D6-14); a test injects the in-memory double so no borrowed subprocess is launched.
-    resolved_store = store if store is not None else await default_store()
+    # ``--durable`` resolves its store through the ONE seam (``mcp.server._resolve_store``),
+    # so an already-injected store is honoured and the default falls through to the borrowed
+    # factory only when nothing is injected — the queue row still survives the restart
+    # (D6-14, D-13, SOLID: D). A test injects the in-memory double so no borrowed
+    # subprocess is launched; a second resolver here would be a duplicate seam.
+    resolved_store = store if store is not None else await server_module._resolve_store()
     tools = build_tools(case, offline=offline, recorder=UsageRecorder())
     server_module.set_store(resolved_store)
     try:

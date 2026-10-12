@@ -8,7 +8,9 @@ Proves the two-command durability story's CLI wiring through the PUBLIC ``main``
   (the absent-thread check runs before the graph is invoked);
 * ``resume --decision approve`` without ``--approver`` exits non-zero naming the flag;
 * ``demo --durable`` runs one case to the gate, prints exactly one ``thread_id=`` line and
-  one ``resume`` command line, and does NOT auto-resume (no outcome block, no queue row).
+  one ``resume`` command line, and does NOT auto-resume (no outcome block, no queue row);
+* ``demo --durable`` without ``store=`` resolves the INJECTED store seam, so it uses an
+  injected double rather than launching the borrowed ``npx mcp-sqlite`` subprocess (WR-01).
 
 The store double is the shared ``triagedesk.store.memory.InMemoryStore`` and the absent
 thread is patched through the ONE borrowed-store factory seam, so the suite launches no
@@ -129,3 +131,37 @@ async def test_durable_demo_pauses_and_prints_one_thread_id_line(
     assert len([line for line in out.splitlines() if "uv run triagedesk resume" in line]) == 1
     assert "--- outcome ---" not in out
     assert store.rows == [], "the durable demo auto-resumed and wrote a queue row"
+
+
+async def test_durable_demo_resolves_the_injected_store_seam(
+    tmp_path: Path,
+    injected_store,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``demo --durable`` (no ``store=``) uses the INJECTED seam, not the borrowed default (WR-01).
+
+    The durable path must resolve its store through the ONE seam
+    (``mcp.server._resolve_store``); running with no explicit ``store=`` must still honour a
+    store injected via ``set_store`` so the suite never launches ``npx mcp-sqlite``. Before the
+    fix this test fails: ``_run_durable`` called the borrowed factory directly, launching the
+    subprocess and leaving the injected store untouched.
+    """
+    launched: list[object] = []
+
+    def spy(*args: object, **kwargs: object) -> object:
+        launched.append((args, kwargs))
+        raise AssertionError("the durable demo launched the borrowed store")
+
+    monkeypatch.setattr("triagedesk.store.borrowed.open_borrowed_store", spy)
+
+    code = await run_demo(
+        beats=["escalation"],
+        durable=True,
+        db_path=tmp_path / "checkpoints.db",
+    )
+
+    assert code == 0
+    assert launched == [], "the durable demo bypassed the injected store seam"
+    assert (
+        injected_store.audit_records
+    ), "the injected store was not used by the durable demo"
