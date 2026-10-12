@@ -213,3 +213,36 @@ def test_resume_refused_edit_prints_reason_and_exits_nonzero(
     err = capsys.readouterr().err
     assert "refusing to commit" in err, "the gate's refusal reason was not printed"
     assert injected_store.rows == [], "a refused edit wrote a queue row"
+
+
+def test_resume_reports_an_unexpected_failure_cleanly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A non-``DurableError`` failure is reported cleanly with exit 1, not a traceback (WR-04).
+
+    The resume path lazily opens the borrowed store (or reads the checkpointer) and can fail
+    with a ``RuntimeError``/``sqlite3.Error`` rather than a ``DurableError``; the CLI must
+    report that message with a non-zero exit instead of propagating a stack trace.
+    """
+
+    async def boom(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("Client failed to connect")
+
+    monkeypatch.setattr("triagedesk.cli.resume_thread", boom)
+
+    code = main(
+        [
+            "resume",
+            "--thread-id",
+            "x",
+            "--decision",
+            "dismiss",
+            "--db",
+            str(tmp_path / "checkpoints.db"),
+        ]
+    )
+
+    assert code == 1
+    err = capsys.readouterr().err
+    assert "Client failed to connect" in err
+    assert "Traceback" not in err

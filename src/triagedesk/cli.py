@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import sqlite3
 import sys
 
 from triagedesk.demo.run import list_beats, run_demo
@@ -161,7 +162,11 @@ def main(argv: list[str] | None = None) -> int:
                     db_path=args.db or CHECKPOINTS_DB_PATH,
                 )
             )
-        except DurableError as exc:
+        except (DurableError, RuntimeError, sqlite3.Error, ExceptionGroup) as exc:
+            # ``DurableError`` is a ``RuntimeError``; the borrowed store and the SQLite
+            # checkpointer surface as ``RuntimeError`` (sometimes wrapped in an
+            # ``ExceptionGroup``) or ``sqlite3.Error``. A clinical CLI reports the failure
+            # cleanly with a non-zero exit rather than a raw traceback (WR-04).
             print(str(exc), file=sys.stderr)
             return 1
         # Surface the gate's outcome so a refused approve/edit is never mistaken for a
