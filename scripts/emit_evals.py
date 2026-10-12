@@ -13,6 +13,9 @@ What the generator writes (and nothing else):
 * the §4 per-case ``Runs (3×)`` and ``Result`` cells — an all-deferred failing case renders
   the deferral marker, never a bare failure (a coverage deferral is reduced coverage);
 * the §5 invariant ``Result`` cells;
+* the §6.1 coverage-deferral record — the moved case ids, the deferral fraction and the
+  recorded unfixed gate failures, all DERIVED from the report so the narrative stays true
+  whatever the run produces (never a hand-typed case list);
 * a generated source line naming the report and its ``report_digest`` so each figure is
   traceable to the raw artefact.
 
@@ -30,7 +33,7 @@ from pathlib import Path
 
 from triagedesk.evals.analysis import analyse
 from triagedesk.evals.invariants import INV_1, INVARIANT_IDS
-from triagedesk.evals.report import Analysis, Report, compute_report_digest
+from triagedesk.evals.report import Analysis, Report, ReportCase, compute_report_digest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REPORT = REPO_ROOT / "evals" / "results" / "report.json"
@@ -39,6 +42,12 @@ DEFAULT_EVALS = REPO_ROOT / "EVALS.md"
 # The generated source block, fenced by stable markers so a re-run replaces it in place.
 _BEGIN = "<!-- BEGIN GENERATED: source -->"
 _END = "<!-- END GENERATED: source -->"
+
+# The generated §6.1 coverage-deferral record. Fenced so a re-run replaces it in place;
+# anchored on the §6.1 heading so it can be inserted when first absent.
+_DEFERRAL_BEGIN = "<!-- BEGIN GENERATED: deferrals -->"
+_DEFERRAL_END = "<!-- END GENERATED: deferrals -->"
+_DEFERRAL_ANCHOR = "### 6.1 Coverage deferrals"
 
 _PASS = "\u2705"  # ✅
 _FAIL = "\u274c"  # ❌
@@ -142,6 +151,20 @@ def _render_metrics_table(lines: list[str], report: Report, analysis: Analysis) 
     return lines[:start] + rows + lines[end:]
 
 
+def _shows_deferral_marker(case: ReportCase) -> bool:
+    """True when *case* is a coverage deferral that missed its expected outcome.
+
+    The ONE predicate behind both the §4 result cell and the §6.1 record (DRY): an
+    all-deferred FAILING case reads as reduced coverage, not a wrong answer (D8-11,
+    D8-16). A case that passed keeps its ``✅`` — deferring is not itself a failure.
+    """
+    return (
+        not case.passed
+        and bool(case.deferrals)
+        and all(deferral is True for deferral in case.deferrals)
+    )
+
+
 def _render_case_table(lines: list[str], report: Report) -> list[str]:
     """Fill the §4 per-case ``Runs (3×)`` and ``Result`` cells from the report."""
     start = _find_table(lines, ["#", "Case"])
@@ -159,13 +182,9 @@ def _render_case_table(lines: list[str], report: Report) -> list[str]:
         case = by_id.get(cells[0])
         if case is not None:
             cells[runs_index] = str(report.runs)
-            if (
-                not case.passed
-                and case.deferrals
-                and all(deferral is True for deferral in case.deferrals)
-            ):
-                # An all-deferred FAILING case reads as a coverage deferral, not a wrong answer.
-                # A case that passed (E-07's RECHECK) keeps its ✅ — the deferral is not a failure.
+            # An all-deferred FAILING case reads as a coverage deferral, not a wrong answer;
+            # a passed case (e.g. an offline RECHECK) keeps its ✅ (D8-11, T-08-10).
+            if _shows_deferral_marker(case):
                 cells[result_index] = _DEFERRAL
             else:
                 cells[result_index] = _PASS if case.passed else _FAIL
@@ -211,6 +230,42 @@ def _render_source_block(lines: list[str], report: Report) -> list[str]:
     return lines[:end] + [""] + body + lines[end:]
 
 
+def _render_deferral_block(lines: list[str], report: Report, analysis: Analysis) -> list[str]:
+    """Insert (or refresh) the §6.1 derived coverage-deferral record.
+
+    Every fact is DERIVED from the report — the moved case ids from the same predicate the
+    §4 table uses, the deferral fraction from the analyser, and the recorded unfixed gate
+    failures from ``report.gate`` — so the narrative cannot drift from what was measured and
+    no case list is ever hand-typed (D8-11, D8-14, D8-16). A case that reached a terminal
+    before the confidence check simply never appears here: it carries no deferral fact.
+    """
+    marker_cases = [case.case_id for case in report.cases if _shows_deferral_marker(case)]
+    failed = list(report.gate.unexpected_failures)
+    body = [
+        _DEFERRAL_BEGIN,
+        f"> **Measured coverage deferrals:** {analysis.deferral_count}/"
+        f"{analysis.deferral_runs} reached-assess runs deferred. Moved cases rendering the "
+        f"§4 `{_DEFERRAL}` marker: `{', '.join(marker_cases) or 'none'}`.",
+    ]
+    if failed:
+        body.append(
+            "> Recorded, unfixed gate failures (this phase does not fix them): "
+            f"`{', '.join(failed)}`."
+        )
+    body.append(_DEFERRAL_END)
+    if _DEFERRAL_BEGIN in lines:
+        start = lines.index(_DEFERRAL_BEGIN)
+        end = lines.index(_DEFERRAL_END)
+        return lines[:start] + body + lines[end + 1 :]
+    anchor = next(
+        (index for index, line in enumerate(lines) if line.startswith(_DEFERRAL_ANCHOR)),
+        None,
+    )
+    if anchor is None:
+        return lines
+    return lines[: anchor + 1] + [""] + body + lines[anchor + 1 :]
+
+
 def render_evals(template: str, report: Report) -> str:
     """Render *template* (the current ``EVALS.md``) with the report's measured cells.
 
@@ -224,6 +279,7 @@ def render_evals(template: str, report: Report) -> str:
     lines = _render_source_block(lines, report)
     lines = _render_case_table(lines, report)
     lines = _render_invariant_table(lines, report)
+    lines = _render_deferral_block(lines, report, analysis)
     return "\n".join(lines) + "\n"
 
 

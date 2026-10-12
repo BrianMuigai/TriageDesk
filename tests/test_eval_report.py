@@ -98,6 +98,12 @@ _TEMPLATE = """# EVALS — test fixture
 | INV-2 | check | TBD |
 | INV-3 | check | TBD |
 | INV-4 | check | TBD |
+
+## 6. The failure we did not fix
+
+### 6.1 Coverage deferrals — the `no_match` class now defers
+
+Hand-written prose (preserved verbatim by the generator).
 """
 
 
@@ -425,3 +431,34 @@ def test_generator_renders_a_coverage_deferral_as_a_marker_not_a_failure() -> No
 
     assert _cell(output, "| E-01 ", -2) == "\u23f8 deferral", "a deferral read as a wrong answer"
     assert _cell(output, "| E-09 ", -2) == "\u274c", "a non-deferred failure stopped showing ❌"
+
+
+def test_generator_derives_the_section_6_deferral_record_from_the_report() -> None:
+    """The §6.1 record names the DERIVED moved cases and gate failures — never a hand-typed list.
+
+    A case that reaches a terminal before the confidence check carries no deferral fact, so it
+    must NOT be named however the report turned out (D8-11, D8-14, D8-16).
+    """
+    report = _report(
+        [
+            _report_case("D-1", "GREEN", ["ABSTAIN"] * 3, deferrals=[True] * 3, passed=False),
+            _report_case("D-2", "GREEN", ["GREEN"] * 3, deferrals=[False] * 3),
+        ]
+    )
+    report = report.model_copy(
+        update={"gate": GateResult(passed=False, unexpected_failures=["D-2"])}
+    )
+    sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
+    output = _EMIT.render_evals(_TEMPLATE, sealed)
+
+    marker_line = output.split("Moved cases")[1].splitlines()[0]
+    assert "`D-1`" in marker_line, "the moved deferral case was not named from the report"
+    assert "D-2" not in marker_line, "a non-deferred case was mis-labelled as a deferral"
+    assert "3/6 reached-assess runs deferred" in output
+    # The recorded gate failures are derived from the report's gate, not hard-typed.
+    assert "Recorded, unfixed gate failures (this phase does not fix them): `D-2`." in output
+
+    # The block is replaced in place, never duplicated (the generator is idempotent).
+    again = _EMIT.render_evals(output, sealed)
+    assert again == output
+    assert output.count("<!-- BEGIN GENERATED: deferrals -->") == 1
