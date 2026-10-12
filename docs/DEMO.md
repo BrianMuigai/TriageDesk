@@ -69,14 +69,19 @@ hash of the note, so a reviewer can recompute it by hand and it is the same id f
 uv run triagedesk resume --thread-id <content-id> --decision approve --approver "Nurse Demo" --role "triage nurse"
 ```
 
-The gate refuses a dismissal — it writes no queue row (the durable analogue of the refusal beat).
-Dismiss a **pending** thread (a fresh pause on a throwaway checkpoint file, so the refusal is shown
-rather than a completed case):
+`resume` prints the gate's outcome — the committed row, or the gate's own refusal reason — so an
+operator can tell a commit from a refusal. The gate refuses a dismissal and writes no queue row (the
+durable analogue of the refusal beat). Dismiss a **pending** thread (a fresh pause on a throwaway
+checkpoint file, so the refusal is shown rather than a completed case):
 
 ```bash
 uv run triagedesk demo --durable --beat escalation --db /tmp/durable-dismiss.db
 uv run triagedesk resume --thread-id <content-id> --decision dismiss --db /tmp/durable-dismiss.db
 ```
+
+The second command prints `clinician dismissed the priority; refusing to commit` — the gate's own
+reason — and writes no queue row. A `dismiss` is a legitimate refusal and exits `0`; an `approve` or
+`edit` the gate refuses exits non-zero, so a refusal is never mistaken for a commit.
 
 `resume --decision approve|edit` needs `--approver` and `--role` (the gate refuses a fabricated
 identity); a `dismiss` needs neither. Resuming a thread that has no pending gate exits non-zero naming
