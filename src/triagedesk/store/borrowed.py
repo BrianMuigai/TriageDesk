@@ -11,12 +11,20 @@ configuration change (SOLID: O), not scattered string literals. :class:`Borrowed
 implements the :class:`~triagedesk.store.Store` protocol over an injected
 ``name -> async callable`` tool mapping, so a World-B swap replaces this module alone
 (SOLID: L) and the wiring is unit-testable without launching the borrowed subprocess.
+
+The adapter is **read-only on the agent path** (D9-11, D9-12, D9-13): the single
+dispatch seam (:meth:`BorrowedStore._call`) enforces a tool allowlist
+(:data:`READ_TOOLS`) and a fail-closed statement guard
+(:func:`is_read_only_statement`), so the borrowed read paths (``db_info``,
+``list_tables``, ``get_table_schema``, ``read_records``) are genuinely used behind the
+unchanged :class:`Store` protocol while a mutation can only be issued by the gated
+commit's parameterised ``query`` writes (``write=True``).
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, cast
 
@@ -45,6 +53,26 @@ EXPECTED_TOOLS: tuple[str, ...] = (
     TOOL_UPDATE_RECORDS,
     TOOL_DELETE_RECORDS,
 )
+
+# The read-only tool allowlist the agent path may reach (D9-12). The three mutating
+# record tools (``create_record``, ``update_records``, ``delete_records``) are
+# deliberately EXCLUDED, so no caller can name them through the guarded seam; the
+# queue/audit writes go through the gated commit's parameterised ``query`` statements
+# instead (D9-13). Declared once here as the ONE allowlist.
+READ_TOOLS: tuple[str, ...] = (
+    TOOL_DB_INFO,
+    TOOL_QUERY,
+    TOOL_LIST_TABLES,
+    TOOL_GET_TABLE_SCHEMA,
+    TOOL_READ_RECORDS,
+)
+
+# The leading keywords a read-only statement may carry; anything else is refused
+# (fail closed). Named once so the classifier and its tests share one source.
+_READ_PREFIXES = ("SELECT", "PRAGMA", "EXPLAIN", "WITH", "VALUES")
+# The bounded row count the read-path probe requests (one row is enough to prove the
+# path, and it keeps the probe's payload small).
+_PROBE_LIMIT = 1
 
 # The two domain tables the borrowed server owns (D-09: clinical record, not runtime).
 QUEUE_TABLE = "queue"
@@ -114,6 +142,18 @@ _AUDIT_HEAD_DDL = (
 _ROW_KEYS = ("rows", "records", "results", "data")
 
 
+def is_read_only_statement(sql: str) -> bool:
+    """Return whether *sql* is a read-only statement, failing closed (D9-12).
+
+    The classifier looks only at the leading keyword of the left-stripped statement
+    and **never executes** it; anything not recognised as a read — including an empty
+    or whitespace-only statement — is not a read. It is a second, independent barrier
+    beside the allowlist (T-09-20/T-09-23).
+    """
+    head = sql.strip().split(None, 1)[0].upper() if sql.strip() else ""
+    return head in _READ_PREFIXES
+
+
 def _rows(payload: Any) -> list[dict[str, Any]]:
     """Decode a borrowed tool's row payload into a list of dicts.
 
@@ -161,22 +201,106 @@ class BorrowedStore:
         if missing:
             raise ValueError(f"borrowed server is missing required tools: {missing}")
         self._tools = dict(tools)
+        # The read-path depth report, filled by ``ensure_schema`` (D9-11/D9-14): the
+        # evidence that the borrowed read tools are USED, not merely declared.
+        self.read_path_report: dict[str, Any] = {}
 
-    async def _call(self, name: str, arguments: Mapping[str, Any]) -> Any:
-        """Invoke one borrowed tool through the injected mapping (D-13)."""
+    async def _call(
+        self, name: str, arguments: Mapping[str, Any], *, write: bool = False
+    ) -> Any:
+        """Invoke one borrowed tool through the injected mapping (D-13).
+
+        This is the ONE read-only enforcement point (D9-12): a tool name outside
+        :data:`READ_TOOLS` is refused, and a ``query`` statement that is not a read is
+        refused unless the caller passes ``write=True``. Both refusals happen before
+        ``self._tools`` is dereferenced, so a refused call provably reaches no borrowed
+        server. ``write=True`` is reserved for the schema-bootstrap DDL and the gated
+        commit's writes (D9-13) — the agent path cannot reach them.
+        """
+        if name not in READ_TOOLS:
+            raise ValueError(f"borrowed tool {name!r} is not in the read-only allowlist")
+        if name == TOOL_QUERY and not write:
+            statement = str(arguments.get("sql", ""))
+            if not is_read_only_statement(statement):
+                raise ValueError(
+                    "refusing a non-read statement on the read-only path: "
+                    f"{statement.strip()[:60]!r}"
+                )
         return await self._tools[name](dict(arguments))
 
     async def ensure_schema(self) -> None:
         """Create the case/queue and audit tables if absent, via the borrowed ``query`` tool."""
-        await self._call(TOOL_QUERY, {"sql": _QUEUE_DDL})
-        await self._call(TOOL_QUERY, {"sql": _CASES_DDL})
-        await self._call(TOOL_QUERY, {"sql": _AUDIT_DDL})
-        await self._call(TOOL_QUERY, {"sql": _AUDIT_HEAD_DDL})
+        await self._call(TOOL_QUERY, {"sql": _QUEUE_DDL}, write=True)
+        await self._call(TOOL_QUERY, {"sql": _CASES_DDL}, write=True)
+        await self._call(TOOL_QUERY, {"sql": _AUDIT_DDL}, write=True)
+        await self._call(TOOL_QUERY, {"sql": _AUDIT_HEAD_DDL}, write=True)
+        # The column-existence check stays on the verified ``PRAGMA table_info`` read;
+        # ``get_table_schema`` is used additively by the probe only (RESEARCH Pitfall 3).
         columns = _rows(
             await self._call(TOOL_QUERY, {"sql": f"PRAGMA table_info({AUDIT_TABLE})"})
         )
         if not any(str(column.get("name")) == "trace_id" for column in columns):
-            await self._call(TOOL_QUERY, {"sql": _AUDIT_TRACE_ID_MIGRATION})
+            await self._call(TOOL_QUERY, {"sql": _AUDIT_TRACE_ID_MIGRATION}, write=True)
+        self.read_path_report = await self._probe_read_paths()
+
+    async def _probe_read_paths(self) -> dict[str, Any]:
+        """Exercise the borrowed read tools and return a per-tool report (D9-11/D9-14).
+
+        Additive and diagnostic: it demonstrates that ``db_info``, ``list_tables``,
+        ``get_table_schema`` and ``read_records`` are actually reached through the
+        guarded seam. Every probe is individually wrapped so that ANY failure — an
+        unverified wire shape (the real ``mcp-sqlite@1.0.9`` arg shapes for
+        ``read_records``/``get_table_schema`` are unverified), a missing tool or a
+        decode error — is RECORDED as a degradation string and never raised: a shape
+        mismatch must not crash the store-open path the demo, eval, resume and commit
+        all depend on (T-09-22).
+        """
+        report: dict[str, Any] = {}
+
+        def reads_as_rows(payload: Any) -> bool:
+            """True when *payload* carries rows — an empty rowset is valid (D9-14)."""
+            if payload is None or isinstance(payload, bool | int | float):
+                return False
+            if isinstance(payload, str):
+                try:
+                    json.loads(payload)
+                except json.JSONDecodeError:
+                    return False
+            return isinstance(_rows(payload), list)
+
+        async def probe(
+            name: str, arguments: Mapping[str, Any], accepts: Callable[[Any], bool]
+        ) -> None:
+            try:
+                payload = await self._call(name, arguments)
+            except Exception as exc:  # noqa: BLE001 — recorded, never raised (T-09-22)
+                report[name] = f"degraded: {type(exc).__name__}: {exc}"
+                return
+            report[name] = (
+                "ok"
+                if accepts(payload)
+                else f"degraded: unexpected {type(payload).__name__} payload"
+            )
+
+        await probe(TOOL_DB_INFO, {}, lambda payload: isinstance(payload, Mapping))
+        await probe(
+            TOOL_LIST_TABLES,
+            {},
+            lambda payload: isinstance(payload, Sequence)
+            and not isinstance(payload, str)
+            and QUEUE_TABLE in payload,
+        )
+        await probe(
+            TOOL_GET_TABLE_SCHEMA,
+            {"tableName": QUEUE_TABLE},
+            lambda payload: payload is not None,
+        )
+        await probe(
+            TOOL_READ_RECORDS,
+            {"table": QUEUE_TABLE, "limit": _PROBE_LIMIT},
+            reads_as_rows,
+        )
+        return report
 
     async def read_queue_row(self, case_id: str, content_hash: str) -> QueueRow | None:
         """Return the row for the idempotency key, or ``None`` (borrowed ``query``)."""
@@ -237,6 +361,7 @@ class BorrowedStore:
                     row.created_at.isoformat(),
                 ],
             },
+            write=True,
         )
 
     async def read_case(self, case_id: str) -> CaseRow | None:
@@ -291,6 +416,7 @@ class BorrowedStore:
                 ),
                 "values": [head],
             },
+            write=True,
         )
 
     async def append_audit_record(self, record: AuditRecord) -> None:
@@ -318,6 +444,7 @@ class BorrowedStore:
                     record.hash,
                 ],
             },
+            write=True,
         )
 
     async def read_audit_records(self) -> list[AuditRecord]:
@@ -367,6 +494,8 @@ __all__ = [
     "CASES_TABLE",
     "EXPECTED_TOOLS",
     "QUEUE_TABLE",
+    "READ_TOOLS",
     "BorrowedStore",
+    "is_read_only_statement",
     "open_borrowed_store",
 ]
