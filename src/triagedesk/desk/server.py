@@ -104,14 +104,18 @@ def form_to_case(form: Mapping[str, str]) -> CaseInput:
     An absent or empty optional numeric/enum field maps to ``None`` (never ``""`` or ``0``);
     an absent ``trauma`` checkbox maps to ``None`` (never ``False``); ``age_ambiguous``
     defaults to ``False``; ``complaint`` defaults to ``""``. Validation is the ONE
-    ``CaseInput.model_validate`` — the schema is the only validation rule, so a
-    :class:`pydantic.ValidationError` propagates to the handler to be rendered beside the
-    field.
+    ``CaseInput.model_validate`` — the schema is the only validation *and coercion* rule. A
+    numeric field's raw string is handed to the schema as-is (no ``int()``/``float()``
+    pre-cast here), so a browser-reachable value the schema rejects (e.g. ``1e2`` in a
+    ``type=number`` field) yields the schema's own :class:`pydantic.ValidationError` — which
+    the handler renders beside the field — rather than a bare ``ValueError`` escaping the
+    request handler.
     """
 
-    def _number(key: str, cast: Any) -> Any:
+    def _number(key: str) -> Any:
+        """Pass the raw string through; the ONE schema coerces and validates it (D10-13)."""
         raw = str(form.get(key, "")).strip()
-        return cast(raw) if raw else None
+        return raw or None
 
     def _choice(key: str) -> str | None:
         raw = str(form.get(key, "")).strip()
@@ -123,16 +127,16 @@ def form_to_case(form: Mapping[str, str]) -> CaseInput:
         return str(form[key]).strip().lower() in _TRUTHY
 
     payload: dict[str, Any] = {
-        "age_years": _number("age_years", int),
-        "age_months": _number("age_months", int),
+        "age_years": _number("age_years"),
+        "age_months": _number("age_months"),
         "age_ambiguous": str(form.get("age_ambiguous", "")).strip().lower() in _TRUTHY,
-        "height_cm": _number("height_cm", float),
-        "respiratory_rate": _number("respiratory_rate", int),
-        "heart_rate": _number("heart_rate", int),
-        "systolic_bp": _number("systolic_bp", int),
-        "diastolic_bp": _number("diastolic_bp", int),
-        "temperature_c": _number("temperature_c", float),
-        "spo2": _number("spo2", int),
+        "height_cm": _number("height_cm"),
+        "respiratory_rate": _number("respiratory_rate"),
+        "heart_rate": _number("heart_rate"),
+        "systolic_bp": _number("systolic_bp"),
+        "diastolic_bp": _number("diastolic_bp"),
+        "temperature_c": _number("temperature_c"),
+        "spo2": _number("spo2"),
         "mobility": _choice("mobility"),
         "avpu": _choice("avpu"),
         "trauma": _optional_flag("trauma"),
@@ -691,6 +695,10 @@ class DeskHandler(BaseHTTPRequestHandler):
             case = form_to_case(form)
         except ValidationError as exc:
             return render_state(error=_validation_message(exc), form_values=form)
+        except (TypeError, ValueError):
+            # Defence in depth: any coercion failure that somehow bypassed the schema's own
+            # validator is still reported, never an approve (the surface's stated contract).
+            return render_state(error=_FAILURE_COPY, form_values=form)
         try:
             paused = asyncio.run(submit_case(case, self.server.db_path))
         except Exception:  # noqa: BLE001 - any failure is reported, never an approve

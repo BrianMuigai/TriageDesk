@@ -34,6 +34,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import pytest
+from pydantic import ValidationError
+
 from conftest import COMPLETE_CASE, imported_modules
 from triagedesk.cli import main
 from triagedesk.core import matcher, retrieval, scorer
@@ -48,7 +51,13 @@ from triagedesk.core.schema import (
     RecoveryRequest,
 )
 from triagedesk.desk import server as desk_server
-from triagedesk.desk.server import decide, make_server, serve, submit_case
+from triagedesk.desk.server import (
+    decide,
+    form_to_case,
+    make_server,
+    serve,
+    submit_case,
+)
 from triagedesk.durable import PausedRun
 from triagedesk.evals.case import CaseSpec, load_cases
 from triagedesk.evals.invariants import prohibited_tokens
@@ -231,6 +240,53 @@ def test_out_of_range_vital_renders_the_schema_message(
         assert "Check the highlighted field and try again." in body
         assert "Suggested priority" not in body
         assert injected_store.rows == []
+
+
+def test_form_to_case_routes_a_bad_numeric_through_the_schema() -> None:
+    """``form_to_case`` never pre-casts: a bad numeric is a ``ValidationError`` (CR-01).
+
+    A bare ``int()``/``float()`` pre-cast would raise a plain ``ValueError`` the handler
+    does not catch; routing the raw string through the ONE schema keeps every rejection a
+    ``ValidationError`` the surface renders.
+    """
+    for bad in ("1e2", "abc", "40.5"):
+        with pytest.raises(ValidationError):
+            form_to_case({"age_years": bad})
+
+
+def test_scientific_notation_vital_renders_the_schema_message(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A browser-reachable ``1e2`` in a ``type=number`` field surfaces the schema message.
+
+    With no ``step`` the browser accepts scientific notation and submits the raw string, so
+    the request must render the ONE schema's rejection rather than crash the handler and
+    drop the connection (CR-01).
+    """
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        form = _form_from_case(COMPLETE_CASE)
+        form["heart_rate"] = "1e2"
+        body = _post(_base(server) + "/case", form)
+
+    assert "heart_rate" in body
+    assert "Check the highlighted field and try again." in body
+    assert 'class="priority-card"' not in body
+    assert injected_store.rows == []
+
+
+def test_non_numeric_vital_renders_the_schema_message(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A non-numeric raw value surfaces the schema message; the handler never drops (CR-01)."""
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        form = _form_from_case(COMPLETE_CASE)
+        form["age_years"] = "abc"
+        body = _post(_base(server) + "/case", form)
+
+    assert "age_years" in body
+    assert "Check the highlighted field and try again." in body
+    assert 'class="priority-card"' not in body
+    assert injected_store.rows == []
 
 
 # --------------------------------------------------------------- structural (Plan 10-01)
