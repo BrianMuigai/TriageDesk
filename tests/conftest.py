@@ -160,9 +160,16 @@ def build_graph_tools(
         if token is None:
             return CommitResult(refused=True, reason="no approval token supplied")
         try:
-            ApprovalToken.model_validate(token)
+            parsed = ApprovalToken.model_validate(token)
         except ValidationError:
             return CommitResult(refused=True, reason="approval token is malformed")
+        # Mirror the real gate's refusal ORDER (``mcp/server.py::commit_priority``): a
+        # well-formed ``dismiss`` is refused before any store access, so the eval's
+        # unapproved resume (``durable.approval_decision("dismiss")``) never writes a row.
+        if parsed.decision == "dismiss":
+            return CommitResult(
+                refused=True, reason="clinician dismissed the priority; refusing to commit"
+            )
         writes.append(inp)
         if store is not None:
             await commit_to_queue(

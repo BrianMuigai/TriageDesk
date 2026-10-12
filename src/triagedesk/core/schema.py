@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from triagedesk.core.rules import get_tews
 
@@ -174,34 +174,55 @@ class Escalation(BaseModel):
 class ApprovalToken(BaseModel):
     """The named-clinician approval the queue-affecting gate requires (D-05, TOOL-05).
 
-    A well-formed token names an approver and a role, records a decision in
-    ``approve|edit|dismiss``, carries a timestamp, and states the ``final_colour``
-    the clinician authorised. ``final_colour`` is the ONE place an ``edit`` decision
-    records the colour the clinician chose, so the committed colour is always the
-    approved colour and never a re-derived one (D-05). The value is validated against
-    the colour set read from the loaded substrate (``data/sats_tews.yaml``), never a
-    hard-coded literal (CONVENTIONS §1).
+    A well-formed ``approve``/``edit`` token names an approver and a role, records its
+    decision, carries the ``approved_at`` timestamp, and states the ``final_colour`` the
+    clinician authorised. ``final_colour`` is the ONE place an ``edit`` decision records the
+    colour the clinician chose, so the committed colour is always the approved colour and
+    never a re-derived one (D-05). The value is validated against the colour set read from
+    the loaded substrate (``data/sats_tews.yaml``), never a hard-coded literal
+    (CONVENTIONS §1).
 
-    The Phase-2 ``commit_priority`` stub validates this shape and refuses anything
-    else; the real LangGraph gate is Phase 3.
+    A ``dismiss`` is a legitimate refusal the gate never commits, so it carries **no**
+    approver and **no** colour — only the decision and its timestamp (T-06-05). The identity
+    and colour requirements are therefore enforced for ``approve``/``edit`` by
+    :meth:`_identity_and_colour_required`, not by field-level ``min_length``; that placement
+    is what lets the gate's ``dismiss`` branch be *reached* (rather than the token being
+    rejected as malformed first), and what rejects a whitespace-only identity (WR-05/WR-06).
+
+    ``commit_priority`` validates this shape and refuses anything else; the refusal decision
+    is the ONE place the gate distinguishes a dismissal from a malformed token.
     """
 
-    approved_by: str = Field(min_length=1)
-    role: str = Field(min_length=1)
     decision: Literal["approve", "edit", "dismiss"]
     approved_at: datetime
-    final_colour: str = Field(min_length=1)
+    approved_by: str = ""
+    role: str = ""
+    final_colour: str = ""
 
-    @field_validator("final_colour")
-    @classmethod
-    def _final_colour_is_a_declared_colour(cls, value: str) -> str:
-        """Reject any colour not declared by the loaded TEWS substrate (CONVENTIONS §1)."""
+    @model_validator(mode="after")
+    def _identity_and_colour_required(self) -> ApprovalToken:
+        """Require a named clinician and a declared colour unless the decision is a dismiss.
+
+        A ``dismiss`` short-circuits: the gate refuses it and writes nothing, so it needs no
+        identity and no colour (T-06-05). For ``approve``/``edit`` the approver and role must
+        be non-blank (a whitespace-only value counts as absent, so a fabricated blank identity
+        can never approve — WR-06) and ``final_colour`` must name a colour declared by the
+        loaded TEWS substrate (CONVENTIONS §1).
+        """
+        if self.decision == "dismiss":
+            return self
+        for name in ("approved_by", "role"):
+            if not getattr(self, name).strip():
+                raise ValueError(f"{name} is required for a {self.decision!r} decision")
+        if not self.final_colour.strip():
+            raise ValueError(f"final_colour is required for a {self.decision!r} decision")
         allowed = {band.colour for band in get_tews().tews_to_colour}
-        if value not in allowed:
+        if self.final_colour not in allowed:
             raise ValueError(
-                f"final_colour {value!r} is not a colour declared by the loaded substrate"
+                f"final_colour {self.final_colour!r} is not a colour declared "
+                "by the loaded substrate"
             )
-        return value
+        return self
 
 
 class CommitResult(BaseModel):

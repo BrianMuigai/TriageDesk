@@ -19,6 +19,7 @@ from typing import Any
 from mcp import Client
 
 from triagedesk.core.schema import CaseInput, CommitResult
+from triagedesk.durable import approval_decision
 from triagedesk.mcp import server as server_module
 from triagedesk.store.queue import IMMUTABLE_FIELDS, commit_to_queue, content_hash
 
@@ -158,6 +159,29 @@ async def test_commit_priority_refuses_a_dismiss_and_writes_nothing(injected_sto
     assert result.refused is True
     assert result.committed is False
     assert injected_store.calls == []
+
+
+async def test_approval_decision_dismiss_reaches_the_dismiss_branch(injected_store) -> None:
+    """The ONE dismiss builder emits a token the gate recognises as a dismissal (WR-05).
+
+    Before the fix ``approval_decision("dismiss")`` produced ``{"decision": "dismiss"}``,
+    which ``ApprovalToken`` rejected as malformed — so the gate's ``dismiss`` branch was
+    unreachable and the refusal read as a malformed token. The builder now emits a
+    well-formed dismissal token (decision + timestamp, no identity/colour), so the gate
+    reaches its own branch and reports the dismissal reason, still writing nothing.
+    """
+    token = approval_decision("dismiss")
+    async with Client(server_module.server) as client:
+        call = await client.call_tool(
+            "commit_priority",
+            {"case_id": "c-1", "colour": "RED", "case": _CASE, "approval_token": token},
+        )
+
+    result = CommitResult.model_validate_json(call.content[0].text)
+    assert result.refused is True
+    assert result.reason is not None and "dismissed" in result.reason
+    assert injected_store.calls == []
+    assert injected_store.rows == []
 
 
 async def test_commit_priority_commits_once_through_the_injected_store(injected_store) -> None:

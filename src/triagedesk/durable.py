@@ -185,13 +185,17 @@ def approval_decision(
 ) -> dict[str, Any]:
     """Build the resume value for the gate — the ONE place the CLI decision shape lives.
 
-    A ``dismiss`` needs no identity (the gate refuses it and writes nothing). An
-    ``approve``/``edit`` requires a non-empty ``--approver`` and ``--role``, and an
-    ``edit`` additionally requires ``--colour``; a missing flag raises
-    :class:`DurableError` naming it (T-06-05) rather than fabricating an identity.
+    A ``dismiss`` needs no identity and no colour (the gate refuses it and writes nothing),
+    but it still carries the ``approved_at`` timestamp so it is a **well-formed**
+    :class:`~triagedesk.core.schema.ApprovalToken`: the gate therefore reaches its own
+    ``dismiss`` branch instead of reporting the token as malformed (WR-05). An
+    ``approve``/``edit`` requires a non-empty ``--approver`` and ``--role``, and an ``edit``
+    additionally requires ``--colour``; a missing flag raises :class:`DurableError` naming it
+    rather than fabricating a value.
     """
+    timestamp = approved_at or datetime.now(UTC).isoformat()
     if decision == "dismiss":
-        return {"decision": "dismiss"}
+        return {"decision": "dismiss", "approved_at": timestamp}
     if decision not in _DECISIONS:
         raise DurableError(
             f"unknown decision {decision!r}; expected one of {', '.join(_DECISIONS)}"
@@ -204,7 +208,7 @@ def approval_decision(
         "decision": decision,
         "approved_by": approver,
         "role": role,
-        "approved_at": approved_at or datetime.now(UTC).isoformat(),
+        "approved_at": timestamp,
     }
     if decision == "edit":
         if not colour:

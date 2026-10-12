@@ -49,11 +49,6 @@ DEMO_NURSE_ROLE = "triage nurse"
 # The one beat that demonstrates the gate refusing without a named nurse (D-07).
 REFUSAL_BEAT = "refusal"
 
-# The unapproved resume value, declared ONCE (the literal is never scattered): a
-# ``dismiss`` naming no approver, so the gated commit refuses it and no queue row is
-# written (T-05-03, T-05-11).
-_UNAPPROVED_RESUME: dict[str, Any] = {"decision": "dismiss"}
-
 
 class Beat(BaseModel):
     """One storyboard beat: a name, the bundled eval case id it runs, and a label."""
@@ -121,8 +116,15 @@ def _named_approval() -> dict[str, Any]:
 
 
 def _resume_for(beat: Beat) -> dict[str, Any]:
-    """The gate resume value for *beat*: the refusal beat refuses, the rest approve."""
-    return _UNAPPROVED_RESUME if beat.name == REFUSAL_BEAT else _named_approval()
+    """The gate resume value for *beat*: the refusal beat refuses, the rest approve.
+
+    Both decisions come from the ONE builder (``durable.approval_decision``), so the
+    demo, the eval runner and ``triagedesk resume`` cannot drift on the token shape
+    (T-05-03, T-05-11, IN-05 — DRY).
+    """
+    if beat.name == REFUSAL_BEAT:
+        return approval_decision("dismiss")
+    return _named_approval()
 
 
 def _print_outcome(

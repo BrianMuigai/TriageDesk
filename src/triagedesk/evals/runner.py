@@ -51,10 +51,6 @@ from triagedesk.store.memory import InMemoryStore
 # instability is real and observable rather than simulated in an assertion (SOLID: D).
 ToolFactory = Callable[[CaseSpec, bool, UsageRecorder], ToolMap]
 
-# The unapproved resume value: a ``dismiss`` with no named approver, so the gated commit
-# refuses it and no queue row is written — the eval never bypasses the gate (D-05).
-_UNAPPROVED_RESUME: dict[str, Any] = {"decision": "dismiss"}
-
 
 def _default_tool_factory(case: CaseSpec, offline: bool, recorder: UsageRecorder) -> ToolMap:
     """The production tool factory: the real owned tools, model stubbed offline."""
@@ -153,9 +149,12 @@ async def _run_once(
     Delegates the invoke→interrupt→resume step to the ONE shared primitive
     (``durable.invoke_graph``), imported here to avoid the ``evals`` <-> ``durable``
     import cycle. The eval runner keeps its OWN per-run ``thread_id`` (deliberate
-    isolation — runs must not share a durable thread; Pitfall 3).
+    isolation — runs must not share a durable thread; Pitfall 3). The unapproved resume
+    value comes from the ONE decision builder (``durable.approval_decision``) — a
+    ``dismiss`` naming no approver — so the eval never bypasses the gate and the token
+    shape cannot drift from ``triagedesk resume`` (D-05, IN-05).
     """
-    from triagedesk.durable import invoke_graph
+    from triagedesk.durable import approval_decision, invoke_graph
 
     graph = build_graph(tools, checkpointer=_checkpointer())
     config = {"configurable": {"thread_id": f"{case.id}-{run_index}"}}
@@ -165,7 +164,7 @@ async def _run_once(
         initial["previous_case"] = previous
 
     started = time.perf_counter()
-    result, payload = await invoke_graph(graph, initial, config, _UNAPPROVED_RESUME)
+    result, payload = await invoke_graph(graph, initial, config, approval_decision("dismiss"))
     latency = time.perf_counter() - started
     return _capture(result, payload), latency, result
 

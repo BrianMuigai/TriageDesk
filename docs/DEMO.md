@@ -162,7 +162,7 @@ real store row delta, not asserted:
 --- outcome ---
   colour       : ORANGE
   target       : < 10 min
-  commit       : approval token is malformed; refusing to commit
+  commit       : clinician dismissed the priority; refusing to commit
   GATE REFUSED : no queue row written (rows added this beat: 0)
 ```
 

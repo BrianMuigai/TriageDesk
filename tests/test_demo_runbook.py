@@ -15,16 +15,29 @@ what a presenter runs.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from pathlib import Path
 
 from pytest import CaptureFixture
 
 from triagedesk.cli import main
+from triagedesk.durable import run_to_gate
+from triagedesk.evals.case import load_cases
+from triagedesk.evals.tools import build_tools
+from triagedesk.evals.usage import UsageRecorder
 
 # The runbook and the ONE command it must match (DRY: the doc links, the CLI is the source).
 RUNBOOK_PATH = Path("docs/DEMO.md")
 _LIST_ARGS = ["demo", "--list"]
+
+# The bundled synthetic fixtures, resolved from the repo root (the same cases the demo runs).
+CASES_DIR = Path(__file__).resolve().parents[1] / "evals" / "cases"
+
+# The exact dismissal refusal the gate emits (``mcp/server.py::commit_priority``). The
+# runbook must name the string a presenter actually sees, so the CLI output and the doc are
+# asserted against ONE literal (WR-05 — the drift this guards against).
+DISMISSAL_REFUSAL = "clinician dismissed the priority; refusing to commit"
 
 # Fenced command blocks (```...```) and a ``--beat <name>`` invocation inside one.
 _FENCE_RE = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
@@ -75,3 +88,40 @@ def test_runbook_declares_the_recording_a_human_action() -> None:
 def test_runbook_shows_the_e09_failure() -> None:
     """The runbook documents the E-09 declared failure (shown, not hidden)."""
     assert "E-09" in _runbook_text()
+
+
+def test_runbook_documents_the_dismissal_refusal_the_cli_prints(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    """The dismissal refusal in the runbook is the string the CLI genuinely prints (WR-05).
+
+    Drives the real ``resume --decision dismiss`` path over a paused E-02 thread and asserts
+    the gate's own reason lands on stderr **and** appears verbatim in ``docs/DEMO.md``. Before
+    the WR-05 fix the gate reported the dismissal token as malformed, so the runbook named a
+    string no presenter would ever see; this test couples the CLI output to the doc so the
+    two cannot drift silently.
+    """
+    case = next(case for case in load_cases(CASES_DIR) if case.id == "E-02")
+    db_path = tmp_path / "checkpoints.db"
+    tools = build_tools(case, offline=True, recorder=UsageRecorder())
+    paused = asyncio.run(run_to_gate(tools, raw_note=case.note, case=case.case, db_path=db_path))
+    assert paused.paused, "the E-02 case did not pause at the approval gate"
+
+    code = main(
+        [
+            "resume",
+            "--thread-id",
+            paused.thread_id,
+            "--decision",
+            "dismiss",
+            "--db",
+            str(db_path),
+        ]
+    )
+    err = capsys.readouterr().err
+
+    assert code == 0, "a legitimate dismissal must exit 0"
+    assert DISMISSAL_REFUSAL in err, f"the CLI did not print the dismissal reason: {err!r}"
+    assert DISMISSAL_REFUSAL in _runbook_text(), (
+        "docs/DEMO.md does not document the dismissal refusal the CLI prints"
+    )
