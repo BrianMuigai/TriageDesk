@@ -189,9 +189,10 @@ def approval_decision(
     but it still carries the ``approved_at`` timestamp so it is a **well-formed**
     :class:`~triagedesk.core.schema.ApprovalToken`: the gate therefore reaches its own
     ``dismiss`` branch instead of reporting the token as malformed (WR-05). An
-    ``approve``/``edit`` requires a non-empty ``--approver`` and ``--role``, and an ``edit``
-    additionally requires ``--colour``; a missing flag raises :class:`DurableError` naming it
-    rather than fabricating a value.
+    ``approve``/``edit`` requires a non-empty ``--approver`` and ``--role`` — a
+    whitespace-only value counts as absent and is rejected, so a fabricated blank identity
+    can never approve (T-06-05, WR-06) — and an ``edit`` additionally requires ``--colour``;
+    a missing flag raises :class:`DurableError` naming it rather than fabricating a value.
     """
     timestamp = approved_at or datetime.now(UTC).isoformat()
     if decision == "dismiss":
@@ -200,9 +201,9 @@ def approval_decision(
         raise DurableError(
             f"unknown decision {decision!r}; expected one of {', '.join(_DECISIONS)}"
         )
-    if not approver:
+    if not (approver or "").strip():
         raise DurableError(f"--approver is required for a {decision!r} decision")
-    if not role:
+    if not (role or "").strip():
         raise DurableError(f"--role is required for a {decision!r} decision")
     token: dict[str, Any] = {
         "decision": decision,
@@ -211,7 +212,7 @@ def approval_decision(
         "approved_at": timestamp,
     }
     if decision == "edit":
-        if not colour:
+        if not (colour or "").strip():
             raise DurableError("--colour is required for an 'edit' decision")
         token["final_colour"] = colour
     return token

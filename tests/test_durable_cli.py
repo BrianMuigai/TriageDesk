@@ -121,6 +121,49 @@ def test_resume_approve_without_approver_names_the_flag(
     assert "--approver" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize(
+    ("approver", "role", "named"),
+    [
+        ("   ", "triage nurse", "--approver"),
+        ("Nurse Demo", "   ", "--role"),
+    ],
+)
+def test_resume_rejects_a_whitespace_only_identity(
+    tmp_path: Path,
+    injected_store,
+    capsys: pytest.CaptureFixture[str],
+    approver: str,
+    role: str,
+    named: str,
+) -> None:
+    """A whitespace-only ``--approver``/``--role`` is rejected before any commit (WR-06).
+
+    ``if not approver`` treats ``"   "`` as present, and ``ApprovalToken``'s field check
+    counted spaces, so a fabricated blank identity could approve a real queue row. The ONE
+    decision builder now strips before validating, so a blank identity exits non-zero naming
+    the offending flag and writes nothing.
+    """
+    code = main(
+        [
+            "resume",
+            "--thread-id",
+            "x",
+            "--decision",
+            "approve",
+            "--approver",
+            approver,
+            "--role",
+            role,
+            "--db",
+            str(tmp_path / "checkpoints.db"),
+        ]
+    )
+
+    assert code != 0
+    assert named in capsys.readouterr().err
+    assert injected_store.rows == [], "a blank identity committed a queue row"
+
+
 async def test_durable_demo_pauses_and_prints_one_thread_id_line(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
