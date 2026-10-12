@@ -284,7 +284,6 @@ _READ_ONLY_STATEMENTS = (
     "  select * from queue",
     "PRAGMA table_info(audit)",
     "PRAGMA index_list(queue)",
-    "EXPLAIN SELECT 1",
     "VALUES (1)",
 )
 # Every entry here must be refused (D9-12, fail closed). The compound/mutating
@@ -303,6 +302,11 @@ _NOT_READ_STATEMENTS = (
     # PRAGMA writes are not reads (a bare/unknown PRAGMA mutates state)
     "PRAGMA writable_schema = 1",
     "PRAGMA journal_mode = DELETE",
+    # EXPLAIN executes PRAGMA at compile time, so an EXPLAIN-prefixed PRAGMA write is a
+    # write; EXPLAIN is refused outright (no caller issues it)
+    "EXPLAIN SELECT 1",
+    "EXPLAIN PRAGMA writable_schema = 1",
+    "EXPLAIN QUERY PLAN PRAGMA cache_size = 100",
     # a compound string is not a single read statement
     "SELECT 1; DELETE FROM queue",
     "",

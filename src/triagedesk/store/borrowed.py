@@ -70,10 +70,15 @@ READ_TOOLS: tuple[str, ...] = (
 # The leading keywords a read-only statement may carry; anything else is refused
 # (fail closed). ``WITH`` is deliberately ABSENT: a CTE may prefix
 # ``INSERT``/``UPDATE``/``DELETE`` (``WITH x AS (SELECT 1) DELETE FROM queue``), so a
-# ``WITH`` head is not provably a read. ``PRAGMA`` is handled separately below, because
-# only a small read-only subset of PRAGMA statements is safe. Named once so the
-# classifier and its tests share one source.
-_READ_PREFIXES = ("SELECT", "EXPLAIN", "VALUES")
+# ``WITH`` head is not provably a read. ``EXPLAIN`` is deliberately ABSENT too: SQLite
+# executes ``PRAGMA`` at COMPILE time, so ``EXPLAIN PRAGMA writable_schema = 1`` mutates
+# state even though ``EXPLAIN`` suppresses the VDBE program — an ``EXPLAIN`` head
+# re-opens the very write-``PRAGMA`` class the guard refuses, so it is not provably a
+# read. No caller issues ``EXPLAIN`` (the store's own reads are ``SELECT`` and
+# ``PRAGMA table_info``), so refusing it loses nothing. ``PRAGMA`` is handled separately
+# below, because only a small read-only subset of PRAGMA statements is safe. Named once
+# so the classifier and its tests share one source.
+_READ_PREFIXES = ("SELECT", "VALUES")
 
 # The ONLY PRAGMA statements treated as reads. A bare or unknown ``PRAGMA`` mutates
 # state (``PRAGMA writable_schema = 1``, ``PRAGMA journal_mode = DELETE``), so it is
@@ -161,6 +166,8 @@ def is_read_only_statement(sql: str) -> bool:
     * an empty or whitespace-only string;
     * a ``WITH`` head — a CTE may prefix ``INSERT``/``UPDATE``/``DELETE``
       (``WITH x AS (SELECT 1) DELETE FROM queue``), so ``WITH`` is not a read;
+    * an ``EXPLAIN`` head — ``PRAGMA`` executes at compile time, so
+      ``EXPLAIN PRAGMA writable_schema = 1`` mutates state despite the prefix;
     * a ``PRAGMA`` outside the read-only subset (``PRAGMA writable_schema = 1`` mutates
       state);
     * a multi-statement string — any ``;`` that does not merely terminate the one
