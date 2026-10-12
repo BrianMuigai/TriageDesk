@@ -8,13 +8,14 @@ may not read the environment (D7-04, T-07-04).
 """
 
 from triagedesk.observability.context import bind_trace, current_trace_id
-from triagedesk.observability.spans import SPANS_PATH, emit_span, set_sink, span
+from triagedesk.observability.spans import SPANS_PATH, emit_span, read_spans, set_sink, span
 
 __all__ = [
     "SPANS_PATH",
     "bind_trace",
     "current_trace_id",
     "emit_span",
+    "read_spans",
     "set_sink",
     "span",
 ]

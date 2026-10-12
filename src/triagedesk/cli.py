@@ -1,10 +1,10 @@
 """The ``triagedesk`` console entry point (D-01, EVAL-02, DOCS-01).
 
-The thinnest possible shell over the async runners: it parses the ``eval``, ``demo`` and
-``resume`` commands with stdlib ``argparse`` (no new dependency, SAFE-04) and hands the
-arguments to ``triagedesk.evals.runner.run_eval``, ``triagedesk.demo.run.run_demo`` or
-``triagedesk.durable.resume_thread``. Each runner's integer exit code is returned from
-``main``, which the console script passes to ``sys.exit``.
+The thinnest possible shell over the async runners: it parses the ``eval``, ``demo``,
+``resume`` and ``replay`` commands with stdlib ``argparse`` (no new dependency, SAFE-04) and
+hands the arguments to ``triagedesk.evals.runner.run_eval``, ``triagedesk.demo.run.run_demo``,
+``triagedesk.durable.resume_thread`` or ``triagedesk.replay.replay_case``. Each runner's
+integer exit code is returned from ``main``, which the console script passes to ``sys.exit``.
 
 No graph, store or decision-shape logic lives here: the durable decision rule is the ONE
 ``durable.approval_decision`` and the resume mechanism is the ONE
@@ -27,6 +27,7 @@ from triagedesk.durable import DurableError, approval_decision, resume_thread
 from triagedesk.evals.runner import run_eval
 from triagedesk.graph.build import CHECKPOINTS_DB_PATH
 from triagedesk.observability.offline import harden_offline
+from triagedesk.replay import ReplayError, replay_case
 
 # The defaults named once so the CLI and the docs agree (DRY).
 DEFAULT_CASES_DIR = "evals/cases"
@@ -124,6 +125,20 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="checkpoint file (default: checkpoints.db)",
     )
+
+    replay_parser = subcommands.add_parser(
+        "replay", help="read-only reconstruction of a past case from checkpoint + stream"
+    )
+    replay_parser.add_argument(
+        "--thread-id",
+        required=True,
+        help="the content-derived thread id of the case to reconstruct",
+    )
+    replay_parser.add_argument(
+        "--db",
+        default=None,
+        help="checkpoint file (default: checkpoints.db)",
+    )
     return parser
 
 
@@ -184,6 +199,21 @@ def main(argv: list[str] | None = None) -> int:
             print(commit.reason, file=sys.stderr)
             if commit.refused and args.decision != "dismiss":
                 return 1
+        return 0
+    if args.command == "replay":
+        try:
+            print(
+                asyncio.run(
+                    replay_case(args.thread_id, db_path=args.db or CHECKPOINTS_DB_PATH)
+                )
+            )
+        except (ReplayError, RuntimeError, sqlite3.Error, ExceptionGroup) as exc:
+            # ``ReplayError`` is a ``RuntimeError``; the SQLite checkpointer surfaces as
+            # ``sqlite3.Error`` (sometimes wrapped in an ``ExceptionGroup``). A clinical CLI
+            # reports the failure cleanly with a non-zero exit rather than a raw traceback
+            # (WR-04). Replay is read-only, so there is nothing to roll back.
+            print(str(exc), file=sys.stderr)
+            return 1
         return 0
     return 2  # pragma: no cover - argparse rejects an unknown command first
 

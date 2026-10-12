@@ -64,6 +64,10 @@ select = ["E", "F", "I", "UP", "B", "TID"]
 "src/triagedesk/store/**" = ["TID251"]
 "src/triagedesk/evals/**" = ["TID251"]
 "src/triagedesk/demo/**" = ["TID251"]
+# Read-only replay resolves the audit store through the ONE ``mcp.server`` seam and names
+# the ``Store`` protocol, exactly as ``demo/`` does — a layer above core, legitimately
+# depending on those modules (D7-15, D-13).
+"src/triagedesk/replay.py" = ["TID251"]
 "scripts/**" = ["TID251"]
 "tests/**" = ["TID251"]
 

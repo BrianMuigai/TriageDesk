@@ -14,7 +14,9 @@ The single JSON line carries exactly these keys, and no clinical text ever enter
 ``kind`` is ``"tool"``, ``"node"`` or ``"model"`` (D7-07). ``attributes`` is a small,
 caller-supplied mapping of ids/timings/counts — never a complaint, prompt or completion.
 The sink path is named ONCE (:data:`SPANS_PATH`) and is overridable for tests via
-:func:`set_sink`, mirroring the store seam ``mcp.server.set_store`` (SOLID: D).
+:func:`set_sink`, mirroring the store seam ``mcp.server.set_store`` (SOLID: D). The
+matching reader (:func:`read_spans`) lives beside the writer so the line format has
+exactly ONE home.
 """
 
 from __future__ import annotations
@@ -88,6 +90,33 @@ def emit_span(
         handle.write(json.dumps(line, default=str, sort_keys=True) + "\n")
 
 
+def read_spans(
+    path: Path | None = None, *, trace_id: str | None = None
+) -> list[dict[str, Any]]:
+    """Read the local span stream :func:`emit_span` wrote (the ONE span reader, D7-15).
+
+    Colocated with the writer so the JSONL format lives in exactly ONE module (DRY,
+    CONVENTIONS §1): the encoding in :func:`emit_span` and the decoding here can never
+    drift. It reads *path* when given, else the injected sink, else :data:`SPANS_PATH`;
+    parses each non-empty line as one JSON object; and returns the rows in file order.
+    When *trace_id* is given the result is filtered to that case's trace, so the shared
+    stream projects one case's timeline (D7-05). A missing file is an empty stream, never
+    an error — a case that predates tracing simply has no spans. Read-only: nothing here
+    writes, so a reader can never perturb the sink.
+    """
+    resolved = path if path is not None else (_sink if _sink is not None else SPANS_PATH)
+    if not resolved.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for raw_line in resolved.read_text(encoding="utf-8").splitlines():
+        if not raw_line.strip():
+            continue
+        row = json.loads(raw_line)
+        if trace_id is None or row.get("trace_id") == trace_id:
+            rows.append(row)
+    return rows
+
+
 @contextmanager
 def span(
     kind: str, name: str, attributes: dict[str, Any] | None = None
@@ -123,4 +152,4 @@ def span(
         )
 
 
-__all__ = ["SPANS_PATH", "emit_span", "set_sink", "span"]
+__all__ = ["SPANS_PATH", "emit_span", "read_spans", "set_sink", "span"]
