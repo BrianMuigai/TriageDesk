@@ -428,6 +428,25 @@ def test_malformed_request_renders_the_failure_panel(
     assert injected_store.rows == []
 
 
+def test_oversized_content_length_is_refused_without_reading(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A ``Content-Length`` above the cap renders the failure panel without reading (IN-01).
+
+    An unbounded length would leave the handler blocked reading a body that never arrives,
+    pinning the request thread. The cap refuses it up front with the documented panel.
+    """
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        oversized = (
+            b"POST /case HTTP/1.1\r\nHost: x\r\nContent-Length: 999999999\r\n"
+            b"Connection: close\r\n\r\n"
+        )
+        response = _raw_post(server, oversized)
+        assert b"HTTP/1." in response, "the handler dropped the connection on an oversized body"
+        assert b"The case could not be scored." in response
+    assert injected_store.rows == []
+
+
 def test_forms_carry_the_per_server_csrf_token(
     tmp_path: Path, injected_store: Any
 ) -> None:

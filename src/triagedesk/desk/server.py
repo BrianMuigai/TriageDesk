@@ -77,6 +77,11 @@ _TRUTHY = frozenset({"true", "on", "1"})
 # server on ``GET /`` and required on every POST, so a cross-origin page cannot satisfy it.
 _CSRF_FIELD = "csrf_token"
 
+# The largest POST body the surface will read. A form is a few hundred bytes; an unbounded
+# ``Content-Length`` would otherwise pin the request thread (IN-01). A body above this cap is
+# refused with the documented failure panel, never read.
+_MAX_BODY_BYTES = 64 * 1024
+
 # The vitals form's field order and human labels (presentation only). Each control's kind,
 # plausible range and select options are read from the ONE ``CaseInput`` schema at render
 # time, so the form can never offer a range or an option the schema would reject and no
@@ -897,16 +902,17 @@ class DeskHandler(BaseHTTPRequestHandler):
         Two defences run before dispatch: a cross-origin ``Origin`` is refused with 403
         (WR-01); and a POST missing the per-server CSRF token renders the documented failure
         panel (WR-01). The header/body parse is guarded too: a malformed ``Content-Length``
-        (non-numeric or negative) or a body that is not valid UTF-8 renders the same panel
-        rather than crashing the handler and dropping the connection.
+        (non-numeric, negative or above ``_MAX_BODY_BYTES``) or a body that is not valid UTF-8
+        renders the same panel rather than crashing the handler, dropping the connection, or
+        pinning the thread on a body that never arrives (IN-01).
         """
         if self._cross_origin():
             self.send_error(HTTPStatus.FORBIDDEN)
             return
         try:
             length = int(self.headers.get("Content-Length") or 0)
-            if length < 0:
-                raise ValueError("negative Content-Length")
+            if length < 0 or length > _MAX_BODY_BYTES:
+                raise ValueError("invalid Content-Length")
             raw = self.rfile.read(length).decode("utf-8")
         except (TypeError, ValueError, UnicodeDecodeError):
             self._send_html(self._page(error=_FAILURE_COPY))
