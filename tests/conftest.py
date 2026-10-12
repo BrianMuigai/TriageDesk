@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Callable, Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -24,6 +25,7 @@ from triagedesk.core.schema import (
     ExtractionResult,
 )
 from triagedesk.mcp import server as server_module
+from triagedesk.observability.spans import set_sink
 from triagedesk.store.memory import InMemoryStore
 from triagedesk.store.queue import commit_to_queue
 
@@ -95,6 +97,21 @@ def injected_store(memory_store: RecordingStore) -> Iterator[RecordingStore]:
         yield memory_store
     finally:
         server_module.set_store(None)
+
+
+@pytest.fixture(autouse=True)
+def _spans_sink(tmp_path: Path) -> Iterator[None]:
+    """Redirect the ONE span sink to ``tmp_path`` for every test (Pitfall 5).
+
+    Autouse so no test writes ``spans.jsonl`` into the repository root; the sibling of
+    ``injected_store`` (a second process-wide seam redirect). Production keeps the
+    repo-root default (D7-02).
+    """
+    set_sink(tmp_path / "spans.jsonl")
+    try:
+        yield
+    finally:
+        set_sink(None)
 
 
 # --------------------------------------------------------------------------- graph

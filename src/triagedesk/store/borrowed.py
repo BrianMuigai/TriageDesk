@@ -93,8 +93,16 @@ _AUDIT_DDL = (
     "outputs TEXT NOT NULL, "
     "approved_by TEXT, "
     "role TEXT, "
+    "trace_id TEXT NOT NULL DEFAULT '', "
     "prev_hash TEXT NOT NULL, "
     "hash TEXT NOT NULL)"
+)
+
+# Widen a pre-existing ``audit`` table with the trace-link column (no migration framework
+# exists; a stale synthetic ``triage.db`` is disposable). Applied only when the column is
+# absent, so ``ensure_schema`` stays idempotent (D7-06, Pitfall 1).
+_AUDIT_TRACE_ID_MIGRATION = (
+    f"ALTER TABLE {AUDIT_TABLE} ADD COLUMN trace_id TEXT NOT NULL DEFAULT ''"
 )
 
 _AUDIT_HEAD_DDL = (
@@ -164,6 +172,11 @@ class BorrowedStore:
         await self._call(TOOL_QUERY, {"sql": _CASES_DDL})
         await self._call(TOOL_QUERY, {"sql": _AUDIT_DDL})
         await self._call(TOOL_QUERY, {"sql": _AUDIT_HEAD_DDL})
+        columns = _rows(
+            await self._call(TOOL_QUERY, {"sql": f"PRAGMA table_info({AUDIT_TABLE})"})
+        )
+        if not any(str(column.get("name")) == "trace_id" for column in columns):
+            await self._call(TOOL_QUERY, {"sql": _AUDIT_TRACE_ID_MIGRATION})
 
     async def read_queue_row(self, case_id: str, content_hash: str) -> QueueRow | None:
         """Return the row for the idempotency key, or ``None`` (borrowed ``query``)."""
@@ -288,7 +301,7 @@ class BorrowedStore:
                 "sql": (
                     f"INSERT OR IGNORE INTO {AUDIT_TABLE} "
                     "(seq, ts, case_id, tool, actor, inputs, outputs, approved_by, role, "
-                    "prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    "trace_id, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 ),
                 "values": [
                     record.seq,
@@ -300,6 +313,7 @@ class BorrowedStore:
                     json.dumps(record.outputs),
                     record.approved_by,
                     record.role,
+                    record.trace_id,
                     record.prev_hash,
                     record.hash,
                 ],
@@ -314,7 +328,7 @@ class BorrowedStore:
                 {
                     "sql": (
                         "SELECT seq, ts, case_id, tool, actor, inputs, outputs, "
-                        "approved_by, role, prev_hash, hash "
+                        "approved_by, role, trace_id, prev_hash, hash "
                         f"FROM {AUDIT_TABLE} ORDER BY seq"
                     )
                 },

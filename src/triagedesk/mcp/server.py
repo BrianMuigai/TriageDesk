@@ -38,6 +38,7 @@ from triagedesk.core.schema import (
     RecheckFlag,
 )
 from triagedesk.llm.client import extract
+from triagedesk.observability import current_trace_id, span
 from triagedesk.store import Store, default_store
 from triagedesk.store.audit import append
 from triagedesk.store.queue import commit_to_queue
@@ -97,6 +98,12 @@ def audited(*, approval: bool = False) -> Callable[[Callable[..., Any]], Callabl
     as a refused call — the audit never claims a write that did not happen. ``approval``
     marks the gated commit: the record's actor is the clinician, and on a successful
     commit it carries the named approver and role from the validated token (AUDIT-02).
+
+    Alongside the audit record, the wrapper opens ONE ``tool`` span around the call
+    (D7-01) and the record carries the current content-derived ``trace_id`` (D7-06), so
+    the record joins to its spans in the local stream. The audit behaviour is otherwise
+    unchanged: exactly one chained record per call, refusal path and actor/approver logic
+    untouched (D-18).
     """
     def decorate(fn: Callable[..., Any]) -> Callable[..., Any]:
         tool_name = fn.__name__
@@ -134,15 +141,18 @@ def audited(*, approval: bool = False) -> Callable[[Callable[..., Any]], Callabl
                     "outputs": outputs,
                     "approved_by": approved_by,
                     "role": role,
+                    "trace_id": current_trace_id(),
                 },
             )
 
         @functools.wraps(fn)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            trace_id = current_trace_id()
             try:
-                result = fn(*args, **kwargs)
-                if inspect.isawaitable(result):
-                    result = await result
+                with span("tool", tool_name, attributes={"trace_id": trace_id}):
+                    result = fn(*args, **kwargs)
+                    if inspect.isawaitable(result):
+                        result = await result
             except Exception as exc:  # noqa: BLE001 — the tool boundary is external
                 await record(args, kwargs, None, f"{type(exc).__name__}: {exc}")
                 raise

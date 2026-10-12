@@ -44,7 +44,11 @@ class AuditRecord(BaseModel):
     record's monotonic position in the chain — a stable id used to report a break;
     ``prev_hash`` chains the record to its predecessor and ``hash`` seals its own
     canonical content. An approval record carries a named ``approved_by`` and ``role``
-    so the queue write is attributable to a person (AUDIT-02).
+    so the queue write is attributable to a person (AUDIT-02). ``trace_id`` is the
+    content-derived id (``graph.nodes.case_id_for``) that links the record to its spans
+    in the local span stream (D7-06); it defaults to ``""`` so existing constructors and
+    legacy rows stay valid, and it is sealed by :func:`record_digest` like every other
+    field.
     """
 
     seq: int
@@ -56,6 +60,7 @@ class AuditRecord(BaseModel):
     outputs: dict[str, Any] = Field(default_factory=dict)
     approved_by: str | None = None
     role: str | None = None
+    trace_id: str = ""
     prev_hash: str
     hash: str = ""
 
@@ -141,8 +146,9 @@ async def append(store: AuditStore, fields: Mapping[str, Any]) -> AuditRecord:
     the audit (AUDIT-03, DRY).
 
     ``fields`` supplies the record's content (``tool``, ``actor``, ``case_id``,
-    ``inputs``, ``outputs`` and — for an approval — ``approved_by``/``role``); the
-    chain fields (``seq``, ``ts``, ``prev_hash``, ``hash``) are computed here.
+    ``inputs``, ``outputs``, the content-derived ``trace_id`` and — for an approval —
+    ``approved_by``/``role``); the chain fields (``seq``, ``ts``, ``prev_hash``,
+    ``hash``) are computed here.
     """
     prev_hash = await store.read_chain_head()
     seq = len(await store.read_audit_records())
