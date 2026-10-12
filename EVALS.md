@@ -71,9 +71,10 @@ every setting is hashed (§8).
 
 The `Calibration (small-sample)` row above is the only place the offline **expected calibration error
 (ECE)** and the **risk–coverage** sweep are published, and it is generated from `report.json` — never a
-hand-typed number (D8-14, D8-16). ECE is computed over a **declared held-out split**: the generated cell
-names both sample sizes (`n_calibration`, `n_held_out`), so the split is auditable rather than chosen
-after seeing the result (D8-13).
+hand-typed number (D8-14, D8-16). ECE is computed over the **declared calibration split**
+(`held_out=false`); the held-out split (`held_out=true`) is named separately, to bound the declared
+failure. The generated cell names both sample sizes (`n_calibration`, `n_held_out`) from the report, so
+the split is auditable rather than chosen after seeing the result (D8-13).
 
 This is explicitly a **small-sample** measure — a *declared bound on the named sample*, **never** a
 validated calibrated probability, and never a model probability or a percentage shown as clinical risk
