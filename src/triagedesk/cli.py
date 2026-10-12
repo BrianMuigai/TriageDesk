@@ -1,19 +1,26 @@
 """The ``triagedesk`` console entry point (D-01, EVAL-02, DOCS-01).
 
-The thinnest possible shell over the async runners: it parses the ``eval`` and ``demo``
-commands with stdlib ``argparse`` (no new dependency, SAFE-04) and hands the arguments to
-``triagedesk.evals.runner.run_eval`` or ``triagedesk.demo.run.run_demo``. Each runner's
-integer exit code is returned from ``main``, which the console script passes to
-``sys.exit``.
+The thinnest possible shell over the async runners: it parses the ``eval``, ``demo`` and
+``resume`` commands with stdlib ``argparse`` (no new dependency, SAFE-04) and hands the
+arguments to ``triagedesk.evals.runner.run_eval``, ``triagedesk.demo.run.run_demo`` or
+``triagedesk.durable.resume_thread``. Each runner's integer exit code is returned from
+``main``, which the console script passes to ``sys.exit``.
+
+No graph, store or decision-shape logic lives here: the durable decision rule is the ONE
+``durable.approval_decision`` and the resume mechanism is the ONE
+``durable.resume_thread`` (SOLID: S).
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import sys
 
 from triagedesk.demo.run import list_beats, run_demo
+from triagedesk.durable import DurableError, approval_decision, resume_thread
 from triagedesk.evals.runner import run_eval
+from triagedesk.graph.build import CHECKPOINTS_DB_PATH
 
 # The defaults named once so the CLI and the docs agree (DRY).
 DEFAULT_CASES_DIR = "evals/cases"
@@ -72,6 +79,45 @@ def _build_parser() -> argparse.ArgumentParser:
     demo_parser.add_argument(
         "--fixture", default=DEFAULT_CASES_DIR, help="directory of case fixtures"
     )
+    demo_parser.add_argument(
+        "--durable",
+        action="store_true",
+        help="run ONE beat to the durable approval gate and print the resume command",
+    )
+    demo_parser.add_argument(
+        "--db",
+        default=None,
+        help="checkpoint file for --durable (default: checkpoints.db)",
+    )
+
+    resume_parser = subcommands.add_parser(
+        "resume", help="resume a paused durable thread through the approval gate"
+    )
+    resume_parser.add_argument(
+        "--thread-id",
+        required=True,
+        help="the content-derived thread id printed by demo --durable",
+    )
+    resume_parser.add_argument(
+        "--decision",
+        choices=["approve", "edit", "dismiss"],
+        required=True,
+        help="the clinician's decision at the gate",
+    )
+    resume_parser.add_argument(
+        "--approver", default=None, help="the named clinician (required for approve/edit)"
+    )
+    resume_parser.add_argument(
+        "--role", default=None, help="the clinician's role (required for approve/edit)"
+    )
+    resume_parser.add_argument(
+        "--colour", default=None, help="the edited colour (required for an edit decision)"
+    )
+    resume_parser.add_argument(
+        "--db",
+        default=None,
+        help="checkpoint file (default: checkpoints.db)",
+    )
     return parser
 
 
@@ -96,8 +142,29 @@ def main(argv: list[str] | None = None) -> int:
                 beats=args.beats,
                 offline=not args.online,
                 fixture_dir=args.fixture,
+                durable=args.durable,
+                db_path=args.db,
             )
         )
+    if args.command == "resume":
+        try:
+            decision = approval_decision(
+                args.decision,
+                approver=args.approver,
+                role=args.role,
+                colour=args.colour,
+            )
+            asyncio.run(
+                resume_thread(
+                    thread_id=args.thread_id,
+                    decision=decision,
+                    db_path=args.db or CHECKPOINTS_DB_PATH,
+                )
+            )
+        except DurableError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        return 0
     return 2  # pragma: no cover - argparse rejects an unknown command first
 
 
