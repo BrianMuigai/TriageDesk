@@ -15,7 +15,9 @@ autouse conftest fixture — no subprocess, no network, no repo-root artefact.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -33,6 +35,7 @@ from triagedesk.llm import client as llm_client
 from triagedesk.llm.client import DEFAULT_MODEL, extract
 from triagedesk.mcp import server as server_module
 from triagedesk.observability import bind_trace
+from triagedesk.observability.offline import harden_offline
 from triagedesk.observability.spans import SPANS_PATH
 from triagedesk.store.audit import GENESIS, AuditRecord, append, record_digest, verify
 from triagedesk.store.borrowed import (
@@ -284,3 +287,48 @@ async def test_offline_run_emits_no_model_span(
     spans = _read_sink(tmp_path)
     assert not [entry for entry in spans if entry["kind"] == "model"]
     assert any(entry["kind"] == "tool" for entry in spans)
+
+
+# ------------------------------------------ Task 3: offline hardening + the asserted guard
+
+_TRACING_VARS = (
+    "LANGSMITH_TRACING",
+    "LANGSMITH_TRACING_V2",
+    "LANGCHAIN_TRACING",
+    "LANGCHAIN_TRACING_V2",
+)
+
+
+def test_harden_offline_asserts_tracing_is_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """After ``harden_offline`` tracing is off and the four tracing vars are gone (D7-03)."""
+    langsmith_utils = pytest.importorskip("langsmith.utils")
+    for name in _TRACING_VARS:
+        monkeypatch.setenv(name, "true")
+    langsmith_utils.get_env_var.cache_clear()
+
+    harden_offline()
+
+    assert langsmith_utils.tracing_is_enabled() is False
+    for name in _TRACING_VARS:
+        assert name not in os.environ
+
+
+def test_harden_offline_disables_a_primed_tracer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A cached env read cannot keep the tracer on: the cache is cleared (Pitfall 2)."""
+    langsmith_utils = pytest.importorskip("langsmith.utils")
+    monkeypatch.setenv("LANGCHAIN_TRACING_V2", "true")
+    langsmith_utils.get_env_var.cache_clear()
+    assert langsmith_utils.tracing_is_enabled() is True, "the primed tracer was not on"
+
+    harden_offline()
+
+    assert langsmith_utils.tracing_is_enabled() is False
+
+
+def test_harden_offline_is_import_safe_without_langsmith(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``harden_offline`` is a no-op success when langsmith cannot be imported (D7-03)."""
+    monkeypatch.setitem(sys.modules, "langsmith", None)
+
+    harden_offline()  # must not raise

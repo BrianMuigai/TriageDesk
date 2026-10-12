@@ -9,6 +9,10 @@ arguments to ``triagedesk.evals.runner.run_eval``, ``triagedesk.demo.run.run_dem
 No graph, store or decision-shape logic lives here: the durable decision rule is the ONE
 ``durable.approval_decision`` and the resume mechanism is the ONE
 ``durable.resume_thread`` (SOLID: S).
+
+Every invocation first calls ``observability.offline.harden_offline`` — the ONE place the
+transitive tracer environment is neutralised and asserted off, so no command egresses
+(D7-03).
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ from triagedesk.demo.run import list_beats, run_demo
 from triagedesk.durable import DurableError, approval_decision, resume_thread
 from triagedesk.evals.runner import run_eval
 from triagedesk.graph.build import CHECKPOINTS_DB_PATH
+from triagedesk.observability.offline import harden_offline
 
 # The defaults named once so the CLI and the docs agree (DRY).
 DEFAULT_CASES_DIR = "evals/cases"
@@ -124,6 +129,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     """Parse *argv* and dispatch; return the process exit code."""
+    harden_offline()
     args = _build_parser().parse_args(argv)
     if args.command == "eval":
         return asyncio.run(
