@@ -173,6 +173,19 @@ while the `graph.build.load_graph_tools` / `run_case` stdio-subprocess path reco
 declared limitation, not a silent claim (WR-02).
 Rationale and the guaranteed properties: `SECURITY.md` §10.
 
+### D20 — Asymmetric-cost deferral threshold for the coverage signal
+**Decision:** the deterministic coverage/deferral signal (`core/confidence.assess`) answers a case only when
+at least `DEFERRAL_MIN_SATISFIED_COMPONENTS` of its four components — vitals coverage, discriminator
+coverage, the override-vs-TEWS path, and the TEWS distance from the band edge — are satisfied; a `no_match`
+case is deferred unconditionally.
+**Why:** the two costs are **asymmetric** — a missed emergency (an under-triaged patient reaching the queue)
+is vastly more costly than a needless deferral (a nurse re-checking a low-evidence case). Setting the answer
+bar high buys safety at the cost of coverage, and the coverage lost is reported rather than hidden (D8-09,
+D8-10).
+**Consequence:** the signal can only ever make the system *more* cautious — a deferral routes to `escalate` /
+`request_missing_info`, never to `commit`, and never changes a scored colour (D8-12). The named constant
+lives once in `core/confidence.py`; this record is its rationale and it is never tuned to make a test green.
+
 ---
 
 ## Disclosed third-party components (DQ-8)
