@@ -119,6 +119,13 @@ p {
   margin: 0 0 var(--space-2xl);
 }
 
+/* The card↔gate gap is the UI-SPEC's declared use of ``--space-xl`` (32px), not the 2xl
+ * section break — so the card's bottom margin is overridden to the xl token and the declared
+ * spacing scale is the one actually applied (10-UI-SPEC §Spacing Scale). */
+.priority-card {
+  margin-bottom: var(--space-xl);
+}
+
 .quickstart-steps {
   margin: 0;
   color: var(--muted-text);

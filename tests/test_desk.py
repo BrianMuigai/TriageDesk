@@ -1451,6 +1451,19 @@ def test_served_css_declares_wrapping_rules() -> None:
         assert not re.search(r"(?<!-)\bwidth\s*:", block), f"{selector} has a fixed width"
 
 
+def test_card_gate_gap_uses_the_declared_xl_token() -> None:
+    """The card↔gate gap applies the declared ``--space-xl`` token, not the 2xl section break.
+
+    The UI-SPEC assigns ``--space-xl`` (32px) to "Gap between the card and the gate panel"; the
+    token must actually be applied (not merely declared and orphaned), so the card's bottom
+    margin overrides the shared panel rule (10-UI-SPEC §Spacing Scale).
+    """
+    css = (ASSET_DIR / "styles.css").read_text(encoding="utf-8")
+    assert "--space-xl:" in css, "the xl token is not declared"
+    card = _css_block(css, ".priority-card")
+    assert "var(--space-xl)" in card, "the card does not apply the xl token"
+
+
 def test_css_declares_every_substrate_colour_token() -> None:
     """The stylesheet declares a swatch for every colour the substrate names (the five tokens).
 
