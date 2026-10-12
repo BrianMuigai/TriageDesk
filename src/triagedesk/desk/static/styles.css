@@ -200,11 +200,6 @@ button[disabled] {
   margin-top: var(--space-md);
 }
 
-.form-echo {
-  margin-top: var(--space-md);
-  color: var(--muted-text);
-}
-
 .framing {
   color: var(--muted-text);
 }
@@ -246,8 +241,7 @@ button[disabled] {
 }
 
 .why-vitals-list,
-.evidence-list,
-.form-echo ul {
+.evidence-list {
   list-style: none;
   margin: 0 0 var(--space-md);
   padding: 0;
@@ -277,13 +271,6 @@ button[disabled] {
 
 .no-evidence {
   color: var(--muted-text);
-}
-
-.complaint-block .value {
-  display: block;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  white-space: pre-wrap;
 }
 
 .colour-fieldset {

@@ -1262,7 +1262,7 @@ def test_served_css_declares_wrapping_rules() -> None:
     css = (ASSET_DIR / "styles.css").read_text(encoding="utf-8")
     assert "nowrap" not in css, "the CSS clips a label with white-space: nowrap"
 
-    for selector in (".evidence-list li", ".banner-headline", ".complaint-block .value"):
+    for selector in (".evidence-list li", ".banner-headline"):
         block = _css_block(css, selector)
         assert "overflow-wrap" in block or "word-break" in block, selector
 

@@ -334,19 +334,6 @@ def _csrf_field(token: str | None) -> str:
     return f'<input type="hidden" name="{_CSRF_FIELD}" value="{_escaped(token)}">'
 
 
-def _form_echo(form: Mapping[str, str]) -> str:
-    """Echo the submitted complaint, escaped, labelled as the nurse typed it (UI-SPEC)."""
-    complaint = form.get("complaint")
-    if not complaint:
-        return ""
-    return (
-        '<div class="form-echo complaint-block">'
-        f'<p><span class="label">Complaint:</span> '
-        f'<span class="value">{_escaped(complaint)}</span></p>'
-        "</div>"
-    )
-
-
 def _base_annotation(name: str) -> Any:
     """The non-``None`` annotation of a ``CaseInput`` field (unwrapping ``| None``)."""
     annotation = CaseInput.model_fields[name].annotation
@@ -632,7 +619,7 @@ def _terminal_panel(state: Mapping[str, Any]) -> str:
     return _panel(_UNREACHED_COPY, "muted")
 
 
-def _empty_view(form: Mapping[str, str]) -> dict[str, str]:
+def _empty_view() -> dict[str, str]:
     """The view with no case submitted — the empty state, no card and no gate."""
     return {
         "state_panel": (
@@ -642,13 +629,10 @@ def _empty_view(form: Mapping[str, str]) -> dict[str, str]:
         "banner": "",
         "card": "",
         "gate": "",
-        "form_values": _form_echo(form),
     }
 
 
-def _paused_view(
-    paused: PausedRun, form: Mapping[str, str], csrf_token: str | None = None
-) -> dict[str, str]:
+def _paused_view(paused: PausedRun, csrf_token: str | None = None) -> dict[str, str]:
     """The view for a run that paused at the gate, deferred, escalated, or repeated (D10-17).
 
     The banner fires only from :func:`banner_trigger`; a committable case (paused at the gate)
@@ -670,7 +654,6 @@ def _paused_view(
             "banner": banner,
             "card": _card_html(paused.payload, evidence),
             "gate": _gate_html(str(paused.payload.get("case_id") or ""), csrf_token),
-            "form_values": _form_echo(form),
         }
 
     kind = terminal_kind(state)
@@ -689,7 +672,6 @@ def _paused_view(
             "banner": banner,
             "card": card,
             "gate": "",
-            "form_values": _form_echo(form),
         }
 
     # ``existed=True`` with no terminal: a repeat submission whose thread has a pending gate
@@ -704,7 +686,6 @@ def _paused_view(
             "banner": banner,
             "card": "",
             "gate": "",
-            "form_values": _form_echo(form),
         }
     if paused.existed:
         return {
@@ -712,14 +693,12 @@ def _paused_view(
             "banner": banner,
             "card": _card_html(_card_payload_from_state(state, paused.thread_id), evidence),
             "gate": _gate_html(paused.thread_id, csrf_token),
-            "form_values": _form_echo(form),
         }
     return {
         "state_panel": _terminal_panel(state),
         "banner": banner,
         "card": "",
         "gate": "",
-        "form_values": _form_echo(form),
     }
 
 
@@ -750,7 +729,6 @@ def _decision_view(result: Mapping[str, Any], form: Mapping[str, str]) -> dict[s
         "banner": "",
         "card": "",
         "gate": "",
-        "form_values": _form_echo(form),
     }
 
 
@@ -775,7 +753,6 @@ def _render(view: Mapping[str, str], form: Mapping[str, str], csrf_token: str | 
         banner=view["banner"],
         card=view["card"],
         gate=view["gate"],
-        form_values=view["form_values"],
     )
 
 
@@ -799,7 +776,7 @@ def render_state(
     if result is not None:
         return _render(_decision_view(result, form), form, csrf_token)
     if paused is not None:
-        return _render(_paused_view(paused, form, csrf_token), form, csrf_token)
+        return _render(_paused_view(paused, csrf_token), form, csrf_token)
     if error is not None:
         return _render(
             {
@@ -807,12 +784,11 @@ def render_state(
                 "banner": "",
                 "card": "",
                 "gate": "",
-                "form_values": _form_echo(form),
             },
             form,
             csrf_token,
         )
-    return _render(_empty_view(form), form, csrf_token)
+    return _render(_empty_view(), form, csrf_token)
 
 
 class DeskServer(ThreadingHTTPServer):
