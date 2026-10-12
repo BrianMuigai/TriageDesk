@@ -226,6 +226,32 @@ read-path wire shape **degrades** and is recorded on the adapter's `read_path_re
 store-open path the demo, eval, resume and commit all depend on (D9-14). No new dependency and no
 `Store`-protocol change.
 
+### D23 — The desk surface is a dependency-free presentation bridge
+**Decision:** the desk surface is ONE local HTML page served by a **stdlib `http.server`** handler
+bound to **loopback only**, with no build step, no CDN and **no new dependency** (D10-01, D10-03,
+D10-16). It is a **thin, presentation-only** bridge: it renders the graph's own typed outputs — the
+`approval_gate` interrupt payload, the `PriorityResult`, the `evidence` channel and the confidence
+signal — and **re-derives no colour, citation, target time or confidence value** (D10-02, D10-04,
+D10-07). The vitals form validates through the ONE `CaseInput` schema and surfaces that schema's own
+rejection (D10-13). Every gate decision flows through the ONE pause/resume plumbing and the gated
+commit tool; the surface has **no commit path of its own**, a timeout is no approve and a dismiss
+commits nothing (D10-10, D10-11, D10-12). The uncertainty banner renders on the **deferred/escalated
+terminal**, never beside the gate: a `no_match`/deferral case routes to a terminal and never reaches
+the approval gate, so a deferred case renders a read-only card and **no** gate (D10-17). The edit
+control offers **exactly the colours the approval token validates against** — the band colours read
+from the TEWS substrate — so the surface can never offer a decision the gate would refuse (D10-18).
+**Why:** the human is the actor — the card *suggests*, the banner *flags*, and the gate is the only
+route to the queue. A thin bridge over the shipped seams keeps one schema, one citation helper, one
+colour producer and one pause/resume path (CONVENTIONS §1), so the surface cannot become a second
+implementation of the clinical logic it displays. A stdlib handler keeps the surface readable
+end-to-end and reproducible from a clean clone, with nothing to build and nothing to fetch.
+**Consequence:** the surface is a peer presentation layer (like `demo/`): it holds no scoring,
+routing or gate logic, and its only mapping is a substrate colour string to a CSS class. The banner
+and the gate are disjoint by construction (a case at the gate never carries the deferral signal), so
+the honest reachable design reopens no locked decision. The edit set, the copy and the token/colour
+lists stay in their single sources (the substrate, the UI-SPEC and the schema) and are never restated
+here. No new dependency, no graph change and no second validation rule.
+
 ---
 
 ## Disclosed third-party components (DQ-8)
