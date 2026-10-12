@@ -24,6 +24,7 @@ commit's parameterised ``query`` writes (``write=True``).
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, cast
@@ -84,6 +85,12 @@ _READ_PREFIXES = ("SELECT", "VALUES")
 # state (``PRAGMA writable_schema = 1``, ``PRAGMA journal_mode = DELETE``), so it is
 # refused; the store itself issues only ``PRAGMA table_info(...)`` on the read path.
 _PRAGMA_READ_PREFIXES = ("PRAGMA TABLE_INFO", "PRAGMA INDEX_LIST", "PRAGMA INDEX_INFO")
+# SQL functions that do more than read the current database, refused outright so the
+# guard's "provably read-only" contract holds literally (IN-01). ``load_extension`` is
+# the only built-in that can act beyond the current database (it loads a native library);
+# extension loading is disabled by default in Python's ``sqlite3`` and by
+# ``mcp-sqlite@1.0.9``, but the guard does not rely on that — it refuses the call.
+_SIDE_EFFECTING_FUNCTION = re.compile(r"\bLOAD_EXTENSION\b")
 # The bounded row count the read-path probe requests (one row is enough to prove the
 # path, and it keeps the probe's payload small).
 _PROBE_LIMIT = 1
@@ -186,6 +193,8 @@ def is_read_only_statement(sql: str) -> bool:
       ``EXPLAIN PRAGMA writable_schema = 1`` mutates state despite the prefix;
     * a ``PRAGMA`` outside the read-only subset (``PRAGMA writable_schema = 1`` mutates
       state);
+    * a statement invoking a side-effecting function
+      (``SELECT load_extension('evil')``);
     * a multi-statement string — any ``;`` that does not merely terminate the one
       statement (``SELECT 1; DELETE FROM queue``).
 
@@ -201,9 +210,14 @@ def is_read_only_statement(sql: str) -> bool:
     # store never issues one.
     if ";" in stripped.rstrip(";"):
         return False
-    head = stripped.split(None, 1)[0].upper()
+    upper = stripped.upper()
+    # A side-effecting function makes even a SELECT-headed statement not a read; refused
+    # before the head test (IN-01).
+    if _SIDE_EFFECTING_FUNCTION.search(upper):
+        return False
+    head = upper.split(None, 1)[0]
     if head == "PRAGMA":
-        return _is_read_pragma(stripped.upper())
+        return _is_read_pragma(upper)
     if head == "WITH":  # a CTE may prefix INSERT/UPDATE/DELETE — not a read
         return False
     return head in _READ_PREFIXES

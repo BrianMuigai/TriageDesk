@@ -310,6 +310,8 @@ _NOT_READ_STATEMENTS = (
     "EXPLAIN SELECT 1",
     "EXPLAIN PRAGMA writable_schema = 1",
     "EXPLAIN QUERY PLAN PRAGMA cache_size = 100",
+    # a side-effecting function is not a read, even behind a SELECT head
+    "SELECT load_extension('evil')",
     # a compound string is not a single read statement
     "SELECT 1; DELETE FROM queue",
     "",
