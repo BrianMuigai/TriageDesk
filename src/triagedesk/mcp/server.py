@@ -1,4 +1,4 @@
-"""Owned MCP server (SDK v2, stdio) exposing the six triage tools (D-04/D-12).
+"""Owned MCP server (SDK v2, stdio) exposing the seven triage tools (D-04/D-12).
 
 ``from mcp.server import MCPServer`` — the v1 ``FastMCP`` import path was removed
 in SDK v2. Every tool returns a shared ``core.schema`` contract (D-14), so the
@@ -27,12 +27,13 @@ from typing import Any
 from mcp.server import MCPServer
 from pydantic import BaseModel, ValidationError
 
-from triagedesk.core import confidence, matcher, recheck, scorer
+from triagedesk.core import confidence, matcher, recheck, retrieval, scorer
 from triagedesk.core.schema import (
     ApprovalToken,
     CaseInput,
     CommitResult,
     ConfidenceResult,
+    EvidenceResult,
     ExtractionResult,
     MatchResult,
     PriorityResult,
@@ -234,6 +235,21 @@ def match_discriminators(complaint: str) -> MatchResult:
     explicit ``no_match`` result — never a guessed id (SAFE-01).
     """
     return matcher.match_discriminators(complaint)
+
+
+@server.tool()
+@audited()
+def retrieve_evidence(complaint: str) -> EvidenceResult:
+    """Return attributed SATS KB excerpts for a complaint — read-only, no store (D9-06).
+
+    A thin, contract-typed adapter over the pure ``core.retrieval.retrieve`` function
+    (SOLID: S/D): it carries no audit code of its own — the ONE ``@audited`` interceptor
+    supplies its audit record and ``tool`` span. It is read-only and side-effect-free:
+    no store access, no queue row, no approval token (D9-06). It reads only the loaded
+    ``data/*.yaml`` substrate through the one loader, and returns a contract with no
+    colour field, so it can *show* grounding but can never *set* a priority (D9-03).
+    """
+    return retrieval.retrieve(complaint)
 
 
 @server.tool()

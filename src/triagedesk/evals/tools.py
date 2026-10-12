@@ -122,6 +122,9 @@ def build_tools(case: CaseSpec, *, offline: bool, recorder: UsageRecorder) -> di
             PriorityResult.model_validate(inp["priority"]),
         )
 
+    async def retrieve_evidence(inp: Mapping[str, Any]) -> Any:
+        return await server_module.retrieve_evidence(str(inp["complaint"]))
+
     async def commit_priority(inp: Mapping[str, Any]) -> Any:
         case = CaseInput.model_validate(inp["case"])
         return await server_module.commit_priority(
@@ -134,6 +137,7 @@ def build_tools(case: CaseSpec, *, offline: bool, recorder: UsageRecorder) -> di
         "score_priority": score_priority,
         "raise_recheck_flag": raise_recheck_flag,
         "assess_confidence": assess_confidence,
+        "retrieve_evidence": retrieve_evidence,
         "commit_priority": commit_priority,
     }
 

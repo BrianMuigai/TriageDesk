@@ -17,7 +17,7 @@ from typing import Any
 from mcp import Client
 
 from triagedesk.core.rules import get_discriminators
-from triagedesk.core.schema import CaseInput, CommitResult, ExtractionResult
+from triagedesk.core.schema import CaseInput, CommitResult, EvidenceResult, ExtractionResult
 from triagedesk.mcp import server as server_module
 
 
@@ -182,3 +182,27 @@ async def test_commit_priority_is_listed_by_the_owned_server() -> None:
 
     names = {tool.name for tool in listed.tools}
     assert "commit_priority" in names, f"owned server missing the tool: {names}"
+
+
+async def test_retrieve_evidence_returns_closed_set_passages() -> None:
+    """The seventh tool returns attributed, closed-set passages over the SDK client (D9-05, D-14).
+
+    The complaint is built FROM a declared alias (never a literal), so the call is
+    guaranteed to retrieve; the payload validates back to the ONE shared contract and
+    every returned id is a member of the loader-derived closed set. This proves the
+    tool contract and the graph contract cannot drift.
+    """
+    discriminator = get_discriminators().discriminators[0]
+    closed = {entry.id for entry in get_discriminators().discriminators}
+
+    async with Client(server_module.server) as client:
+        call = await client.call_tool(
+            "retrieve_evidence", {"complaint": discriminator.aliases[0]}
+        )
+
+    assert not call.is_error, f"retrieve_evidence errored: {call}"
+    parsed = EvidenceResult.model_validate_json(call.content[0].text)
+    returned = {passage.discriminator_id for passage in parsed.passages}
+    assert parsed.passages, "a complaint built from a declared alias must retrieve a passage"
+    assert returned <= closed
+    assert discriminator.id in returned
