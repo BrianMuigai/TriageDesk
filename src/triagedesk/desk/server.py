@@ -33,7 +33,7 @@ from collections.abc import Mapping
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 from urllib.parse import parse_qs
 
 from pydantic import ValidationError
@@ -67,6 +67,27 @@ _ASSETS: dict[str, str] = {
 # The checkbox values that read as "set". Deliberately excludes the bare word a data file
 # might also carry, so the guard's exact-match scan is never tripped.
 _TRUTHY = frozenset({"true", "on", "1"})
+
+# The vitals form's field order and human labels (presentation only). Each control's kind,
+# plausible range and select options are read from the ONE ``CaseInput`` schema at render
+# time, so the form can never offer a range or an option the schema would reject and no
+# bound is restated (CONVENTIONS §1, D10-13).
+_VITALS_LAYOUT: tuple[tuple[str, str], ...] = (
+    ("age_years", "Age (years)"),
+    ("age_months", "Age (months)"),
+    ("age_ambiguous", "Age unclear"),
+    ("height_cm", "Height (cm)"),
+    ("respiratory_rate", "Breathing rate"),
+    ("heart_rate", "Heart rate"),
+    ("systolic_bp", "Systolic BP"),
+    ("diastolic_bp", "Diastolic BP"),
+    ("temperature_c", "Temperature (°C)"),
+    ("spo2", "Oxygen saturation"),
+    ("mobility", "Mobility"),
+    ("avpu", "Alertness (AVPU)"),
+    ("trauma", "Trauma"),
+    ("complaint", "Complaint"),
+)
 
 # The UI-SPEC copy the bridge selects between (no clinical value, no SATS literal). The
 # banner headline is verbatim from UX-01; the banner BODY varies with the trigger so the
@@ -291,6 +312,112 @@ def _form_echo(form: Mapping[str, str]) -> str:
         f'<span class="value">{_escaped(complaint)}</span></p>'
         "</div>"
     )
+
+
+def _base_annotation(name: str) -> Any:
+    """The non-``None`` annotation of a ``CaseInput`` field (unwrapping ``| None``)."""
+    annotation = CaseInput.model_fields[name].annotation
+    non_none = [arg for arg in get_args(annotation) if arg is not type(None)]
+    return non_none[0] if non_none else annotation
+
+
+def _annotation_kind(name: str) -> str:
+    """Classify a ``CaseInput`` field into the form control it needs (from the schema)."""
+    base = _base_annotation(name)
+    if base is bool:
+        return "checkbox"
+    if base is int:
+        return "int"
+    if base is float:
+        return "float"
+    if get_args(base):  # a Literal[...] enum field
+        return "select"
+    return "text"
+
+
+def _enum_values(name: str) -> list[str]:
+    """The ``Literal`` options of an enum field, read from the schema (never restated)."""
+    return [str(value) for value in get_args(_base_annotation(name))]
+
+
+def _bounds(name: str) -> tuple[Any, Any]:
+    """The ``(ge, le)`` plausible bounds of a numeric field, read from its ``FieldInfo``."""
+    metadata = CaseInput.model_fields[name].metadata
+    low = next((getattr(m, "ge", None) for m in metadata if hasattr(m, "ge")), None)
+    high = next((getattr(m, "le", None) for m in metadata if hasattr(m, "le")), None)
+    return low, high
+
+
+def _fmt_bound(value: Any) -> str:
+    """Render a numeric bound without a trailing ``.0`` (so ``30.0`` -> ``30``)."""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
+def _option_label(value: str) -> str:
+    """The human label for a schema enum value (``with_help`` -> ``With help``)."""
+    return value.replace("_", " ").capitalize()
+
+
+def _vitals_field(name: str, label: str, form: Mapping[str, str]) -> str:
+    """Render one vitals field, repopulated from *form* and bounded by the schema (D10-13)."""
+    kind = _annotation_kind(name)
+    raw = str(form.get(name, ""))
+    if kind in ("int", "float"):
+        low, high = _bounds(name)
+        step = "1" if kind == "int" else "0.1"
+        mode = ' inputmode="numeric"' if kind == "int" else ""
+        control = (
+            f'<input id="{name}" name="{name}" type="number"{mode} step="{step}" '
+            f'min="{_escaped(_fmt_bound(low))}" max="{_escaped(_fmt_bound(high))}" '
+            f'value="{_escaped(raw.strip())}">'
+        )
+        return (
+            f'<div class="field"><label for="{name}">{_escaped(label)}</label>'
+            f"{control}</div>"
+        )
+    if kind == "checkbox":
+        checked = " checked" if raw.strip().lower() in _TRUTHY else ""
+        control = (
+            f'<input id="{name}" name="{name}" type="checkbox" value="true"{checked}>'
+        )
+        return (
+            f'<div class="field field-check">{control}'
+            f'<label for="{name}">{_escaped(label)}</label></div>'
+        )
+    if kind == "select":
+        options = "".join(
+            f'<option value="{_escaped(value)}"'
+            f'{" selected" if raw.strip() == value else ""}>'
+            f"{_escaped(_option_label(value))}</option>"
+            for value in _enum_values(name)
+        )
+        control = (
+            f'<select id="{name}" name="{name}">'
+            f'<option value="">—</option>{options}</select>'
+        )
+        return (
+            f'<div class="field"><label for="{name}">{_escaped(label)}</label>'
+            f"{control}</div>"
+        )
+    control = f'<textarea id="{name}" name="{name}" rows="3">{_escaped(raw)}</textarea>'
+    return (
+        f'<div class="field"><label for="{name}">{_escaped(label)}</label>'
+        f"{control}</div>"
+    )
+
+
+def _vitals_fields(form: Mapping[str, str]) -> str:
+    """Render the vitals form's field block, repopulated from *form* (WR-03).
+
+    The controls are generated from the ONE ``CaseInput`` schema (D10-13): a numeric
+    field's ``min``/``max`` come from its own ``FieldInfo`` bounds and a select's options
+    from its ``Literal``, so no range or option is restated in markup and the form can
+    never offer a value the schema would reject. The submitted values are rendered back,
+    so a rejected submission never discards what the nurse typed.
+    """
+    return "".join(_vitals_field(name, label, form) for name, label in _VITALS_LAYOUT)
 
 
 def _why_vitals_rows(payload: Mapping[str, Any]) -> str:
@@ -586,14 +713,16 @@ def _error_panel(message: str) -> str:
     return _panel(_escaped(message), "error")
 
 
-def _render(view: Mapping[str, str]) -> str:
+def _render(view: Mapping[str, str], form: Mapping[str, str]) -> str:
     """Substitute the server-rendered regions into the hand-authored page (string.Template).
 
     ``string.Template`` (not ``str.format``) is used because the markup carries CSS braces; the
-    page's only ``$`` characters are its placeholders.
+    page's only ``$`` characters are its placeholders. The vitals field block is rendered
+    from *form* (the submitted values), so a rejected submission repopulates the form.
     """
     template = string.Template((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
     return template.substitute(
+        vitals_fields=_vitals_fields(form),
         state_panel=view["state_panel"],
         banner=view["banner"],
         card=view["card"],
@@ -617,9 +746,9 @@ def render_state(
     """
     form = form_values or {}
     if result is not None:
-        return _render(_decision_view(result, form))
+        return _render(_decision_view(result, form), form)
     if paused is not None:
-        return _render(_paused_view(paused, form))
+        return _render(_paused_view(paused, form), form)
     if error is not None:
         return _render(
             {
@@ -628,9 +757,10 @@ def render_state(
                 "card": "",
                 "gate": "",
                 "form_values": _form_echo(form),
-            }
+            },
+            form,
         )
-    return _render(_empty_view(form))
+    return _render(_empty_view(form), form)
 
 
 class DeskServer(ThreadingHTTPServer):

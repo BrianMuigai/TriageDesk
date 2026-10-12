@@ -337,6 +337,58 @@ def test_malformed_request_renders_the_failure_panel(
     assert injected_store.rows == []
 
 
+def test_rejected_submission_repopulates_the_vitals_form(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A validation error preserves every entered vital, not only the complaint (WR-03)."""
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        form = _form_from_case(COMPLETE_CASE)
+        form["heart_rate"] = "999"
+        body = _post(_base(server) + "/case", form)
+
+    assert "Check the highlighted field and try again." in body
+    assert 'value="40"' in body, "the age was not repopulated"
+    assert 'value="999"' in body, "the rejected heart rate was not repopulated"
+    assert f">{COMPLETE_CASE.complaint}</textarea>" in body, "the complaint was not repopulated"
+    assert 'value="walking" selected' in body, "the mobility choice was not repopulated"
+    assert 'value="alert" selected' in body, "the AVPU choice was not repopulated"
+    assert injected_store.rows == []
+
+
+def _schema_bound(name: str, key: str) -> Any:
+    """The ``ge``/``le`` bound of a ``CaseInput`` field (the ONE schema's own bound)."""
+    for meta in CaseInput.model_fields[name].metadata:
+        if hasattr(meta, key):
+            return getattr(meta, key)
+    return None
+
+
+def _bound_text(value: Any) -> str:
+    """Render a numeric bound the way the form does (no trailing ``.0``)."""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
+def test_vitals_bounds_are_derived_from_the_schema() -> None:
+    """Every numeric input's min/max equals the ONE schema's own bound, never a copy (IN-04)."""
+    body = desk_server.render_state()
+    for name in (
+        "age_years",
+        "age_months",
+        "height_cm",
+        "respiratory_rate",
+        "heart_rate",
+        "systolic_bp",
+        "diastolic_bp",
+        "temperature_c",
+        "spo2",
+    ):
+        low = _bound_text(_schema_bound(name, "ge"))
+        high = _bound_text(_schema_bound(name, "le"))
+        assert f'min="{low}" max="{high}"' in body, f"{name} bounds are not schema-derived"
+
+
 # --------------------------------------------------------------- structural (Plan 10-01)
 
 
