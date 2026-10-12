@@ -283,6 +283,7 @@ _READ_ONLY_STATEMENTS = (
     "SELECT 1",
     "  select * from queue",
     "PRAGMA table_info(audit)",
+    "PRAGMA table_info (audit)",
     "PRAGMA index_list(queue)",
     "VALUES (1)",
 )
@@ -302,6 +303,8 @@ _NOT_READ_STATEMENTS = (
     # PRAGMA writes are not reads (a bare/unknown PRAGMA mutates state)
     "PRAGMA writable_schema = 1",
     "PRAGMA journal_mode = DELETE",
+    # an unknown pragma sharing an admitted prefix is refused (name-boundary match)
+    "PRAGMA table_infox(queue)",
     # EXPLAIN executes PRAGMA at compile time, so an EXPLAIN-prefixed PRAGMA write is a
     # write; EXPLAIN is refused outright (no caller issues it)
     "EXPLAIN SELECT 1",

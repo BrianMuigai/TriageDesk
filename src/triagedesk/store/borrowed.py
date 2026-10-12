@@ -156,6 +156,22 @@ _AUDIT_HEAD_DDL = (
 _ROW_KEYS = ("rows", "records", "results", "data")
 
 
+def _is_read_pragma(upper: str) -> bool:
+    """Return whether an upper-cased ``PRAGMA`` statement is in the read-only subset.
+
+    The admitted pragma name must be followed by a boundary — ``(``, whitespace, or the
+    end of the string — so an unknown pragma that merely shares a prefix
+    (``PRAGMA table_infox``) is refused rather than admitted by a bare prefix match
+    (IN-02).
+    """
+    for prefix in _PRAGMA_READ_PREFIXES:
+        if upper.startswith(prefix):
+            rest = upper[len(prefix):]
+            if not rest or rest[0] == "(" or rest[0].isspace():
+                return True
+    return False
+
+
 def is_read_only_statement(sql: str) -> bool:
     """Return whether *sql* is a single, provably read-only statement, failing closed (D9-12).
 
@@ -187,7 +203,7 @@ def is_read_only_statement(sql: str) -> bool:
         return False
     head = stripped.split(None, 1)[0].upper()
     if head == "PRAGMA":
-        return stripped.upper().startswith(_PRAGMA_READ_PREFIXES)
+        return _is_read_pragma(stripped.upper())
     if head == "WITH":  # a CTE may prefix INSERT/UPDATE/DELETE — not a read
         return False
     return head in _READ_PREFIXES
