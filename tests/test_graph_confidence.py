@@ -18,8 +18,9 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from conftest import COMPLETE_CASE, build_graph_tools
 from triagedesk.core import scorer
+from triagedesk.core.schema import ConfidenceResult, PriorityResult
 from triagedesk.evals.case import load_cases
-from triagedesk.graph.build import build_graph
+from triagedesk.graph.build import build_graph, route_after_assess
 from triagedesk.mcp import server as server_module
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -51,6 +52,43 @@ def test_a_deferral_cannot_reach_the_commit() -> None:
     # ``commit`` is reachable only via ``approval_gate`` — the terminals cannot reach it.
     assert ("escalate", "commit") not in edges
     assert ("request_missing_info", "commit") not in edges
+
+
+# --------------------------------------------------------- the deferral routing arms
+
+
+def _deferral_signal() -> ConfidenceResult:
+    """A deferring signal — the router reads only ``deferral`` (D8-12)."""
+    return ConfidenceResult(deferral=True, level="low", components=[], reason="deferred")
+
+
+def test_route_after_assess_sends_a_deferral_with_a_missing_vital_to_recovery() -> None:
+    """The retained defensive arm routes a deferral with a missing scored vital to recovery.
+
+    Under the current wiring this arm is unreachable (:func:`route_after_score` diverts
+    every missing-vitals case before ``assess``); it is covered directly here so the intent
+    is explicit and a future change to that diversion cannot silently drop the guard (WR-01).
+    """
+    state: dict[str, Any] = {
+        "confidence": _deferral_signal(),
+        "priority": PriorityResult(tews=0, missing_vitals=["temperature"]),
+    }
+    assert route_after_assess(state) == "request_missing_info"
+
+
+def test_route_after_assess_escalates_a_deferral_and_gates_a_neutral_signal() -> None:
+    """A deferral without a missing vital escalates; a non-deferral reaches the gate (D8-12)."""
+    deferring: dict[str, Any] = {
+        "confidence": _deferral_signal(),
+        "priority": PriorityResult(tews=4),
+    }
+    assert route_after_assess(deferring) == "escalate"
+
+    neutral: dict[str, Any] = {
+        "confidence": ConfidenceResult(deferral=False, level="high", components=[], reason=""),
+        "priority": PriorityResult(tews=4),
+    }
+    assert route_after_assess(neutral) == "approval_gate"
 
 
 # ------------------------------------------------------- deferral on a committing case

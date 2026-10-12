@@ -147,15 +147,25 @@ def route_after_assess(state: TriageState) -> str:
     """Choose the next node after ``assess`` — a deferral never reaches the gate (D8-08, D8-12).
 
     The confidence signal can only make the system *more* cautious: a deferral routes to
-    ``escalate`` (or ``request_missing_info`` when the priority still reports a missing
-    scored vital), both of which end at ``END`` with no edge to ``commit``. The neutral,
-    non-deferral arm proceeds to ``approval_gate`` as before. Because the deterministic
-    ``recheck`` runs *before* ``assess``, a deferral prevents a commit without suppressing
-    the safety recheck.
+    a safe terminal — ``escalate``, or ``request_missing_info`` when the priority still
+    reports a missing scored vital — both of which end at ``END`` with no edge to
+    ``commit``. The neutral, non-deferral arm proceeds to ``approval_gate`` as before.
+    Because the deterministic ``recheck`` runs *before* ``assess``, a deferral prevents a
+    commit without suppressing the safety recheck.
+
+    The ``request_missing_info`` arm is a deliberately RETAINED defensive guard. Under the
+    current wiring :func:`route_after_score` already diverts every ``missing_vitals`` case
+    to ``request_missing_info``, so such a case never reaches ``assess`` and this arm is
+    unreachable today (covered directly by ``tests/test_graph_confidence.py``). It is kept
+    so a deferral can never fall through to the gate if that score-time diversion is ever
+    changed: the one-way safety property then holds by construction, not by the accident of
+    the current upstream routing.
     """
     signal = state.get("confidence")
     if signal is not None and signal.deferral:
         priority = state.get("priority")
+        # Defensive arm (see docstring): unreachable while ``route_after_score`` diverts
+        # missing-vitals cases, but retained so a deferral always lands on a safe terminal.
         if priority is not None and priority.missing_vitals:
             return "request_missing_info"
         return "escalate"
