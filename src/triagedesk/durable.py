@@ -13,7 +13,7 @@ resolve the store through the ONE existing seam (``mcp.server.resolve_store``).
 
 Design rules honoured here (DRY/SOLID):
 
-* ``graph.nodes.case_id_for`` stays the ONE ``thread_id`` derivation — re-exported as
+* ``graph.nodes.case_id_for_note`` stays the ONE ``thread_id`` derivation — re-exported as
   :func:`derive_thread_id` (which strips first, matching the value ``ingest`` writes back
   into ``raw_note``, so the printed id equals the id the gate used — Pitfall 5).
 * ``graph.build.checkpointed_graph`` stays the ONE durable saver factory.
@@ -34,7 +34,7 @@ from langgraph.types import Command
 from triagedesk.core.schema import CaseInput
 from triagedesk.evals.case import TERMINAL_OUTCOMES, CaseSpec
 from triagedesk.graph.build import checkpointed_graph
-from triagedesk.graph.nodes import ToolMap, case_id_for
+from triagedesk.graph.nodes import ToolMap, case_id_for_note
 
 # The decisions the gate accepts (mirrors ``ApprovalToken.decision``).
 _DECISIONS = ("approve", "edit", "dismiss")
@@ -80,12 +80,12 @@ class PausedRun:
 def derive_thread_id(raw_note: str) -> str:
     """Derive the durable ``thread_id`` from the note — the ONE content derivation (D6-01).
 
-    Delegates to ``graph.nodes.case_id_for`` (never a second hash scheme, never a random
+    Delegates to ``graph.nodes.case_id_for_note`` (never a second hash scheme, never a random
     id, never a per-entry-point prefix). The note is stripped FIRST, matching the value
     ``ingest`` writes back into ``raw_note``, so the printed id equals the id the gate and
     the commit used (Pitfall 5).
     """
-    return case_id_for(raw_note.strip())
+    return case_id_for_note(raw_note)
 
 
 async def invoke_graph(

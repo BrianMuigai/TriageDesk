@@ -90,6 +90,18 @@ def case_id_for(raw_note: str) -> str:
     return hash_value({"raw_note": raw_note})[:16]
 
 
+def case_id_for_note(raw_note: str) -> str:
+    """Derive the case id from a note, stripping first — the ONE note normaliser (D-06, D7-05).
+
+    ``ingest`` strips the note before storing it, and the content id must be derived from that
+    same stripped value or the durable ``thread_id`` would diverge from the trace id and the
+    gate's ``case_id``. This helper owns "strip then derive", so the composition-root node
+    wrapper, ``durable.derive_thread_id`` and every node body that names the case id share ONE
+    derivation (CONVENTIONS §1; ``case_id_for`` stays the raw, un-normalised primitive).
+    """
+    return case_id_for(raw_note.strip())
+
+
 def ingest(state: TriageState) -> dict[str, Any]:
     """Validate the raw note into an initial state — deterministic, no I/O (D-01).
 
@@ -264,7 +276,7 @@ def approval_gate(state: TriageState) -> dict[str, Any]:
     priority = state["priority"]
     second_look = state.get("second_look")
     payload = {
-        "case_id": case_id_for(state["raw_note"]),
+        "case_id": case_id_for_note(state["raw_note"]),
         "colour": priority.colour,
         "target": priority.target,
         "triggered_rules": [rule.model_dump(mode="json") for rule in priority.triggered_rules],
@@ -310,7 +322,7 @@ def _make_commit(tools: ToolMap) -> NodeFn:
             CommitResult,
             await tools["commit_priority"](
                 {
-                    "case_id": case_id_for(state["raw_note"]),
+                    "case_id": case_id_for_note(state["raw_note"]),
                     "colour": priority.colour or "",
                     "case": state["case"].model_dump(),
                     "approval_token": _build_token(state.get("approval"), priority),
@@ -338,7 +350,7 @@ def handover(state: TriageState) -> dict[str, Any]:
     # Only the declared, structured fields are passed — the card's field set is
     # exactly the schema's; an extra field would be rejected by ``extra="forbid"``.
     card = HandoverCard(
-        case_id=case_id_for(state["raw_note"]),
+        case_id=case_id_for_note(state["raw_note"]),
         colour=priority.colour,
         target=priority.target,
         citations=list(priority.citations),

@@ -35,7 +35,7 @@ from triagedesk.evals.case import CaseSpec, load_cases
 from triagedesk.evals.tools import build_tools
 from triagedesk.evals.usage import UsageRecorder
 from triagedesk.graph.build import checkpointed_graph
-from triagedesk.graph.nodes import case_id_for
+from triagedesk.graph.nodes import case_id_for, case_id_for_note
 from triagedesk.mcp import server as server_module
 from triagedesk.store.queue import content_hash
 
@@ -107,6 +107,8 @@ def test_thread_id_is_the_stripped_note_hash() -> None:
     """``derive_thread_id`` is the one content hash of the stripped note (D6-01, Pitfall 5)."""
     note = _case("E-02").note
     assert derive_thread_id(note) == case_id_for(note.strip())
+    # The strip-then-derive rule lives once, in the shared note normaliser (WR-05).
+    assert derive_thread_id(note) == case_id_for_note(note)
     # Surrounding whitespace never changes the id — the same stripped value the gate uses.
     assert derive_thread_id(f"  {note}  ") == derive_thread_id(note)
 

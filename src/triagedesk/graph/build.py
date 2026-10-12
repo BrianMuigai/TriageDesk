@@ -32,7 +32,7 @@ from pydantic import BaseModel
 
 from triagedesk.core import schema as schema_module
 from triagedesk.core.schema import CaseInput
-from triagedesk.graph.nodes import NodeFn, ToolMap, case_id_for, make_nodes
+from triagedesk.graph.nodes import NodeFn, ToolMap, case_id_for_note, make_nodes
 from triagedesk.graph.state import TriageState
 from triagedesk.observability import bind_trace, span
 from triagedesk.store import DOMAIN_DB_PATH
@@ -160,7 +160,7 @@ def _spanned(name: str, node: NodeFn) -> NodeFn:
     The wrapper is applied at the composition root (:func:`build_graph`), never inside a
     node body, so every node keeps its single responsibility and the topology is
     untouched (SOLID: S). It derives the trace id from the state's ``raw_note`` through
-    the ONE content derivation (``graph.nodes.case_id_for`` — the same value
+    the ONE note derivation (``graph.nodes.case_id_for_note`` — the same value
     ``durable.derive_thread_id`` produces), binds it for the node's tool/model calls, and
     runs the node inside one ``node`` span (D7-05, D7-07). ``functools.wraps`` preserves
     the node's ``__name__`` so LangGraph node identity and tracebacks are unchanged.
@@ -172,7 +172,7 @@ def _spanned(name: str, node: NodeFn) -> NodeFn:
 
     @functools.wraps(node)
     async def wrapped(state: TriageState) -> Any:
-        trace_id = case_id_for(str(state.get("raw_note") or "").strip())
+        trace_id = case_id_for_note(str(state.get("raw_note") or ""))
         bind_trace(trace_id)
         with span("node", name):
             result = node(state)
