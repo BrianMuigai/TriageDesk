@@ -139,3 +139,32 @@ def test_there_is_one_normalisation_owner() -> None:
         encoding="utf-8"
     )
     assert "re.compile" not in source
+
+
+def test_retrieval_reuses_the_matcher_phrase_rule() -> None:
+    """Retrieval reuses the matcher's contiguous-phrase helper — no second rule (DRY)."""
+    assert retrieval.contains_sequence is matcher.contains_sequence
+
+
+@pytest.mark.parametrize(
+    "complaint",
+    [
+        "patient is breathing, no distress",
+        "no difficulty breathing noted",
+    ],
+)
+def test_retrieval_agrees_with_the_matcher_on_negated_phrases(complaint: str) -> None:
+    """Retrieval matches the SAME contiguous alias rule as the matcher (WR-01 regression).
+
+    The former set-subset rule admitted an alias whose tokens merely all appeared
+    anywhere in the complaint, so a negated phrase fabricated a passage: "patient is
+    breathing, no distress" surfaced ``obstructed_airway`` (via the alias "no
+    breathing") and "no difficulty breathing noted" surfaced ``obstructed_airway`` too.
+    Both now return exactly the ids the deterministic matcher returns, and no RED
+    ``obstructed_airway`` passage is fabricated from a phrase saying the patient *is*
+    breathing.
+    """
+    result = retrieval.retrieve(complaint)
+    returned = {passage.discriminator_id for passage in result.passages}
+    assert returned == set(matcher.match_discriminators(complaint).matched_ids)
+    assert "obstructed_airway" not in returned

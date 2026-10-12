@@ -23,7 +23,7 @@ same ranking, reproducibly and offline.
 from __future__ import annotations
 
 from triagedesk.core.citations import format_citation
-from triagedesk.core.matcher import tokenize
+from triagedesk.core.matcher import contains_sequence, tokenize
 from triagedesk.core.rules import Discriminator, get_discriminators
 from triagedesk.core.schema import EvidencePassage, EvidenceResult
 
@@ -41,17 +41,20 @@ MAX_PASSAGES: int = 5
 def _score(discriminator: Discriminator, complaint_tokens: list[str]) -> int:
     """The lexical score of *discriminator* against the complaint tokens (D9-02).
 
-    Returns the length in tokens of the longest alias of *discriminator* whose
-    token set is a SUBSET of the complaint token set — the complete alias phrase
-    appears in the complaint — or ``0`` when no alias is fully covered. Both sides
-    are tokenised through the ONE normalisation owner (:func:`tokenize`), so the
-    comparison is boundary-respecting and reproducible.
+    Returns the length in tokens of the longest alias of *discriminator* that appears
+    as a CONTIGUOUS token phrase of the complaint, or ``0`` when no alias appears. The
+    phrase rule is the matcher's own (:func:`contains_sequence`), so retrieval and the
+    deterministic matcher agree on which discriminators a complaint names: retrieval
+    never fabricates a passage the matcher rejects. A set-subset, order-insensitive
+    match would fire on a negated phrase ("patient is breathing, no distress" matching
+    the alias "no breathing"), which is exactly the misleading grounding this channel
+    must not produce. Both sides are tokenised through the ONE normalisation owner
+    (:func:`tokenize`), so the comparison is boundary-respecting and reproducible.
     """
-    complaint_set = set(complaint_tokens)
     best = 0
     for alias in discriminator.aliases:
         alias_tokens = tokenize(alias)
-        if alias_tokens and set(alias_tokens) <= complaint_set:
+        if alias_tokens and contains_sequence(complaint_tokens, alias_tokens):
             best = max(best, len(alias_tokens))
     return best
 

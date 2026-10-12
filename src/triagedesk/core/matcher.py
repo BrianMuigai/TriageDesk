@@ -47,12 +47,14 @@ def tokenize(text: str) -> list[str]:
 _tokens = tokenize
 
 
-def _contains_sequence(haystack: list[str], needle: list[str]) -> bool:
+def contains_sequence(haystack: list[str], needle: list[str]) -> bool:
     """True when *needle* appears as a contiguous token sequence of *haystack*.
 
-    A boundary-respecting match: ``["chest", "pain"]`` matches a complaint whose
-    tokens contain that adjacent pair, while ``["hypo"]`` does not match the
-    single unrelated token ``"hypothermia"``.
+    The ONE boundary-respecting phrase rule (CONVENTIONS §1): the matcher and the
+    retrieval module both reuse this, so a phrase one admits the other admits too and
+    no second matching semantics is introduced. ``["chest", "pain"]`` matches a
+    complaint whose tokens contain that adjacent pair, while ``["hypo"]`` does not
+    match the single unrelated token ``"hypothermia"``.
     """
     span = len(needle)
     if span == 0:
@@ -74,7 +76,7 @@ def match_discriminators(complaint: str) -> MatchResult:
     matched: set[str] = set()
     for discriminator in substrate.discriminators:
         for alias in discriminator.aliases:
-            if _contains_sequence(tokens, _tokens(alias)):
+            if contains_sequence(tokens, _tokens(alias)):
                 matched.add(discriminator.id)
                 break
 
