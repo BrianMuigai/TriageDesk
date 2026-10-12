@@ -491,7 +491,7 @@ def _card_html(
         '<section class="priority-card" aria-labelledby="card-heading">'
         '<h2 id="card-heading">Suggested priority</h2>'
         f'<p class="framing">{_escaped(framing)}</p>'
-        f'<div class="colour-block {_colour_class(colour)}">'
+        f'<div class="colour-block {_escaped(_colour_class(colour))}">'
         f'<span class="colour-name">{_escaped(colour)}</span></div>'
         f'<p><span class="label">Suggested colour:</span> '
         f'<span class="value">{_escaped(colour)}</span></p>'

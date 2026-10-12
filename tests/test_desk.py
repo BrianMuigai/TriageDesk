@@ -975,6 +975,19 @@ def test_colour_label_accompanies_every_rendered_colour(
     assert f'<span class="colour-name">{colour}</span>' in card
     assert f'<span class="value">{colour}</span>' in card
 
+    # The colour swatch class is escaped like every other rendered value (IN-01).
+    hostile = PausedRun(
+        thread_id="t",
+        config={},
+        result={},
+        payload={"colour": 'red" onmouseover="alert(1)'},
+        paused=True,
+        existed=False,
+    )
+    hostile_card = _section(desk_server.render_state(hostile), "priority-card")
+    assert 'onmouseover="alert(1)' not in hostile_card
+    assert "colour-block colour-red&quot; onmouseover=&quot;alert(1)" in hostile_card
+
     # The deferred read-only card renders its colour with its name and class too.
     case = _e09()
     with _running_server(tmp_path / "deferred.db") as server:
