@@ -33,19 +33,8 @@ SCORER_SOURCE = (
 # Field-name tokens that would mark a probability/score smuggled onto the contract.
 _FORBIDDEN_FIELD_TOKENS = ("score", "probability", "percent")
 
-CASE = CaseInput(
-    age_years=40,
-    mobility="walking",
-    avpu="alert",
-    respiratory_rate=24,
-    heart_rate=118,
-    systolic_bp=108,
-    temperature_c=38.9,
-    trauma=False,
-    complaint="central chest pain",
-)
-
-# A complete-vitals adult case whose complaint matches no discriminator (D8-11).
+# A complete-vitals adult case whose complaint matches no discriminator (D8-11). The
+# signal takes no ``CaseInput`` (WR-03), so this is the only case the module needs.
 NO_MATCH_CASE = CaseInput(
     age_years=60,
     mobility="walking",
@@ -75,21 +64,21 @@ def _priority(
 
 def test_assess_is_deterministic() -> None:
     """The same typed inputs yield an equal signal (D8-01)."""
-    first = assess(CASE, ["chest_pain"], False, _priority())
-    second = assess(CASE, ["chest_pain"], False, _priority())
+    first = assess(["chest_pain"], False, _priority())
+    second = assess(["chest_pain"], False, _priority())
     assert first == second
 
 
 def test_assess_reports_the_declared_components() -> None:
     """All declared components are present, in order, from the ONE owner (D8-01)."""
-    result = assess(CASE, ["chest_pain"], False, _priority())
+    result = assess(["chest_pain"], False, _priority())
     assert [component.name for component in result.components] == list(COMPONENT_NAMES)
 
 
 def test_no_match_forces_a_deferral_never_high_confidence() -> None:
     """A no-match priority is deferred at ``low`` regardless of the other components (D8-11)."""
     priority = scorer.score_priority(NO_MATCH_CASE, [])
-    result = assess(NO_MATCH_CASE, [], True, priority)
+    result = assess([], True, priority)
 
     assert result.deferral is True
     assert result.level == "low"
@@ -108,7 +97,7 @@ def test_contract_carries_no_float_or_probability_field() -> None:
     assert "colour" not in ConfidenceResult.model_fields
 
     # The serialised signal contains no percentage sign.
-    result = assess(CASE, ["chest_pain"], False, _priority())
+    result = assess(["chest_pain"], False, _priority())
     assert "%" not in result.model_dump_json()
 
 
@@ -119,10 +108,10 @@ def test_deferral_threshold_is_a_named_constant_and_flips_on_the_count() -> None
 
     # Exactly one satisfied component (discriminator coverage only) -> defer.
     one_satisfied = assess(
-        CASE, ["chest_pain"], False, _priority(tews=0, missing=["respiratory_rate"])
+        ["chest_pain"], False, _priority(tews=0, missing=["respiratory_rate"])
     )
     # Exactly DEFERRAL_MIN satisfied (vitals + discriminator) -> do not defer.
-    at_threshold = assess(CASE, ["chest_pain"], False, _priority(tews=0))
+    at_threshold = assess(["chest_pain"], False, _priority(tews=0))
 
     assert one_satisfied.deferral is True
     assert one_satisfied.level == "low"

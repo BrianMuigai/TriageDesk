@@ -153,9 +153,7 @@ async def test_assess_confidence_is_pure_and_audited_exactly_once(memory_store) 
     """The owned tool writes no queue row and appends exactly one audit record (D8-07)."""
     priority = scorer.score_priority(COMPLETE_CASE, ["chest_pain"])
 
-    signal = await server_module.assess_confidence(
-        COMPLETE_CASE, ["chest_pain"], False, priority
-    )
+    signal = await server_module.assess_confidence(["chest_pain"], False, priority)
 
     assert signal.deferral is False
     assert [record.tool for record in memory_store.audit_records] == ["assess_confidence"]

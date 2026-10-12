@@ -207,7 +207,6 @@ def score_priority(
 @server.tool()
 @audited()
 def assess_confidence(
-    case: CaseInput,
     matched_ids: list[str],
     no_match: bool,
     priority: PriorityResult,
@@ -215,12 +214,13 @@ def assess_confidence(
     """Return the deterministic coverage/deferral signal — no model, no store (D8-07).
 
     A thin, contract-typed adapter over the pure ``core.confidence.assess`` function
-    (SOLID: S/D): it reads only the typed inputs and returns the confidence contract.
-    It touches no store, writes no queue row and takes no approval token; the signal
-    can only route the graph to a more cautious terminal, never to the commit
-    (D8-07, D8-12).
+    (SOLID: S/D): it reads only the typed inputs it uses and returns the confidence
+    contract. It takes no ``CaseInput``, so the declared tool contract cannot carry a
+    field the signal ignores (WR-03). It touches no store, writes no queue row and takes
+    no approval token; the signal can only route the graph to a more cautious terminal,
+    never to the commit (D8-07, D8-12).
     """
-    return confidence.assess(case, matched_ids, no_match, priority)
+    return confidence.assess(matched_ids, no_match, priority)
 
 
 @server.tool()

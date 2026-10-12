@@ -199,12 +199,11 @@ def _make_assess(tools: ToolMap) -> NodeFn:
     async def assess(state: TriageState) -> dict[str, Any]:
         """Compute the deterministic coverage/deferral signal — no model, no write (D8-08).
 
-        Reads the typed case, the retrieved ids + ``no_match`` and the scored priority
-        and stores the returned signal in the ``confidence`` channel. It never assigns
-        to ``priority``, so the scored colour is unchanged on every path (D8-12).
+        Reads the retrieved ids + ``no_match`` and the scored priority and stores the
+        returned signal in the ``confidence`` channel. It never assigns to ``priority``,
+        so the scored colour is unchanged on every path (D8-12).
         """
         payload = {
-            "case": state["case"].model_dump(),
             "matched_ids": list(state.get("matched_ids") or []),
             "no_match": bool(state.get("no_match")),
             "priority": state["priority"].model_dump(),

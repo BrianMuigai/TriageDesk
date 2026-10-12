@@ -1,8 +1,8 @@
 """Pure deterministic coverage/deferral signal (D8-01, D8-02, D8-03).
 
 A deterministic function of already-typed objects the graph holds after ``score`` —
-the typed case, the matched discriminator ids plus ``MatchResult.no_match``, and the
-scored ``PriorityResult``. Never a model probability, logprob or token count (D8-01).
+the matched discriminator ids plus ``MatchResult.no_match``, and the scored
+``PriorityResult``. Never a model probability, logprob or token count (D8-01).
 
 This module imports nothing from ``llm`` / ``mcp`` / ``store`` (enforced by
 ``tests/test_purity.py``); every band and category is read from ``data/*.yaml``
@@ -19,7 +19,6 @@ from __future__ import annotations
 
 from triagedesk.core.rules import get_discriminators, get_tews
 from triagedesk.core.schema import (
-    CaseInput,
     ConfidenceComponent,
     ConfidenceLevel,
     ConfidenceResult,
@@ -140,7 +139,6 @@ def _level_for(satisfied_count: int) -> ConfidenceLevel:
 
 
 def assess(
-    case: CaseInput,
     matched_ids: list[str],
     no_match: bool,
     priority: PriorityResult,
@@ -154,8 +152,12 @@ def assess(
     Otherwise a case defers when fewer than ``DEFERRAL_MIN_SATISFIED_COMPONENTS``
     components are satisfied. The signal never returns a colour and never a
     probability (D8-02, D8-12).
+
+    The signal reads only the scored ``priority`` and the retrieved discriminator facts —
+    it takes no ``CaseInput``, so the tool/node contract cannot carry a field the
+    computation ignores (WR-03): the retry from ``score`` recomputes the same
+    ``PriorityResult`` from the same case, so nothing is lost by not re-passing it.
     """
-    del case  # accepted for the tool contract; the signal reads the scored priority
     components = [
         _vitals_component(priority),
         _discriminator_component(matched_ids, no_match),

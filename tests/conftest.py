@@ -175,7 +175,6 @@ def build_graph_tools(
     async def assess_confidence(inp: dict[str, Any]) -> Any:
         calls.append(("assess_confidence", inp))
         return confidence.assess(
-            CaseInput.model_validate(inp["case"]),
             list(inp.get("matched_ids") or []),
             bool(inp.get("no_match")),
             PriorityResult.model_validate(inp["priority"]),

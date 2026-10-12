@@ -116,9 +116,7 @@ def build_tools(case: CaseSpec, *, offline: bool, recorder: UsageRecorder) -> di
         return await server_module.raise_recheck_flag(previous, current)
 
     async def assess_confidence(inp: Mapping[str, Any]) -> Any:
-        case = CaseInput.model_validate(inp["case"])
         return await server_module.assess_confidence(
-            case,
             list(inp.get("matched_ids") or []),
             bool(inp.get("no_match")),
             PriorityResult.model_validate(inp["priority"]),
