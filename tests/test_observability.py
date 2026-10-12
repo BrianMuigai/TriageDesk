@@ -21,8 +21,16 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from langgraph.checkpoint.memory import InMemorySaver
 
 from triagedesk.core.schema import CaseInput, ExtractionResult
+from triagedesk.durable import derive_thread_id
+from triagedesk.evals.case import CaseSpec, load_cases
+from triagedesk.evals.tools import build_tools
+from triagedesk.evals.usage import UsageRecorder
+from triagedesk.graph.build import build_graph
+from triagedesk.llm import client as llm_client
+from triagedesk.llm.client import DEFAULT_MODEL, extract
 from triagedesk.mcp import server as server_module
 from triagedesk.observability import bind_trace
 from triagedesk.observability.spans import SPANS_PATH
@@ -35,6 +43,12 @@ from triagedesk.store.borrowed import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+CASES_DIR = REPO_ROOT / "evals" / "cases"
+
+
+def _case(case_id: str) -> CaseSpec:
+    """Load one bundled eval case by id (the fixture is the declared input)."""
+    return next(case for case in load_cases(CASES_DIR) if case.id == case_id)
 
 
 def _read_sink(tmp_path: Path) -> list[dict[str, Any]]:
@@ -177,3 +191,96 @@ async def test_verify_stays_valid_for_a_chain_carrying_trace_ids(memory_store: A
 def test_no_spans_artifact_is_written_to_the_repo_root() -> None:
     """The autouse fixture keeps the sink out of the repository (Pitfall 5)."""
     assert not (REPO_ROOT / SPANS_PATH.name).exists()
+
+
+# ------------------------------------------ Task 2: node spans + the ONE model span
+
+
+async def test_node_spans_carry_the_content_trace_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, injected_store: Any
+) -> None:
+    """Every executed node emits ONE ``node`` span traced to the content-derived id, and a
+    node that wraps a tool call is that tool span's ``parent_id`` (D7-05, D7-07)."""
+    case = _case("E-02")
+    monkeypatch.setattr(
+        server_module,
+        "extract",
+        lambda note: ExtractionResult(case=case.case, matched_discriminator_ids=[]),
+    )
+    tools = build_tools(case, offline=False, recorder=UsageRecorder())
+    graph = build_graph(tools, checkpointer=InMemorySaver())
+    thread_id = derive_thread_id(case.note)
+
+    await graph.ainvoke(
+        {"raw_note": case.note, "case": case.case},
+        {"configurable": {"thread_id": thread_id}},
+    )
+
+    spans = _read_sink(tmp_path)
+    node_spans = [entry for entry in spans if entry["kind"] == "node"]
+    tool_spans = [entry for entry in spans if entry["kind"] == "tool"]
+
+    names = [entry["name"] for entry in node_spans]
+    assert len(names) == len(set(names)), f"a node must emit exactly one span: {names}"
+    assert {
+        "ingest",
+        "normalize",
+        "retrieve",
+        "score",
+        "verify",
+        "recheck",
+        "approval_gate",
+    } <= set(names)
+    assert all(entry["trace_id"] == thread_id for entry in node_spans)
+    assert all(entry["span_id"] and entry["started"] and entry["ended"] for entry in node_spans)
+
+    normalize_node = next(entry for entry in node_spans if entry["name"] == "normalize")
+    normalize_tool = next(entry for entry in tool_spans if entry["name"] == "normalize_case")
+    assert normalize_tool["parent_id"] == normalize_node["span_id"]
+
+
+def test_model_span_carries_no_prompt_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ONE model call emits ONE minimal span — the model tag + token counts, no text."""
+    secret = "SECRET-COMPLAINT-TOKEN"
+    payload = ExtractionResult(
+        case=CaseInput(respiratory_rate=24), matched_discriminator_ids=[]
+    ).model_dump_json()
+    response = {"response": payload, "prompt_eval_count": 11, "eval_count": 7}
+    monkeypatch.setattr(llm_client.ollama, "generate", lambda **kwargs: response)
+
+    bind_trace("tr-model")
+    extract(f"{secret} central chest pain")
+
+    spans = _read_sink(tmp_path)
+    model_spans = [entry for entry in spans if entry["kind"] == "model"]
+    assert len(model_spans) == 1
+    attrs = model_spans[0]["attributes"]
+    assert set(attrs) == {"model", "tokens_in", "tokens_out"}
+    assert attrs["model"] == DEFAULT_MODEL
+    assert (attrs["tokens_in"], attrs["tokens_out"]) == (11, 7)
+    assert secret not in json.dumps(model_spans[0])
+
+
+async def test_offline_run_emits_no_model_span(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, injected_store: Any
+) -> None:
+    """A run whose model is stubbed above ``extract`` emits NO model span (Pitfall 6)."""
+    case = _case("E-02")
+    monkeypatch.setattr(
+        server_module,
+        "extract",
+        lambda note: ExtractionResult(case=case.case, matched_discriminator_ids=[]),
+    )
+    tools = build_tools(case, offline=False, recorder=UsageRecorder())
+    graph = build_graph(tools, checkpointer=InMemorySaver())
+
+    await graph.ainvoke(
+        {"raw_note": case.note, "case": case.case},
+        {"configurable": {"thread_id": derive_thread_id(case.note)}},
+    )
+
+    spans = _read_sink(tmp_path)
+    assert not [entry for entry in spans if entry["kind"] == "model"]
+    assert any(entry["kind"] == "tool" for entry in spans)

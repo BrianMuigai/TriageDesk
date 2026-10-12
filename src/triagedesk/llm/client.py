@@ -19,6 +19,7 @@ import ollama
 
 from triagedesk.core.schema import ExtractionResult
 from triagedesk.llm.prompts import EXTRACTION_PROMPT
+from triagedesk.observability import span
 
 # The injectable usage seam (D-08, Pitfall 16): a caller may supply a sink that is
 # handed ``(prompt_eval_count, eval_count)`` read from the SAME ``ollama.generate``
@@ -84,6 +85,11 @@ def extract(
     payload is parsed, so even a malformed response records its true cost. The return
     type is unchanged, so existing callers are untouched (Liskov; SOLID: D).
 
+    The ONE local model call is wrapped in a ``model`` span (D7-01) whose attributes are
+    deliberately minimal — the model tag and the token counts only, never the note, the
+    prompt or the completion (D7-08). The span is emitted here, so an offline run whose
+    model is stubbed above this boundary emits no model span (Pitfall 6).
+
     Raises :class:`ExtractionError` on an empty or unparsable response — it never
     returns unvalidated data.
     """
@@ -93,15 +99,18 @@ def extract(
         discriminator_ids=", ".join(discriminator_ids or []) or "(none yet)",
         note=note,
     )
-    response = ollama.generate(
-        model=model,
-        prompt=prompt,
-        format=schema,  # grammar-constrained decoding
-        think=False,  # REQUIRED for qwen3.5:4b — else `response` is empty
-        options=OPTIONS,
-    )
+    attrs: dict[str, Any] = {"model": model}
+    with span("model", model, attributes=attrs):
+        response = ollama.generate(
+            model=model,
+            prompt=prompt,
+            format=schema,  # grammar-constrained decoding
+            think=False,  # REQUIRED for qwen3.5:4b — else `response` is empty
+            options=OPTIONS,
+        )
+        attrs["tokens_in"], attrs["tokens_out"] = _response_usage(response)
     if usage_sink is not None:
-        usage_sink(*_response_usage(response))
+        usage_sink(attrs["tokens_in"], attrs["tokens_out"])
     raw = _response_text(response)
     if not raw.strip():
         raise ExtractionError(

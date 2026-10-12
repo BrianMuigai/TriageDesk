@@ -18,6 +18,8 @@ for an audit event (D-09).
 
 from __future__ import annotations
 
+import functools
+import inspect
 from collections.abc import AsyncIterator, Iterable, Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -30,8 +32,9 @@ from pydantic import BaseModel
 
 from triagedesk.core import schema as schema_module
 from triagedesk.core.schema import CaseInput
-from triagedesk.graph.nodes import ToolMap, make_nodes
+from triagedesk.graph.nodes import NodeFn, ToolMap, case_id_for, make_nodes
 from triagedesk.graph.state import TriageState
+from triagedesk.observability import bind_trace, span
 from triagedesk.store import DOMAIN_DB_PATH
 
 # The LangGraph runtime-state path, named once so no caller inlines a filename
@@ -150,6 +153,33 @@ def route_after_verify(state: TriageState) -> str:
     return END
 
 
+def _spanned(name: str, node: NodeFn) -> NodeFn:
+    """Wrap ONE node so it binds the trace id and opens a ``node`` span (D7-01, D7-05).
+
+    The wrapper is applied at the composition root (:func:`build_graph`), never inside a
+    node body, so every node keeps its single responsibility and the topology is
+    untouched (SOLID: S). It derives the trace id from the state's ``raw_note`` through
+    the ONE content derivation (``graph.nodes.case_id_for`` — the same value
+    ``durable.derive_thread_id`` produces), binds it for the node's tool/model calls, and
+    runs the node inside one ``node`` span (D7-05, D7-07). ``functools.wraps`` preserves
+    the node's ``__name__`` so LangGraph node identity and tracebacks are unchanged.
+
+    This module reads NO environment variable and imports no external network client or
+    non-local model provider: it imports only the span context/writer
+    (``triagedesk.observability``), so the safety-spine AST guards stay green (D7-04).
+    """
+
+    @functools.wraps(node)
+    async def wrapped(state: TriageState) -> Any:
+        trace_id = case_id_for(str(state.get("raw_note") or "").strip())
+        bind_trace(trace_id)
+        with span("node", name):
+            result = node(state)
+            return await result if inspect.isawaitable(result) else result
+
+    return wrapped
+
+
 def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
     """Compile the tracer graph over the injected ``tools`` mapping (D-01, D-13).
 
@@ -168,7 +198,7 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
     nodes = make_nodes(tools)
     graph: StateGraph = StateGraph(TriageState)
     for name in TRACER_NODES:
-        graph.add_node(name, nodes[name])
+        graph.add_node(name, _spanned(name, nodes[name]))
 
     graph.add_edge(START, "ingest")
     graph.add_edge("ingest", "normalize")
