@@ -186,6 +186,46 @@ D8-10).
 `request_missing_info`, never to `commit`, and never changes a scored colour (D8-12). The named constant
 lives once in `core/confidence.py`; this record is its rationale and it is never tuned to make a test green.
 
+### D21 — Retrieval grounding over the SATS discriminator KB
+**Decision:** The retrieval corpus is derived from `data/*.yaml` through the **ONE** loader
+(`core/rules.py`) — the discriminator catalogue and its categories — with nothing re-authored and no SATS
+value inlined. The ranking is an **in-house deterministic integer lexical scorer** with an explicit
+`(-score, discriminator_id asc)` tie-break: no `rank-bm25`, no numpy, no embeddings, no vector store, and
+**zero new dependencies**. The evidence contract (`EvidenceResult`) carries **no colour, target or priority
+field**, so a colour is *unrepresentable* rather than merely unused (mirroring D8-04's no-float posture).
+Retrieval runs **after `score`** in the `ground` node and writes only the `evidence` state channel, which
+**no router reads**; the scorer remains the only colour producer and `citations == triggered_rules` is
+untouched. The declared failure **E-09**'s honest outcome stays the committed deferral.
+**Why:** ROADMAP SC2 is a **non-write** claim — retrieval must *show* the evidence that grounds a colour
+while being structurally unable to *set* one. An in-house integer scorer keeps the ranking reproducible,
+offline and dependency-free (sidestepping `rank-bm25`'s numpy-2 alias risk), and the *absence* of a colour
+field is stronger than a rule not to use one. Attribution is the point: every returned passage carries the
+closed-set discriminator id it came from, traceable to `data/*.yaml` (D9-01, D9-03, D9-10).
+**Consequence:** The `evidence` channel is advisory display/provenance only — adding retrieval to a case
+cannot change the path taken or the scored colour, proven channel-by-channel. **TEWS-band resolution:** the
+band structure is read through the same ONE loader but yields **no passage family**, because band data is
+colour-bearing and carries no complaint-addressable text, so a band passage would either emit a colour
+(forbidden) or re-author band prose (forbidden). E-09 is addressed by real retrieval AND reported as a clean
+defer — never by an added alias, fixture or threshold (D9-02, D9-07, D9-08, D9-09).
+
+### D22 — Read-only borrowed MCP on the agent path
+**Decision:** The borrowed SQLite server's read paths (`db_info`, `list_tables`, `get_table_schema`,
+`read_records`) are exercised **behind the unchanged `Store` protocol**. A `READ_TOOLS` allowlist plus a
+fail-closed leading-keyword statement guard (`is_read_only_statement`) sit in the **ONE** dispatch seam
+(`BorrowedStore._call`), so a mutation presented on the read path is refused *before* the borrowed tool is
+reached and the mutating record tools (`create_record`/`update_records`/`delete_records`) are **unnameable**.
+`write=True` is reserved for the schema bootstrap and the gated commit, which stays the only mutation route.
+**Why:** MCP-01 is an **integration** claim — the borrowed read tools must be genuinely *used*, not merely
+declared (the Phase-1 STATUS G7 gap). Read-only by construction beats read-only by convention (the Phase-7
+replay precedent), and the `Store` protocol shape must not change, so the graph keeps depending on the
+interface, not the borrowed implementation (SOLID: D). The guard is a second, independent barrier beside the
+allowlist (D9-11, D9-12, D9-13).
+**Consequence:** A mutation on the agent path fails closed and provably reaches no borrowed server; the
+queue/audit writes remain reachable only through the gated commit's parameterised `query`. An unverified
+read-path wire shape **degrades** and is recorded on the adapter's `read_path_report` instead of crashing the
+store-open path the demo, eval, resume and commit all depend on (D9-14). No new dependency and no
+`Store`-protocol change.
+
 ---
 
 ## Disclosed third-party components (DQ-8)
