@@ -67,6 +67,7 @@ from triagedesk.desk.server import (
 from triagedesk.durable import PausedRun
 from triagedesk.evals.case import CaseSpec, load_cases
 from triagedesk.evals.invariants import prohibited_tokens
+from triagedesk.store.queue import content_hash
 
 DESK_DIR = Path(desk_server.__file__).parent
 SRC_ROOT = DESK_DIR.resolve().parents[1]  # .../src (the parent of the triagedesk package)
@@ -348,6 +349,57 @@ def test_unchecked_trauma_reaches_the_card_and_gate(
     assert 'class="approval-gate"' in body, "the unchecked default did not render the gate"
     assert "A scored vital is missing" not in body
     assert injected_store.rows == []
+
+
+def test_checked_trauma_duplicate_key_reaches_the_card_and_gate(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """The browser's checked-box serialisation (a duplicated ``trauma`` key) is committable (IN-01).
+
+    A browser with the Trauma box CHECKED submits the key TWICE — ``trauma=true`` (the checkbox)
+    then ``trauma=false`` (the hidden companion) — and the handler keeps
+    ``parse_qs(...)["trauma"][0]``, so the case reads ``trauma=True``. A dict cannot express the
+    duplicate key, so the body is built by hand; the committed row's idempotency hash (which
+    covers the immutable case input, ``trauma`` included) must equal the hash of the same case
+    with ``trauma=True``.
+    """
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        base = _base(server)
+        form = _form_from_case(COMPLETE_CASE)
+        form.pop("trauma", None)
+        pairs = [
+            *form.items(),
+            ("trauma", "true"),
+            ("trauma", "false"),
+            ("csrf_token", _csrf_token(base)),
+        ]
+        encoded = urllib.parse.urlencode(pairs, doseq=True).encode("utf-8")
+        with urllib.request.urlopen(base + "/case", data=encoded) as response:
+            body = response.read().decode("utf-8")
+
+        assert 'class="priority-card"' in body, "the checked duplicate key did not render a card"
+        assert 'class="approval-gate"' in body, "the checked duplicate key did not render the gate"
+        assert "A scored vital is missing" not in body
+
+        decision = _post(
+            base + "/decision",
+            {
+                "thread_id": _thread_id(body),
+                "decision": "approve",
+                "name": "Nurse Demo",
+                "role": "triage nurse",
+            },
+        )
+
+    assert "committed to the queue" in decision
+    assert len(injected_store.rows) == 1, "the checked duplicate key did not commit one row"
+    row = injected_store.rows[0]
+    assert row.content_hash == content_hash(
+        row.case_id, form_to_case({**form, "trauma": "true"})
+    ), "the committed row does not hash the case as trauma=True"
+    assert row.content_hash != content_hash(
+        row.case_id, form_to_case({**form, "trauma": "false"})
+    )
 
 
 def test_out_of_range_vital_renders_the_schema_message(
