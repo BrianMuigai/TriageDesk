@@ -22,6 +22,7 @@ exactly ONE home.
 from __future__ import annotations
 
 import json
+import sys
 import time
 import uuid
 from collections.abc import Iterator, Mapping
@@ -55,6 +56,19 @@ def set_sink(path: Path | None) -> None:
     _sink = path
 
 
+def _report_sink_failure(exc: BaseException) -> None:
+    """Report a best-effort sink failure without ever raising (CR-01).
+
+    Local tracing is a side channel: a sink write failure must never be able to fail the
+    clinical tool/node/model path it observes. The failure is surfaced on ``stderr`` — so a
+    broken sink is visible rather than silent — and then dropped.
+    """
+    try:
+        print(f"triagedesk: span sink write failed (ignored): {exc}", file=sys.stderr)
+    except Exception:  # noqa: BLE001 — a broken stderr must not propagate either
+        pass
+
+
 def emit_span(
     *,
     trace_id: str,
@@ -73,6 +87,11 @@ def emit_span(
     or :data:`SPANS_PATH`, then opens it append-only — a local, synchronous file write
     with no network path. The keys are exactly those documented in the module docstring,
     serialised with ``sort_keys`` so a line is stable for diffing and replay (D7-07).
+
+    Emission is **best-effort**: a sink write failure (a full disk, a read-only CWD, a sink
+    path that is not a writable file) is reported on ``stderr`` and dropped, never raised.
+    Observability must never be able to fail the clinical call it observes or fabricate a
+    failed-tool audit record (CR-01).
     """
     line: dict[str, Any] = {
         "trace_id": trace_id,
@@ -86,8 +105,11 @@ def emit_span(
         "attributes": dict(attributes) if attributes is not None else {},
     }
     path = _sink if _sink is not None else SPANS_PATH
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(line, default=str, sort_keys=True) + "\n")
+    try:
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(line, default=str, sort_keys=True) + "\n")
+    except OSError as exc:
+        _report_sink_failure(exc)
 
 
 def read_spans(
@@ -139,17 +161,20 @@ def span(
         yield resolved
     finally:
         pop_span(token)
-        emit_span(
-            trace_id=current_trace_id(),
-            span_id=span_id,
-            parent_id=parent_id,
-            kind=kind,
-            name=name,
-            started=started,
-            ended=datetime.now(UTC).isoformat(),
-            duration_ms=(time.perf_counter() - started_perf) * 1000.0,
-            attributes=resolved,
-        )
+        try:
+            emit_span(
+                trace_id=current_trace_id(),
+                span_id=span_id,
+                parent_id=parent_id,
+                kind=kind,
+                name=name,
+                started=started,
+                ended=datetime.now(UTC).isoformat(),
+                duration_ms=(time.perf_counter() - started_perf) * 1000.0,
+                attributes=resolved,
+            )
+        except Exception as exc:  # noqa: BLE001 — the sink is best-effort (CR-01)
+            _report_sink_failure(exc)
 
 
 __all__ = ["SPANS_PATH", "emit_span", "read_spans", "set_sink", "span"]

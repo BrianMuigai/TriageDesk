@@ -166,6 +166,38 @@ async def test_audit_trace_id_round_trips_through_the_borrowed_store(
     assert spans[0]["attributes"]["trace_id"] == "tr-1"
 
 
+async def test_a_span_sink_failure_never_breaks_the_tool_or_its_audit_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, injected_store: Any
+) -> None:
+    """A best-effort span sink that cannot be written must not fail the tool or fabricate
+    a failed-tool audit record (CR-01).
+
+    The sink is made unwritable by putting a *directory* where the JSONL file belongs, so
+    ``open(..., "a")`` raises ``IsADirectoryError``. The owned tool must still return its
+    real result, and the audit record must carry that real result with NO ``error`` key —
+    observability can never turn a successful clinical call into an error.
+    """
+    (tmp_path / SPANS_PATH.name).mkdir()  # the fixture's sink path is now a directory
+    monkeypatch.setattr(
+        server_module,
+        "extract",
+        lambda note: ExtractionResult(case=CaseInput(), matched_discriminator_ids=[]),
+    )
+
+    bind_trace("tr-sink-fail")
+    result = await server_module.normalize_case("chest pain")
+
+    assert isinstance(result, ExtractionResult), "the tool did not return its real result"
+    records = await injected_store.read_audit_records()
+    assert len(records) == 1, "a successful tool call must append exactly one audit record"
+    record = records[0]
+    assert record.tool == "normalize_case"
+    assert record.actor == "agent"
+    assert record.trace_id == "tr-sink-fail"
+    assert "error" not in record.outputs, "the audit claimed a failure that did not happen"
+    assert record.outputs == result.model_dump(mode="json")
+
+
 def test_trace_id_defaults_empty_and_is_sealed_by_the_digest() -> None:
     """``trace_id`` defaults to ``""`` and is covered by the canonical record digest."""
     common: dict[str, Any] = {
