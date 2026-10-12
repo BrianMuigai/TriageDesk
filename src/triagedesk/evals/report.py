@@ -66,7 +66,9 @@ class ReportCase(BaseModel):
     ``confidence_satisfied`` are the per-run coverage-signal captures read from the graph's own
     ``confidence`` channel — ``None`` for a run that short-circuited before ``assess``. The
     internal ordinal scalar (``confidence_satisfied``) lives ONLY here in ``evals/``: it is never
-    in ``core.schema`` and never in a tool output (D8-04, A2).
+    in ``core.schema`` and never in a tool output (D8-04, A2). ``run_errors`` is index-aligned
+    with those lists: the message for a run whose graph invocation raised, else ``None`` — an
+    explicit error state, distinct from the ``None`` a legitimate short-circuit carries (WR-04).
     """
 
     case_id: str
@@ -95,6 +97,11 @@ class ReportCase(BaseModel):
     confidence_levels: list[str | None] = Field(default_factory=list)
     deferrals: list[bool | None] = Field(default_factory=list)
     confidence_satisfied: list[int | None] = Field(default_factory=list)
+    # Per-run error diagnostics (WR-04): index-aligned with the lists above — the message for a
+    # run whose graph invocation raised, else ``None``. NOT sealed in ``report_digest`` (like the
+    # volatile latency/token totals): it is run diagnostics beside, not, a published safety
+    # figure — the fail-closed ``ABORT`` outcome it produces IS sealed via ``outcomes``.
+    run_errors: list[str | None] = Field(default_factory=list)
 
 
 class GateViolation(BaseModel):

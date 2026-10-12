@@ -25,7 +25,7 @@ from pathlib import Path
 import pytest
 
 from triagedesk.core import matcher
-from triagedesk.evals.case import CaseSpec, declared_outcomes, load_cases
+from triagedesk.evals.case import ABORT_OUTCOME, CaseSpec, declared_outcomes, load_cases
 from triagedesk.evals.report import Report, ReportCase
 from triagedesk.evals.runner import run_eval
 from triagedesk.evals.tools import ToolMap, build_tools
@@ -247,6 +247,51 @@ async def test_e12_injection_retries_once_and_never_leaks(tmp_path: Path) -> Non
         tool_factory=clean,
     )
     assert clean.calls == 1, "a non-injected case was affected by the E-12 fault"
+
+
+# ------------------------------------- 6b. a run that errors is surfaced, not lost (WR-04)
+
+
+class _RaisingFactory:
+    """A tool factory whose ``match_discriminators`` always raises — a run that errors.
+
+    The raise happens after ``normalize`` (whose own failures the graph retries internally),
+    so the exception escapes ``graph.ainvoke`` and the runner must record the run rather than
+    lose it (WR-04).
+    """
+
+    def __call__(self, case: CaseSpec, offline: bool, recorder: UsageRecorder) -> ToolMap:
+        tools = dict(build_tools(case, offline=offline, recorder=recorder))
+
+        async def boom(inp: object) -> object:
+            raise RuntimeError("injected runner error")
+
+        tools["match_discriminators"] = boom
+        return tools
+
+
+async def test_a_run_that_errors_is_surfaced_not_conflated_with_a_short_circuit(
+    tmp_path: Path,
+) -> None:
+    """An errored run is recorded (ABORT + run_errors); the suite still writes a report (WR-04)."""
+    report_path = tmp_path / "error.json"
+    code = await run_eval(
+        cases_dir=CASES_DIR,
+        runs=3,
+        report_path=report_path,
+        offline=True,
+        case_filter="E-02",
+        tool_factory=_RaisingFactory(),
+    )
+    report = Report.model_validate_json(report_path.read_text(encoding="utf-8"))
+    case = report.cases[0]
+
+    assert code != 0, "a suite with an errored run did not fail the gate"
+    assert case.outcomes == [ABORT_OUTCOME] * 3, "an errored run was folded into a colour/None"
+    assert len(case.run_errors) == case.runs, "the per-run error state is not run-aligned"
+    assert all(err and "injected runner error" in err for err in case.run_errors)
+    assert case.passed is False, "an errored run was counted as a pass"
+    assert "E-02" in report.gate.unexpected_failures
 
 
 # ------------------------------------- 7. declared tokens + synthetic-only fixtures

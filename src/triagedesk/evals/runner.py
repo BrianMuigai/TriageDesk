@@ -107,6 +107,7 @@ def _capture(result: Any, payload: dict[str, Any] | None) -> dict[str, Any]:
         "route": result.get("route"),
         "attempt": int(result.get("attempt") or 0),
         "confidence": confidence.model_dump(mode="json") if confidence is not None else None,
+        "error": None,
     }
 
 
@@ -128,6 +129,12 @@ def _outcome(captured: dict[str, Any], expected: str) -> str | None:
     ``out_of_scope``/``missing_vitals`` short-circuits; the only way an escalation and a raised
     flag co-occur is a deferral on a ``RECHECK``-expected case (E-07).
     """
+    if captured.get("error"):
+        # A run whose graph invocation raised is a fail-closed non-delivery: it is recorded
+        # as the declared ``ABORT`` outcome (and its message surfaced in
+        # ``ReportCase.run_errors``), never folded into the ``None`` a legitimate
+        # short-circuit-before-assess uses (WR-04).
+        return ABORT_OUTCOME
     second_look = captured["second_look"]
     if second_look is not None and second_look.get("flag") and expected == "RECHECK":
         return "RECHECK"
@@ -139,6 +146,46 @@ def _outcome(captured: dict[str, Any], expected: str) -> str | None:
     if colour is not None and not captured["delivered"]:
         return ABORT_OUTCOME
     return colour
+
+
+def _error_capture(exc: Exception) -> dict[str, Any]:
+    """The fail-closed capture for a run whose graph invocation raised (WR-04).
+
+    A run that raised before producing a result carries no colour, no terminal and no
+    confidence signal; it is recorded with an explicit ``error`` so :func:`_outcome` maps
+    it to the declared ``ABORT`` outcome (a non-delivered run) and the runner surfaces the
+    message in ``ReportCase.run_errors`` — never as the ``None`` a legitimate
+    short-circuit-before-assess uses.
+    """
+    return {
+        "colour": None,
+        "citations": [],
+        "triggered_rules": [],
+        "matched_ids": [],
+        "recovery": False,
+        "escalation": False,
+        "second_look": None,
+        "delivered": False,
+        "route": None,
+        "attempt": 0,
+        "confidence": None,
+        "error": f"{type(exc).__name__}: {exc}",
+    }
+
+
+def _errored_invariant_report(message: str | None) -> InvariantReport:
+    """A fail-closed invariant verdict for a run that raised before producing a result (WR-04).
+
+    An invariant holds for a case only when it held on EVERY run (:func:`_fold_invariants`);
+    a run that produced no result cannot be shown to hold one, so all four are recorded as
+    NOT held with the error as the reason — an errored run is never counted as a pass.
+    """
+    reason = f"run errored before producing a result: {message}"
+    return InvariantReport(
+        results={invariant_id: False for invariant_id in INVARIANT_IDS},
+        reasons={invariant_id: reason for invariant_id in INVARIANT_IDS},
+        passed=False,
+    )
 
 
 def _checkpointer() -> InMemorySaver:
@@ -272,6 +319,7 @@ async def _run_case(
     captures: list[dict[str, Any]] = []
     latency_s: list[float] = []
     invariant_reports: list[InvariantReport] = []
+    run_errors: list[str | None] = []
     tokens_in = 0
     tokens_out = 0
 
@@ -280,14 +328,27 @@ async def _run_case(
         tools = factory(case, offline, recorder)
         seam = nullcontext() if offline else recorded_extract_seam(recorder)
         rows_before = len(await store.read_queue_rows())
-        with seam:
-            captured, latency, result = await _run_once(case, run_index, tools)
-        rows_after = len(await store.read_queue_rows())
-        # The invariants run INSIDE this same loop, so the report and the exit code can
-        # never disagree (DRY, EVAL-03).
-        invariant_reports.append(
-            await evaluate(_evidence(case, result, store, rows_before, rows_after))
-        )
+        try:
+            with seam:
+                captured, latency, result = await _run_once(case, run_index, tools)
+        except Exception as exc:  # noqa: BLE001 — a run error must not abort the suite
+            # A run whose invocation raised is surfaced explicitly (WR-04) rather than being
+            # folded into the same ``None`` a legitimate short-circuit uses: its message lands
+            # in ``run_errors`` and its fail-closed ``ABORT`` outcome in ``outcomes``, and the
+            # invariants are recorded as not held (they cannot be shown to hold on a run that
+            # produced no result). A partially-lost run is therefore still reported.
+            captured = _error_capture(exc)
+            latency = 0.0
+            run_errors.append(captured["error"])
+            invariant_reports.append(_errored_invariant_report(captured["error"]))
+        else:
+            rows_after = len(await store.read_queue_rows())
+            # The invariants run INSIDE this same loop, so the report and the exit code can
+            # never disagree (DRY, EVAL-03).
+            invariant_reports.append(
+                await evaluate(_evidence(case, result, store, rows_before, rows_after))
+            )
+            run_errors.append(None)
         captures.append(captured)
         latency_s.append(latency)
         run_in, run_out = recorder.totals()
@@ -362,6 +423,7 @@ async def _run_case(
         confidence_levels=confidence_levels,
         deferrals=deferrals,
         confidence_satisfied=confidence_satisfied,
+        run_errors=run_errors,
     )
 
 
