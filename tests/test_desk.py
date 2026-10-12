@@ -28,6 +28,7 @@ import inspect
 import re
 import socket
 import threading
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Iterator, Mapping
@@ -110,10 +111,41 @@ def _get(url: str) -> str:
         return response.read().decode("utf-8")
 
 
+def _csrf_token(base: str) -> str:
+    """The per-server CSRF token the surface renders into every form (WR-01)."""
+    match = re.search(r'name="csrf_token" value="([^"]+)"', _get(base + "/"))
+    assert match, "the rendered form carries no csrf_token field"
+    return match.group(1)
+
+
 def _post(url: str, data: dict[str, str]) -> str:
-    encoded = urllib.parse.urlencode(data).encode("utf-8")
+    """POST *data* with the surface's own CSRF token, as a same-origin browser would.
+
+    The token is fetched from ``GET /`` (the surface's own page), never hard-coded, so the
+    tests exercise exactly the token a real form carries (WR-01).
+    """
+    origin = url.rsplit("/", 1)[0]
+    payload = {**data, "csrf_token": _csrf_token(origin)}
+    encoded = urllib.parse.urlencode(payload).encode("utf-8")
     with urllib.request.urlopen(url, data=encoded) as response:
         return response.read().decode("utf-8")
+
+
+def _post_status(
+    url: str, data: dict[str, str], headers: dict[str, str] | None = None
+) -> tuple[int, str]:
+    """POST *data* with NO CSRF token injection; return ``(status, body)``.
+
+    Used by the CSRF proofs: a request that omits the token, or carries a foreign ``Origin``,
+    must be refused (a 403 or the documented failure panel) and write nothing (WR-01).
+    """
+    encoded = urllib.parse.urlencode(data).encode("utf-8")
+    request = urllib.request.Request(url, data=encoded, headers=headers or {})
+    try:
+        with urllib.request.urlopen(request) as response:
+            return response.status, response.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read().decode("utf-8")
 
 
 def _raw_post(server: Any, request_bytes: bytes) -> bytes:
@@ -342,6 +374,88 @@ def test_malformed_request_renders_the_failure_panel(
         assert b"HTTP/1." in response, "the handler dropped the connection on a bad body"
         assert b"The case could not be scored." in response
 
+    assert injected_store.rows == []
+
+
+def test_forms_carry_the_per_server_csrf_token(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """Both the vitals form and the gate form carry the per-server CSRF token (WR-01)."""
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        base = _base(server)
+        token = _csrf_token(base)
+        field = f'name="csrf_token" value="{token}"'
+        assert field in _get(base + "/"), "the vitals form carries no CSRF token"
+        gate = _section(_post(base + "/case", _form_from_case(COMPLETE_CASE)), "approval-gate")
+        assert field in gate, "the gate form carries no CSRF token"
+
+
+def test_post_without_the_csrf_token_is_refused(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A POST with no CSRF token renders the failure panel and writes nothing (WR-01)."""
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        status, body = _post_status(
+            _base(server) + "/case", _form_from_case(COMPLETE_CASE)
+        )
+    assert status == 200
+    assert "The case could not be scored." in body
+    assert 'class="priority-card"' not in body
+    assert injected_store.rows == []
+
+
+def test_post_with_a_wrong_csrf_token_is_refused(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A POST with an incorrect CSRF token renders the failure panel and writes nothing (WR-01)."""
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        form = {**_form_from_case(COMPLETE_CASE), "csrf_token": "not-the-token"}
+        status, body = _post_status(_base(server) + "/case", form)
+    assert status == 200
+    assert "The case could not be scored." in body
+    assert 'class="priority-card"' not in body
+    assert injected_store.rows == []
+
+
+def test_cross_origin_post_is_refused(tmp_path: Path, injected_store: Any) -> None:
+    """A POST carrying a foreign ``Origin`` is refused (403) and writes nothing (WR-01).
+
+    A drive-by page can issue a cross-origin form POST (a CORS "simple request", no preflight),
+    so the token alone is not enough: the origin check refuses it before dispatch.
+    """
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        base = _base(server)
+        form = {**_form_from_case(COMPLETE_CASE), "csrf_token": _csrf_token(base)}
+        status, _body = _post_status(
+            base + "/case", form, headers={"Origin": "http://evil.example"}
+        )
+    assert status == 403
+    assert injected_store.rows == []
+
+
+def test_decision_without_the_csrf_token_cannot_commit(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A fabricated approve with no CSRF token commits nothing — the drive-by page is refused.
+
+    This is the authorization gap the phase exists to close: the queue write is irreversible,
+    so a cross-origin page that fabricates the approver must not reach the commit path (WR-01).
+    """
+    db = tmp_path / "checkpoints.db"
+    paused = asyncio.run(submit_case(COMPLETE_CASE, db))
+    with _running_server(db) as server:
+        status, body = _post_status(
+            _base(server) + "/decision",
+            {
+                "thread_id": paused.thread_id,
+                "decision": "approve",
+                "name": "Fabricated",
+                "role": "attacker",
+            },
+        )
+    assert status == 200
+    assert "The case could not be scored." in body
+    assert "committed to the queue" not in body
     assert injected_store.rows == []
 
 

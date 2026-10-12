@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import html
 import ipaddress
+import secrets
 import string
 from collections.abc import Mapping
 from http import HTTPStatus
@@ -67,6 +68,10 @@ _ASSETS: dict[str, str] = {
 # The checkbox values that read as "set". Deliberately excludes the bare word a data file
 # might also carry, so the guard's exact-match scan is never tripped.
 _TRUTHY = frozenset({"true", "on", "1"})
+
+# The form field carrying the per-server CSRF token (WR-01). The token is minted once per
+# server on ``GET /`` and required on every POST, so a cross-origin page cannot satisfy it.
+_CSRF_FIELD = "csrf_token"
 
 # The vitals form's field order and human labels (presentation only). Each control's kind,
 # plausible range and select options are read from the ONE ``CaseInput`` schema at render
@@ -309,6 +314,17 @@ def _banner_html(trigger: str) -> str:
     )
 
 
+def _csrf_field(token: str | None) -> str:
+    """Render the per-server CSRF token as a hidden field (WR-01), or nothing without one.
+
+    Every rendered form carries this field, so a same-origin submission from the surface always
+    satisfies the POST check while a cross-origin page (which cannot read the token) cannot.
+    """
+    if not token:
+        return ""
+    return f'<input type="hidden" name="{_CSRF_FIELD}" value="{_escaped(token)}">'
+
+
 def _form_echo(form: Mapping[str, str]) -> str:
     """Echo the submitted complaint, escaped, labelled as the nurse typed it (UI-SPEC)."""
     complaint = form.get("complaint")
@@ -545,11 +561,12 @@ def _card_payload_from_state(state: Mapping[str, Any], thread_id: str) -> dict[s
     }
 
 
-def _gate_html(thread_id: str) -> str:
+def _gate_html(thread_id: str, csrf_token: str | None = None) -> str:
     """Render the approval gate, carrying the paused thread identity (D10-11/D10-18).
 
     The hidden ``thread_id`` value is the paused thread id — the ONE content-derived id the
-    ``/decision`` POST returns to :func:`decide`. The three actions are labelled buttons
+    ``/decision`` POST returns to :func:`decide`. The hidden ``csrf_token`` is the per-server
+    secret a cross-origin page cannot supply (WR-01). The three actions are labelled buttons
     (never colour-only controls); the edit control is a radio group built from
     :func:`editable_colours` with NO value preselected, so a missing choice is a rejected
     decision rather than a silent default. The gate-scoped timeout panel is inert until the
@@ -565,6 +582,7 @@ def _gate_html(thread_id: str) -> str:
         '<section class="approval-gate" aria-labelledby="gate-heading">'
         '<h2 id="gate-heading">Your decision</h2>'
         '<form id="approval-gate-form" method="post" action="/decision">'
+        f"{_csrf_field(csrf_token)}"
         f'<input type="hidden" name="thread_id" value="{_escaped(thread_id)}">'
         '<div class="field"><label for="approver-name">Your name</label>'
         '<input id="approver-name" name="name" type="text" autocomplete="off"></div>'
@@ -610,7 +628,9 @@ def _empty_view(form: Mapping[str, str]) -> dict[str, str]:
     }
 
 
-def _paused_view(paused: PausedRun, form: Mapping[str, str]) -> dict[str, str]:
+def _paused_view(
+    paused: PausedRun, form: Mapping[str, str], csrf_token: str | None = None
+) -> dict[str, str]:
     """The view for a run that paused at the gate, deferred, escalated, or repeated (D10-17).
 
     The banner fires only from :func:`banner_trigger`; a committable case (paused at the gate)
@@ -619,7 +639,7 @@ def _paused_view(paused: PausedRun, form: Mapping[str, str]) -> dict[str, str]:
     recovery case renders its terminal copy with no card and no gate. A repeat submission
     (``existed=True``) is re-rendered from the snapshot: a deferred repeat stays a deferred
     terminal, while a committable repeat re-renders the card and gate with the SAME thread id
-    (D10-19).
+    (D10-19). Every gate carries the per-server CSRF token (WR-01).
     """
     state = paused.result
     trigger = banner_trigger(state)
@@ -631,7 +651,7 @@ def _paused_view(paused: PausedRun, form: Mapping[str, str]) -> dict[str, str]:
             "state_panel": "",
             "banner": banner,
             "card": _card_html(paused.payload, evidence),
-            "gate": _gate_html(str(paused.payload.get("case_id") or "")),
+            "gate": _gate_html(str(paused.payload.get("case_id") or ""), csrf_token),
             "form_values": _form_echo(form),
         }
 
@@ -673,7 +693,7 @@ def _paused_view(paused: PausedRun, form: Mapping[str, str]) -> dict[str, str]:
             "state_panel": "",
             "banner": banner,
             "card": _card_html(_card_payload_from_state(state, paused.thread_id), evidence),
-            "gate": _gate_html(paused.thread_id),
+            "gate": _gate_html(paused.thread_id, csrf_token),
             "form_values": _form_echo(form),
         }
     return {
@@ -721,16 +741,18 @@ def _error_panel(message: str) -> str:
     return _panel(message, "error")
 
 
-def _render(view: Mapping[str, str], form: Mapping[str, str]) -> str:
+def _render(view: Mapping[str, str], form: Mapping[str, str], csrf_token: str | None = None) -> str:
     """Substitute the server-rendered regions into the hand-authored page (string.Template).
 
     ``string.Template`` (not ``str.format``) is used because the markup carries CSS braces; the
     page's only ``$`` characters are its placeholders. The vitals field block is rendered
-    from *form* (the submitted values), so a rejected submission repopulates the form.
+    from *form* (the submitted values), so a rejected submission repopulates the form. The
+    ``csrf_field`` region carries the per-server token into the vitals form (WR-01).
     """
     template = string.Template((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
     return template.substitute(
         vitals_fields=_vitals_fields(form),
+        csrf_field=_csrf_field(csrf_token),
         state_panel=view["state_panel"],
         banner=view["banner"],
         card=view["card"],
@@ -745,18 +767,21 @@ def render_state(
     result: Mapping[str, Any] | None = None,
     error: str | None = None,
     form_values: Mapping[str, str] | None = None,
+    csrf_token: str | None = None,
 ) -> str:
     """Render the page for one state: empty, paused card+gate, terminal, decision, or error.
 
     With no case submitted it renders the quickstart panel and the empty vitals form with the
     ``No case yet`` heading and body and NO ``priority-card`` or ``approval-gate`` region. On
     the committable path (``paused is True``) it renders the card plus the gate and no banner.
+    *csrf_token* is the per-server secret the rendered forms carry (WR-01); it is optional so a
+    direct (non-request) render — a test or a proof — needs no server.
     """
     form = form_values or {}
     if result is not None:
-        return _render(_decision_view(result, form), form)
+        return _render(_decision_view(result, form), form, csrf_token)
     if paused is not None:
-        return _render(_paused_view(paused, form), form)
+        return _render(_paused_view(paused, form, csrf_token), form, csrf_token)
     if error is not None:
         return _render(
             {
@@ -767,14 +792,30 @@ def render_state(
                 "form_values": _form_echo(form),
             },
             form,
+            csrf_token,
         )
-    return _render(_empty_view(form), form)
+    return _render(_empty_view(form), form, csrf_token)
 
 
 class DeskServer(ThreadingHTTPServer):
     """The desk bridge's threaded HTTP server, carrying the checkpoint file path."""
 
     db_path: Path
+    csrf_token: str
+
+    def __init__(
+        self,
+        server_address: tuple[str, int],
+        request_handler: type[BaseHTTPRequestHandler],
+        *,
+        bind_and_activate: bool = True,
+    ) -> None:
+        super().__init__(
+            server_address, request_handler, bind_and_activate=bind_and_activate
+        )
+        # One token per server lifetime: minted before any request, so ``GET /`` always
+        # renders the token the surface will require on the next POST (WR-01).
+        self.csrf_token = secrets.token_urlsafe(32)
 
 
 class DeskHandler(BaseHTTPRequestHandler):
@@ -790,6 +831,30 @@ class DeskHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _page(self, **kwargs: Any) -> str:
+        """Render a state with the per-server CSRF token threaded into the forms (WR-01)."""
+        return render_state(csrf_token=self.server.csrf_token, **kwargs)
+
+    def _cross_origin(self) -> bool:
+        """True when a present ``Origin`` header is not this surface's own origin (WR-01).
+
+        A cross-origin page's POST carries the page's own ``Origin``, which cannot match the
+        loopback ``Host`` — so the request is refused before it can reach a commit path. An
+        absent ``Origin`` (a non-browser client) is not a cross-origin signal; the CSRF token
+        is the defence there, and it is required on every POST regardless.
+        """
+        origin = self.headers.get("Origin")
+        if origin is None:
+            return False
+        return origin != f"http://{self.headers.get('Host')}"
+
+    def _csrf_ok(self, form: Mapping[str, str]) -> bool:
+        """True when *form* carries the per-server CSRF token (WR-01), compared in constant time."""
+        supplied = str(form.get(_CSRF_FIELD, ""))
+        return bool(supplied) and secrets.compare_digest(
+            supplied, self.server.csrf_token
+        )
+
     def do_GET(self) -> None:  # noqa: N802 (stdlib naming)
         """Render the page for ``/``; serve the CSS by allowlist; anything else is a 404.
 
@@ -804,7 +869,7 @@ class DeskHandler(BaseHTTPRequestHandler):
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         if name == "index.html":
-            self._send_html(render_state())
+            self._send_html(self._page())
             return
         body = (STATIC_DIR / name).read_bytes()
         self.send_response(HTTPStatus.OK)
@@ -816,22 +881,30 @@ class DeskHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802 (stdlib naming)
         """Dispatch ``/case`` and ``/decision`` over the ONE pause/resume plumbing.
 
-        The header/body parse is guarded: a malformed ``Content-Length`` (non-numeric or
-        negative) or a body that is not valid UTF-8 renders the documented failure panel
-        rather than crashing the handler and dropping the connection (WR-01).
+        Two defences run before dispatch: a cross-origin ``Origin`` is refused with 403
+        (WR-01); and a POST missing the per-server CSRF token renders the documented failure
+        panel (WR-01). The header/body parse is guarded too: a malformed ``Content-Length``
+        (non-numeric or negative) or a body that is not valid UTF-8 renders the same panel
+        rather than crashing the handler and dropping the connection.
         """
+        if self._cross_origin():
+            self.send_error(HTTPStatus.FORBIDDEN)
+            return
         try:
             length = int(self.headers.get("Content-Length") or 0)
             if length < 0:
                 raise ValueError("negative Content-Length")
             raw = self.rfile.read(length).decode("utf-8")
         except (TypeError, ValueError, UnicodeDecodeError):
-            self._send_html(render_state(error=_FAILURE_COPY))
+            self._send_html(self._page(error=_FAILURE_COPY))
             return
         form = {
             key: values[0]
             for key, values in parse_qs(raw, keep_blank_values=True).items()
         }
+        if not self._csrf_ok(form):
+            self._send_html(self._page(error=_FAILURE_COPY))
+            return
         path = self.path.split("?", 1)[0]
         if path == "/case":
             self._send_html(self._handle_case(form))
@@ -844,30 +917,30 @@ class DeskHandler(BaseHTTPRequestHandler):
         try:
             case = form_to_case(form)
         except ValidationError as exc:
-            return render_state(error=_validation_message(exc), form_values=form)
+            return self._page(error=_validation_message(exc), form_values=form)
         except (TypeError, ValueError):
             # Defence in depth: any coercion failure that somehow bypassed the schema's own
             # validator is still reported, never an approve (the surface's stated contract).
-            return render_state(error=_FAILURE_COPY, form_values=form)
+            return self._page(error=_FAILURE_COPY, form_values=form)
         try:
             paused = asyncio.run(submit_case(case, self.server.db_path))
         except Exception:  # noqa: BLE001 - any failure is reported, never an approve
-            return render_state(error=_FAILURE_COPY, form_values=form)
-        return render_state(paused, form_values=form)
+            return self._page(error=_FAILURE_COPY, form_values=form)
+        return self._page(paused=paused, form_values=form)
 
     def _handle_decision(self, form: Mapping[str, str]) -> str:
         thread_id = str(form.get("thread_id", "")).strip()
         if not thread_id:
-            return render_state(error=_NO_THREAD_COPY, form_values=form)
+            return self._page(error=_NO_THREAD_COPY, form_values=form)
         try:
             result = asyncio.run(decide(thread_id, form, self.server.db_path))
         except DurableError as exc:
             # The gate's OWN refusal (blank identity, missing colour, no pending gate): the
             # surface shows that reason and restates no gate logic.
-            return render_state(error=str(exc), form_values=form)
+            return self._page(error=str(exc), form_values=form)
         except Exception:  # noqa: BLE001 - a server/graph failure leaves the decision unresolved
-            return render_state(error=_FAILURE_COPY, form_values=form)
-        return render_state(result=result, form_values=form)
+            return self._page(error=_FAILURE_COPY, form_values=form)
+        return self._page(result=result, form_values=form)
 
 
 def _validation_message(exc: ValidationError) -> str:
