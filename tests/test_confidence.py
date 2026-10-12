@@ -13,7 +13,11 @@ from pathlib import Path
 
 from conftest import imported_modules
 from triagedesk.core import confidence, scorer
-from triagedesk.core.confidence import DEFERRAL_MIN_SATISFIED_COMPONENTS, assess
+from triagedesk.core.confidence import (
+    COMPONENT_NAMES,
+    DEFERRAL_MIN_SATISFIED_COMPONENTS,
+    assess,
+)
 from triagedesk.core.schema import (
     CaseInput,
     ConfidenceComponent,
@@ -25,16 +29,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCORER_SOURCE = (
     REPO_ROOT / "src" / "triagedesk" / "core" / "scorer.py"
 ).read_text(encoding="utf-8")
-
-# The four components the signal must report (D8-01).
-_COMPONENT_NAMES = frozenset(
-    {
-        "vitals_coverage",
-        "discriminator_coverage",
-        "override_path",
-        "tews_band_distance",
-    }
-)
 
 # Field-name tokens that would mark a probability/score smuggled onto the contract.
 _FORBIDDEN_FIELD_TOKENS = ("score", "probability", "percent")
@@ -86,10 +80,10 @@ def test_assess_is_deterministic() -> None:
     assert first == second
 
 
-def test_assess_reports_the_four_named_components() -> None:
-    """All four declared components are present with their declared names (D8-01)."""
+def test_assess_reports_the_declared_components() -> None:
+    """All declared components are present, in order, from the ONE owner (D8-01)."""
     result = assess(CASE, ["chest_pain"], False, _priority())
-    assert {component.name for component in result.components} == _COMPONENT_NAMES
+    assert [component.name for component in result.components] == list(COMPONENT_NAMES)
 
 
 def test_no_match_forces_a_deferral_never_high_confidence() -> None:

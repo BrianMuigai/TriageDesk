@@ -25,16 +25,15 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 
+from triagedesk.core.confidence import COMPONENT_COUNT
 from triagedesk.core.rules import get_tews
 from triagedesk.evals.case import ABORT_OUTCOME, TERMINAL_OUTCOMES
 from triagedesk.evals.report import Analysis, Calibration, Report, ReportCase, RiskCoveragePoint
 
-# The confidence contract's component arity: the four coverage components
-# ``core.confidence.assess`` evaluates (vitals coverage, discriminator coverage, the
-# override-vs-TEWS path and the TEWS band distance). It is the divisor that normalises the
-# per-run ordinal scalar for the offline ECE ONLY — the scalar never leaves ``evals/`` and is
-# never a clinical figure (D8-04, A2). A structural count, not a SATS value (CONVENTIONS §1).
-_COMPONENT_COUNT = 4
+# The divisor that normalises the per-run ordinal scalar for the offline ECE ONLY is read
+# from its ONE owner (``core.confidence``), never restated as a literal: the scalar never
+# leaves ``evals/`` and is never a clinical figure (D8-04, A2), and a change to the signal's
+# component arity cannot silently mis-normalise a published figure (CONVENTIONS §1).
 
 # The coarse fixed bin count for the small-sample ECE (D8-15): a ~14-case calibration split
 # cannot support fine binning, so the bins are deliberately coarse and the sample size is named.
@@ -109,7 +108,7 @@ def _expected_calibration_error(cases: Sequence[ReportCase]) -> float:
     the split carries no measured scalar.
     """
     samples = [
-        (satisfied / _COMPONENT_COUNT, outcome == case.expected)
+        (satisfied / COMPONENT_COUNT, outcome == case.expected)
         for case in cases
         for satisfied, outcome in zip(case.confidence_satisfied, case.outcomes, strict=False)
         if satisfied is not None and outcome is not None

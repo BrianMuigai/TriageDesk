@@ -41,13 +41,31 @@ _LEVEL_HIGH_MIN_SATISFIED = 3
 # structural margin (a single-point move across the boundary), not a clinical value.
 _TEWS_BAND_EDGE_TOLERANCE = 1
 
+# The coverage components ``assess`` evaluates, in the order it reports them (D8-01).
+# Declared ONCE here so the arity the offline ECE normalises by (``evals.analysis``) and
+# the names the tests assert against derive from the same source: adding or removing a
+# component cannot silently mis-normalise a published figure (CONVENTIONS §1).
+_VITALS_COVERAGE = "vitals_coverage"
+_DISCRIMINATOR_COVERAGE = "discriminator_coverage"
+_OVERRIDE_PATH = "override_path"
+_TEWS_BAND_DISTANCE = "tews_band_distance"
+
+COMPONENT_NAMES: tuple[str, ...] = (
+    _VITALS_COVERAGE,
+    _DISCRIMINATOR_COVERAGE,
+    _OVERRIDE_PATH,
+    _TEWS_BAND_DISTANCE,
+)
+# The signal's arity — the ONE source for the offline ECE normaliser, never a bare literal.
+COMPONENT_COUNT = len(COMPONENT_NAMES)
+
 
 def _vitals_component(priority: PriorityResult) -> ConfidenceComponent:
     """Vitals coverage — a recorded-vs-total count, never a percentage (D8-01)."""
     total = len(get_tews().parameters)
     detail = f"{len(priority.used_vitals)} of {total} scored vitals recorded"
     return ConfidenceComponent(
-        name="vitals_coverage",
+        name=_VITALS_COVERAGE,
         satisfied=not priority.missing_vitals,
         detail=detail,
     )
@@ -60,7 +78,7 @@ def _discriminator_component(
     total = len(get_discriminators().discriminators)
     detail = f"{len(matched_ids)} of {total} discriminators matched"
     return ConfidenceComponent(
-        name="discriminator_coverage",
+        name=_DISCRIMINATOR_COVERAGE,
         satisfied=not no_match,
         detail=detail,
     )
@@ -80,7 +98,7 @@ def _override_component(priority: PriorityResult) -> ConfidenceComponent:
         if fired
         else "no discriminator override fired"
     )
-    return ConfidenceComponent(name="override_path", satisfied=fired, detail=detail)
+    return ConfidenceComponent(name=_OVERRIDE_PATH, satisfied=fired, detail=detail)
 
 
 def _band_distance(tews: int) -> int:
@@ -106,7 +124,7 @@ def _band_component(priority: PriorityResult) -> ConfidenceComponent:
     tews = priority.tews or 0
     distance = _band_distance(tews)
     return ConfidenceComponent(
-        name="tews_band_distance",
+        name=_TEWS_BAND_DISTANCE,
         satisfied=distance > _TEWS_BAND_EDGE_TOLERANCE,
         detail=f"tews distance {distance} from the band edge",
     )
@@ -129,10 +147,10 @@ def assess(
 ) -> ConfidenceResult:
     """Return the deterministic coverage/deferral signal for one scored case (D8-01).
 
-    Four components are computed from already-typed objects: vitals coverage,
-    discriminator coverage, the override-vs-TEWS path and the TEWS distance from the
-    band edge. ``no_match`` forces a deferral regardless of the others (D8-11) — a
-    case where no discriminator matched is never reported as high confidence.
+    Every component in ``COMPONENT_NAMES`` is computed from already-typed objects:
+    vitals coverage, discriminator coverage, the override-vs-TEWS path and the TEWS
+    distance from the band edge. ``no_match`` forces a deferral regardless of the others
+    (D8-11) — a case where no discriminator matched is never reported as high confidence.
     Otherwise a case defers when fewer than ``DEFERRAL_MIN_SATISFIED_COMPONENTS``
     components are satisfied. The signal never returns a colour and never a
     probability (D8-02, D8-12).
@@ -166,4 +184,4 @@ def assess(
     )
 
 
-__all__ = ["DEFERRAL_MIN_SATISFIED_COMPONENTS", "assess"]
+__all__ = ["COMPONENT_COUNT", "COMPONENT_NAMES", "DEFERRAL_MIN_SATISFIED_COMPONENTS", "assess"]
