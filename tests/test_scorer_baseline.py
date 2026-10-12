@@ -12,30 +12,30 @@ priorities:
 3. a discriminator-override case carries NO baseline rule (a real finding is never
    displaced by baseline evidence, T-04-22);
 4. an out-of-scope/abstained case still carries no citations and no triggered rules;
-5. E-08 runs through the ONE graph interface with the offline eval tools, reaches the
-   approval gate, and on an unapproved resume delivers a sourced GREEN handover card
-   (T-04-24) — the routine patient is served, not silenced;
+5. E-08 runs through the ONE graph interface with the offline tools; under the ``no_match``
+   deferral (D8-11) it now DEFERS to a safe terminal — it never reaches the approval gate,
+   writes no queue row and produces no handover card. The graph-level "served through the
+   gate" path this proof used to assert is superseded by D8-11; the TEWS-0 baseline *citation*
+   contract is still proven at the scorer level by test 1.
 6. INV-1 fails a *scored* priority with zero citations and passes the baseline-cited one
    (T-04-23, EVAL-03).
 
 Offline and deterministic: the model and the MCP subprocess are never launched (the
-autouse store fixture injects the in-memory store; the eval tools call the real owned
-tools in-process).
+autouse store fixture injects the in-memory store; the graph uses the shared offline tools).
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from langgraph.checkpoint.memory import InMemorySaver
-from langgraph.types import Command
 
+from conftest import build_graph_tools
 from triagedesk.core import matcher, scorer
 from triagedesk.core.schema import PriorityResult
 from triagedesk.evals.case import CaseSpec, load_cases
 from triagedesk.evals.invariants import INV_1, RunEvidence, evaluate
-from triagedesk.evals.tools import build_tools
-from triagedesk.evals.usage import UsageRecorder
 from triagedesk.graph.build import build_graph
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -115,33 +115,37 @@ def test_an_out_of_scope_case_stays_uncited() -> None:
     assert result.triggered_rules == []
 
 
-# ------------------- 5. E-08 reaches the gate and delivers a sourced GREEN card
+# ------------------- 5. E-08 now defers — never reaches the gate (D8-11)
 
-async def test_e08_reaches_the_gate_and_delivers_a_sourced_green_card() -> None:
-    """The routine patient gets a sourced GREEN card through the gate, not a fail-close."""
+async def test_e08_defers_to_a_safe_terminal_and_never_reaches_the_gate(
+    memory_store: Any,
+) -> None:
+    """Under D8-11 the routine TEWS-0 (no_match) case defers — never committed, no card.
+
+    E-08 runs ``score -> verify -> recheck -> assess -> escalate`` and stops: there is no
+    ``__interrupt__`` (the deferral denies the gate), no ``commit_priority`` call and no queue
+    row. The graph-level "served through the gate" path this proof used to assert is superseded
+    by the ``no_match`` deferral; the TEWS-0 baseline *citation* contract is still proven at the
+    scorer level by ``test_a_tews_zero_case_is_sourced_by_the_baseline_citation``.
+    """
     case = _case("E-08")
-    tools = build_tools(case, offline=True, recorder=UsageRecorder())
+    calls: list[tuple[str, Any]] = []
+    tools = build_graph_tools(case=case.case, calls=calls, store=memory_store)
     app = build_graph(tools, checkpointer=InMemorySaver())
     config = {"configurable": {"thread_id": "E-08-baseline"}}
 
-    paused = await app.ainvoke({"raw_note": case.note, "case": case.case}, config)
+    done = await app.ainvoke({"raw_note": case.note}, config)
 
-    assert paused.get("__interrupt__"), (
-        "E-08 fail-closed at verify instead of reaching the approval gate (G-1)"
-    )
-    payload = paused["__interrupt__"][0].value
-    assert payload["colour"] == case.expected  # GREEN
-    assert payload["citations"], "the routine priority carries no citation"
-    assert len(payload["citations"]) == len(payload["triggered_rules"])
-
-    # An unapproved resume still renders the card (the commit is refused, then handover).
-    done = await app.ainvoke(Command(resume={"decision": "dismiss"}), config)
-
-    card = done["handover"]
-    assert card is not None, "the routine patient received no handover card"
-    assert card.colour == case.expected  # GREEN
-    assert card.citations, "the delivered card carries no citation"
-    assert len(card.citations) == len(card.triggered_rules)
+    # The scored colour is unchanged, but the deferral denies the gate.
+    assert done["priority"].colour == case.expected  # GREEN
+    assert not done.get("__interrupt__"), "the deferred case still reached the approval gate"
+    signal = done.get("confidence")
+    assert signal is not None and signal.deferral is True, "E-08 did not defer"
+    assert done.get("escalation") is not None, "the deferral did not reach a safe terminal"
+    assert done.get("handover") is None, "a deferred case produced a handover card"
+    assert done.get("commit_result") is None
+    assert "commit_priority" not in [name for name, _ in calls]
+    assert memory_store.rows == [], "the deferred routine case wrote a queue row"
 
 
 # ------------------- 6. INV-1 enforces "a scored priority is always sourced"

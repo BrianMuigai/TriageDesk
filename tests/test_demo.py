@@ -8,7 +8,7 @@ gated commit behaves honestly on screen:
   writes EXACTLY ONE queue row, while the refusal beat writes NONE (the demo never shows
   a write without a named nurse);
 * the tracer emits the owned tool names each beat actually reaches — the escalation
-  beat's FOUR (``raise_recheck_flag`` is NOT reached: E-02 carries no ``previous_case``)
+  beat's FIVE (``raise_recheck_flag`` is NOT reached: E-02 carries no ``previous_case``)
   and the deterioration beat's ``raise_recheck_flag``.
 
 The store double is the shared ``triagedesk.store.memory.InMemoryStore`` (CONVENTIONS §1:
@@ -22,11 +22,12 @@ from pytest import CaptureFixture
 from triagedesk.demo.run import load_storyboard, run_demo
 from triagedesk.store.memory import InMemoryStore
 
-# The four owned tools the escalation beat (E-02) actually reaches, in call order.
+# The five owned tools the escalation beat (E-02) actually reaches, in call order.
 _ESCALATION_TOOLS = (
     "normalize_case",
     "match_discriminators",
     "score_priority",
+    "assess_confidence",
     "commit_priority",
 )
 
@@ -56,10 +57,10 @@ async def test_refusal_writes_no_queue_row() -> None:
     assert await store.read_queue_rows() == []
 
 
-async def test_escalation_beat_reaches_four_owned_tools(
+async def test_escalation_beat_reaches_five_owned_tools(
     capsys: CaptureFixture[str],
 ) -> None:
-    """The tracer shows the four tools the escalation beat reaches — no recheck tool."""
+    """The tracer shows the five tools the escalation beat reaches — no recheck tool."""
     assert await run_demo(beats=["escalation"], store=InMemoryStore()) == 0
     out = capsys.readouterr().out
     for name in _ESCALATION_TOOLS:

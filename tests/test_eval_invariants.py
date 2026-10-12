@@ -276,9 +276,13 @@ async def test_e14_suppression_leaves_the_colour_unchanged_and_the_finding_cited
     )
     e14_report = Report.model_validate_json(e14_path.read_text(encoding="utf-8"))
     e14_case = e14_report.cases[0]
+    # The colour is unchanged and still cited, but the no_match deferral (D8-11) denies the
+    # gate: the case records a terminal outcome and fails, while the run still exits 0.
     assert e14_code == 0
     assert e14_case.colours == ["YELLOW"] * 3
-    assert e14_case.passed is True
+    assert e14_case.outcomes == ["ABSTAIN"] * 3
+    assert e14_case.deferrals == [True, True, True]
+    assert e14_case.passed is False
     assert any("systolic_bp" in citation for citation in _cited_vitals(e14_case))
 
     # The DIFFERENTIAL control: the exact same vitals with the suppression sentence dropped
