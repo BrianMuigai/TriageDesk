@@ -38,13 +38,13 @@ results, wall-clock latency, token counts, and model/settings hash.
 | Safety invariants | §1 items 1–4 | per case (invariant) | 4/4 |
 | Colour stability | same colour across 3 runs | per case | 15/16 cases |
 | Field stability | identical citations/triggered rules across 3 runs | per case | 15/16 cases |
-| Latency | wall-clock seconds per case (p50, p95) | aggregate | p50 15.32 s · p95 17.55 s |
+| Latency | wall-clock seconds per case (p50, p95) | aggregate | p50 15.20 s · p95 16.99 s |
 | Cost per run | tokens in/out + wall-clock (local CPU → no monetary cost) | aggregate | in 55068 · out 6866 tokens |
 | Deferral rate | coverage deferrals ÷ runs that reached the confidence check (a fraction, never a percentage) | aggregate | 12/32 |
 | Calibration (small-sample) | offline ECE + risk–coverage over a declared split, with both sample sizes named | aggregate | ECE 0.337 · n_calibration=14 · n_held_out=2 |
 
 <!-- BEGIN GENERATED: source -->
-> **Measured source:** `evals/results/report.json` · mode `real` · `report_digest: 1c996eb6e26c20de494a883047798a143f2c207525eb78b071fb94ea81e51f38` · 3 runs/case.
+> **Measured source:** `evals/results/report.json` · mode `real` · `report_digest: ebef6471f15ed75242475a79545f940c9c18a82ca952c7c58d790953c27e5d7c` · 3 runs/case.
 <!-- END GENERATED: source -->
 
 ### 3.1 Report shape (cost & stability visible per case)

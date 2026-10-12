@@ -450,6 +450,25 @@ def test_report_digest_seals_the_per_case_deferral_facts() -> None:
     assert compute_report_digest(mutated) != sealed.report_digest
 
 
+def test_report_digest_seals_the_per_case_confidence_satisfied_facts() -> None:
+    """Flipping a ``ReportCase.confidence_satisfied`` entry changes the digest (WR-05, D8-14).
+
+    The published offline ECE and risk–coverage re-derive from this scalar, so a hand-edit of
+    it must move ``report_digest`` — otherwise a tampered report would be published with a
+    silently different calibration figure. This mirrors the deferral-digest test above.
+    """
+    report = _report([_report_case("A", "GREEN", ["GREEN"] * 3, confidence_satisfied=[3, 3, 3])])
+    sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
+    assert compute_report_digest(sealed) == sealed.report_digest
+
+    mutated_case = sealed.cases[0].model_copy(update={"confidence_satisfied": [1, 1, 1]})
+    mutated = sealed.model_copy(update={"cases": [mutated_case]})
+    assert compute_report_digest(mutated) != sealed.report_digest
+
+    # The seal is load-bearing: the scalar is exactly what the published ECE re-derives from.
+    assert analyse(mutated).calibration.ece != analyse(sealed).calibration.ece
+
+
 def test_generator_renders_a_coverage_deferral_as_a_marker_not_a_failure() -> None:
     """An all-deferred failing case renders the deferral marker; a bare fail still renders ❌."""
     report = _report(

@@ -303,11 +303,13 @@ def _digest_payload(report: Report) -> dict[str, Any]:
     invariant verdict) does not. Only the case ids, expected/measured outcomes, the
     stability flags, the invariant verdicts, the gate and the provenance block are covered.
 
-    The per-case coverage/deferral facts (``held_out``, ``confidence_levels``, ``deferrals``)
-    are sealed too: a flipped deferral is a change in the published safety behaviour, so it
-    must move ``report_digest`` (D8-14). The aggregate ``Calibration`` block is left in
-    ``Analysis`` (which the digest never covers — it carries the volatile cost totals), so
-    only the deterministic per-case content is sealed here.
+    The per-case coverage facts (``held_out``, ``confidence_levels``, ``deferrals``,
+    ``confidence_satisfied``) are sealed too: a flipped deferral OR a changed
+    ``confidence_satisfied`` scalar is a change in the published safety behaviour — the
+    deferral rate and the offline ECE / risk–coverage re-derive from them — so it must move
+    ``report_digest`` (D8-14). The aggregate ``Calibration`` block is left in ``Analysis``
+    (which the digest never covers — it carries the volatile cost totals), so only the
+    deterministic per-case content is sealed here.
     """
     return {
         "provenance": report.provenance.model_dump(mode="json"),
@@ -332,6 +334,7 @@ def _digest_payload(report: Report) -> dict[str, Any]:
                 "held_out": case.held_out,
                 "confidence_levels": case.confidence_levels,
                 "deferrals": case.deferrals,
+                "confidence_satisfied": case.confidence_satisfied,
             }
             for case in report.cases
         ],
