@@ -68,8 +68,17 @@ READ_TOOLS: tuple[str, ...] = (
 )
 
 # The leading keywords a read-only statement may carry; anything else is refused
-# (fail closed). Named once so the classifier and its tests share one source.
-_READ_PREFIXES = ("SELECT", "PRAGMA", "EXPLAIN", "WITH", "VALUES")
+# (fail closed). ``WITH`` is deliberately ABSENT: a CTE may prefix
+# ``INSERT``/``UPDATE``/``DELETE`` (``WITH x AS (SELECT 1) DELETE FROM queue``), so a
+# ``WITH`` head is not provably a read. ``PRAGMA`` is handled separately below, because
+# only a small read-only subset of PRAGMA statements is safe. Named once so the
+# classifier and its tests share one source.
+_READ_PREFIXES = ("SELECT", "EXPLAIN", "VALUES")
+
+# The ONLY PRAGMA statements treated as reads. A bare or unknown ``PRAGMA`` mutates
+# state (``PRAGMA writable_schema = 1``, ``PRAGMA journal_mode = DELETE``), so it is
+# refused; the store itself issues only ``PRAGMA table_info(...)`` on the read path.
+_PRAGMA_READ_PREFIXES = ("PRAGMA TABLE_INFO", "PRAGMA INDEX_LIST", "PRAGMA INDEX_INFO")
 # The bounded row count the read-path probe requests (one row is enough to prove the
 # path, and it keeps the probe's payload small).
 _PROBE_LIMIT = 1
@@ -143,14 +152,37 @@ _ROW_KEYS = ("rows", "records", "results", "data")
 
 
 def is_read_only_statement(sql: str) -> bool:
-    """Return whether *sql* is a read-only statement, failing closed (D9-12).
+    """Return whether *sql* is a single, provably read-only statement, failing closed (D9-12).
 
-    The classifier looks only at the leading keyword of the left-stripped statement
-    and **never executes** it; anything not recognised as a read — including an empty
-    or whitespace-only statement — is not a read. It is a second, independent barrier
-    beside the allowlist (T-09-20/T-09-23).
+    Fail-closed: a statement is admitted ONLY when it is provably a read. The classifier
+    inspects the leading keyword and the statement count and **never executes** *sql*; it
+    refuses:
+
+    * an empty or whitespace-only string;
+    * a ``WITH`` head — a CTE may prefix ``INSERT``/``UPDATE``/``DELETE``
+      (``WITH x AS (SELECT 1) DELETE FROM queue``), so ``WITH`` is not a read;
+    * a ``PRAGMA`` outside the read-only subset (``PRAGMA writable_schema = 1`` mutates
+      state);
+    * a multi-statement string — any ``;`` that does not merely terminate the one
+      statement (``SELECT 1; DELETE FROM queue``).
+
+    It is a second, independent barrier beside the tool allowlist (T-09-20/T-09-23) and a
+    *string-level* barrier: it must not rely on the executor's behaviour, because the real
+    borrowed server is Node ``mcp-sqlite@1.0.9``.
     """
-    head = sql.strip().split(None, 1)[0].upper() if sql.strip() else ""
+    stripped = sql.strip()
+    if not stripped:
+        return False
+    # Exactly one statement: a semicolon anywhere but a trailing terminator is refused.
+    # A semicolon inside a string literal is refused too — over-refusal is safe, and the
+    # store never issues one.
+    if ";" in stripped.rstrip(";"):
+        return False
+    head = stripped.split(None, 1)[0].upper()
+    if head == "PRAGMA":
+        return stripped.upper().startswith(_PRAGMA_READ_PREFIXES)
+    if head == "WITH":  # a CTE may prefix INSERT/UPDATE/DELETE — not a read
+        return False
     return head in _READ_PREFIXES
 
 

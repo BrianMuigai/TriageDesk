@@ -283,10 +283,13 @@ _READ_ONLY_STATEMENTS = (
     "SELECT 1",
     "  select * from queue",
     "PRAGMA table_info(audit)",
+    "PRAGMA index_list(queue)",
     "EXPLAIN SELECT 1",
-    "WITH x AS (SELECT 1) SELECT * FROM x",
     "VALUES (1)",
 )
+# Every entry here must be refused (D9-12, fail closed). The compound/mutating
+# statements below pin the three bypasses a leading-keyword-only classifier admitted:
+# a WITH-prefixed DML, a PRAGMA write, and a multi-statement string.
 _NOT_READ_STATEMENTS = (
     "INSERT INTO queue VALUES (1)",
     "UPDATE queue SET colour = 'RED'",
@@ -294,6 +297,14 @@ _NOT_READ_STATEMENTS = (
     "CREATE TABLE t (a)",
     "DROP TABLE t",
     "ALTER TABLE t ADD COLUMN a",
+    # a CTE may prefix DML, so a WITH head is not provably a read — even this read-only CTE
+    "WITH x AS (SELECT 1) SELECT * FROM x",
+    "WITH x AS (SELECT 1) DELETE FROM queue",
+    # PRAGMA writes are not reads (a bare/unknown PRAGMA mutates state)
+    "PRAGMA writable_schema = 1",
+    "PRAGMA journal_mode = DELETE",
+    # a compound string is not a single read statement
+    "SELECT 1; DELETE FROM queue",
     "",
     "   ",
 )
