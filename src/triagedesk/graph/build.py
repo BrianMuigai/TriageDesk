@@ -54,6 +54,7 @@ __all__ = [
     "open_checkpointer",
     "route_after_normalize",
     "route_after_score",
+    "route_after_assess",
     "route_after_verify",
     "run_case",
 ]
@@ -67,6 +68,7 @@ OWNED_TOOL_ALLOWLIST: tuple[str, ...] = (
     "match_discriminators",
     "score_priority",
     "raise_recheck_flag",
+    "assess_confidence",
     "commit_priority",
 )
 
@@ -99,6 +101,7 @@ TRACER_NODES: tuple[str, ...] = (
     "score",
     "verify",
     "recheck",
+    "assess",
     "approval_gate",
     "commit",
     "handover",
@@ -138,6 +141,25 @@ def route_after_score(state: TriageState) -> str:
     if priority is not None and priority.missing_vitals:
         return "request_missing_info"
     return "verify"
+
+
+def route_after_assess(state: TriageState) -> str:
+    """Choose the next node after ``assess`` — a deferral never reaches the gate (D8-08, D8-12).
+
+    The confidence signal can only make the system *more* cautious: a deferral routes to
+    ``escalate`` (or ``request_missing_info`` when the priority still reports a missing
+    scored vital), both of which end at ``END`` with no edge to ``commit``. The neutral,
+    non-deferral arm proceeds to ``approval_gate`` as before. Because the deterministic
+    ``recheck`` runs *before* ``assess``, a deferral prevents a commit without suppressing
+    the safety recheck.
+    """
+    signal = state.get("confidence")
+    if signal is not None and signal.deferral:
+        priority = state.get("priority")
+        if priority is not None and priority.missing_vitals:
+            return "request_missing_info"
+        return "escalate"
+    return "approval_gate"
 
 
 def route_after_verify(state: TriageState) -> str:
@@ -185,11 +207,13 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
     """Compile the tracer graph over the injected ``tools`` mapping (D-01, D-13).
 
     ``START -> ingest -> normalize -> (retrieve -> score | escalate) ->
-    (verify -> recheck -> approval_gate -> commit -> handover |
-    request_missing_info | escalate) -> END``. The ``normalize``, ``score`` and
-    ``verify`` edges are conditional; the recovery/abstention terminals have no edge
-    to ``commit``. ``checkpointer`` is injected so the same builder serves both the
-    in-memory test graph and the durable SQLite graph (D-09).
+    (score: escalate | request_missing_info | verify) -> (verify -> recheck) ->
+    assess -> (approval_gate -> commit -> handover | escalate |
+    request_missing_info) -> END``. The ``normalize``, ``score``, ``verify`` and
+    ``assess`` edges are conditional; the recovery/abstention terminals have no edge
+    to ``commit``, and a deferral from ``assess`` only reaches those terminals (D8-12).
+    ``checkpointer`` is injected so the same builder serves both the in-memory test
+    graph and the durable SQLite graph (D-09).
 
     The injected tool surface is asserted against the allowlist FIRST, so a drifted or
     unexpected tool fails loudly at composition rather than silently reaching the
@@ -223,7 +247,16 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
         route_after_verify,
         {"recheck": "recheck", "score": "score", END: END},
     )
-    graph.add_edge("recheck", "approval_gate")
+    graph.add_edge("recheck", "assess")
+    graph.add_conditional_edges(
+        "assess",
+        route_after_assess,
+        {
+            "escalate": "escalate",
+            "request_missing_info": "request_missing_info",
+            "approval_gate": "approval_gate",
+        },
+    )
     graph.add_edge("approval_gate", "commit")
     graph.add_edge("commit", "handover")
     graph.add_edge("handover", END)

@@ -18,7 +18,7 @@ from collections.abc import Awaitable, Callable, Iterator, Mapping
 from contextlib import contextmanager
 from typing import Any
 
-from triagedesk.core.schema import CaseInput, ExtractionResult
+from triagedesk.core.schema import CaseInput, ExtractionResult, PriorityResult
 from triagedesk.evals.case import CaseSpec, FaultInjection
 from triagedesk.evals.usage import UsageRecorder, recorded_extract
 from triagedesk.mcp import server as server_module
@@ -115,6 +115,15 @@ def build_tools(case: CaseSpec, *, offline: bool, recorder: UsageRecorder) -> di
         current = CaseInput.model_validate(inp["current"])
         return await server_module.raise_recheck_flag(previous, current)
 
+    async def assess_confidence(inp: Mapping[str, Any]) -> Any:
+        case = CaseInput.model_validate(inp["case"])
+        return await server_module.assess_confidence(
+            case,
+            list(inp.get("matched_ids") or []),
+            bool(inp.get("no_match")),
+            PriorityResult.model_validate(inp["priority"]),
+        )
+
     async def commit_priority(inp: Mapping[str, Any]) -> Any:
         case = CaseInput.model_validate(inp["case"])
         return await server_module.commit_priority(
@@ -126,6 +135,7 @@ def build_tools(case: CaseSpec, *, offline: bool, recorder: UsageRecorder) -> di
         "match_discriminators": match_discriminators,
         "score_priority": score_priority,
         "raise_recheck_flag": raise_recheck_flag,
+        "assess_confidence": assess_confidence,
         "commit_priority": commit_priority,
     }
 

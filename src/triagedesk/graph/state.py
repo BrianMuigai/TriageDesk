@@ -14,6 +14,7 @@ from typing import TypedDict
 from triagedesk.core.schema import (
     CaseInput,
     CommitResult,
+    ConfidenceResult,
     Escalation,
     HandoverCard,
     PriorityResult,
@@ -28,9 +29,10 @@ class TriageState(TypedDict, total=False):
     Every field is optional (``total=False``) so each node returns a partial
     update: ``ingest`` seeds ``raw_note``/``attempt``; ``normalize`` adds ``case``;
     ``retrieve`` adds ``matched_ids``/``no_match``; ``score`` adds ``priority``;
-    ``verify`` sets ``route`` (and bumps ``attempt`` on a retry); ``approval_gate``
-    adds the resumed ``approval``; ``commit`` adds ``commit_result``; ``handover``
-    adds ``handover``. ``error`` is reserved for a fail-closed stop.
+    ``verify`` sets ``route`` (and bumps ``attempt`` on a retry); ``recheck`` adds
+    ``second_look``; ``assess`` adds ``confidence``; ``approval_gate`` adds the
+    resumed ``approval``; ``commit`` adds ``commit_result``; ``handover`` adds
+    ``handover``. ``error`` is reserved for a fail-closed stop.
     """
 
     raw_note: str
@@ -50,3 +52,6 @@ class TriageState(TypedDict, total=False):
     # Serial-vitals second look (GATE-04, D-07): the previous case and the flag it raises.
     previous_case: CaseInput | None
     second_look: RecheckFlag | None
+    # Deterministic coverage/deferral signal (AGENT-02, D8-08): written by ``assess`` and
+    # consulted by ``route_after_assess``. It never reaches ``commit`` (D8-12).
+    confidence: ConfidenceResult | None

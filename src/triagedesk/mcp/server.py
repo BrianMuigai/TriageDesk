@@ -1,4 +1,4 @@
-"""Owned MCP server (SDK v2, stdio) exposing the five triage tools (D-04/D-12).
+"""Owned MCP server (SDK v2, stdio) exposing the six triage tools (D-04/D-12).
 
 ``from mcp.server import MCPServer`` — the v1 ``FastMCP`` import path was removed
 in SDK v2. Every tool returns a shared ``core.schema`` contract (D-14), so the
@@ -27,11 +27,12 @@ from typing import Any
 from mcp.server import MCPServer
 from pydantic import BaseModel, ValidationError
 
-from triagedesk.core import matcher, recheck, scorer
+from triagedesk.core import confidence, matcher, recheck, scorer
 from triagedesk.core.schema import (
     ApprovalToken,
     CaseInput,
     CommitResult,
+    ConfidenceResult,
     ExtractionResult,
     MatchResult,
     PriorityResult,
@@ -201,6 +202,25 @@ def score_priority(
     one citation per triggered rule.
     """
     return scorer.score_priority(case, matched_discriminator_ids)
+
+
+@server.tool()
+@audited()
+def assess_confidence(
+    case: CaseInput,
+    matched_ids: list[str],
+    no_match: bool,
+    priority: PriorityResult,
+) -> ConfidenceResult:
+    """Return the deterministic coverage/deferral signal — no model, no store (D8-07).
+
+    A thin, contract-typed adapter over the pure ``core.confidence.assess`` function
+    (SOLID: S/D): it reads only the typed inputs and returns the confidence contract.
+    It touches no store, writes no queue row and takes no approval token; the signal
+    can only route the graph to a more cautious terminal, never to the commit
+    (D8-07, D8-12).
+    """
+    return confidence.assess(case, matched_ids, no_match, priority)
 
 
 @server.tool()

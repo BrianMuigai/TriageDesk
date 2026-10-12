@@ -26,9 +26,10 @@ async def test_owned_server_lists_normalize_case_and_grows_its_tool_surface() ->
         listed = await client.list_tools()
     names = {t.name for t in listed.tools}
     # A superset check preserves the Phase-1 normalize_case contract without
-    # forbidding the tool surface from growing. Phase 2 completes the five-tool
-    # contract (D-07), so SC3's "all five tools" claim is machine-verified here
-    # while still allowing future growth.
+    # forbidding the tool surface from growing. Phase 2 completed the five-tool
+    # contract (D-07) and Phase 8 adds the sixth (assess_confidence), so SC3's
+    # "all owned tools" claim is machine-verified here while still allowing future
+    # growth.
     assert names >= {
         "normalize_case",
         "match_discriminators",

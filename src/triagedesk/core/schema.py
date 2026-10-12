@@ -115,6 +115,43 @@ class MatchResult(BaseModel):
     warning: str | None = None
 
 
+ConfidenceLevel = Literal["high", "moderate", "low"]
+
+
+class ConfidenceComponent(BaseModel):
+    """One component of the deterministic coverage/deferral signal (D8-01).
+
+    ``satisfied`` records positive evidence for the component — a fully-covered
+    vital set, a matched discriminator, a firing override, or a case far from a
+    TEWS band edge — and ``detail`` is a human-readable count/boolean phrase. There
+    is deliberately no numeric weight, score or probability field: the component is
+    evidence and a boolean, never a clinical risk figure (D8-02, D8-04).
+    """
+
+    name: str
+    satisfied: bool = False
+    detail: str = ""
+
+
+class ConfidenceResult(BaseModel):
+    """The deterministic coverage/deferral signal (D8-02, D8-04).
+
+    A pure function of the typed case, the matched discriminator ids and the scored
+    ``PriorityResult`` — never of a model probability, logprob or token count
+    (D8-01). It carries a ``deferral`` decision, a small closed-set ``level``, the
+    per-component breakdown and a human-readable ``reason``. There is deliberately
+    no percentage and no float ``score``/``probability`` field: a model-derived
+    number is *unrepresentable* rather than merely discouraged (D8-04). The signal
+    can only ever make the system more cautious — a deferral routes to ``escalate``
+    or ``request_missing_info`` and never reaches ``commit`` (D8-12).
+    """
+
+    deferral: bool = False
+    level: ConfidenceLevel = "high"
+    components: list[ConfidenceComponent] = Field(default_factory=list)
+    reason: str = ""
+
+
 class VitalChange(BaseModel):
     """One scored vital compared across two serial cases (D-08).
 

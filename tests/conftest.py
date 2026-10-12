@@ -17,12 +17,13 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from triagedesk.core import matcher, recheck, scorer
+from triagedesk.core import confidence, matcher, recheck, scorer
 from triagedesk.core.schema import (
     ApprovalToken,
     CaseInput,
     CommitResult,
     ExtractionResult,
+    PriorityResult,
 )
 from triagedesk.mcp import server as server_module
 from triagedesk.observability.spans import set_sink
@@ -171,6 +172,15 @@ def build_graph_tools(
         current = CaseInput.model_validate(inp["current"])
         return recheck.compare_vitals(previous, current)
 
+    async def assess_confidence(inp: dict[str, Any]) -> Any:
+        calls.append(("assess_confidence", inp))
+        return confidence.assess(
+            CaseInput.model_validate(inp["case"]),
+            list(inp.get("matched_ids") or []),
+            bool(inp.get("no_match")),
+            PriorityResult.model_validate(inp["priority"]),
+        )
+
     async def commit_priority(inp: dict[str, Any]) -> CommitResult:
         calls.append(("commit_priority", inp))
         token = inp.get("approval_token")
@@ -202,5 +212,6 @@ def build_graph_tools(
         "match_discriminators": match_discriminators,
         "score_priority": score_priority,
         "raise_recheck_flag": raise_recheck_flag,
+        "assess_confidence": assess_confidence,
         "commit_priority": commit_priority,
     }

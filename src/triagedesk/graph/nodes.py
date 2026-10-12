@@ -29,6 +29,7 @@ from triagedesk.core.hashing import hash_value
 from triagedesk.core.schema import (
     CaseInput,
     CommitResult,
+    ConfidenceResult,
     Escalation,
     ExtractionResult,
     HandoverCard,
@@ -190,6 +191,30 @@ def _make_score(tools: ToolMap) -> NodeFn:
         return {"priority": priority}
 
     return score
+
+
+def _make_assess(tools: ToolMap) -> NodeFn:
+    """Build the ``assess`` node over the injected tool mapping (D8-08)."""
+
+    async def assess(state: TriageState) -> dict[str, Any]:
+        """Compute the deterministic coverage/deferral signal — no model, no write (D8-08).
+
+        Reads the typed case, the retrieved ids + ``no_match`` and the scored priority
+        and stores the returned signal in the ``confidence`` channel. It never assigns
+        to ``priority``, so the scored colour is unchanged on every path (D8-12).
+        """
+        payload = {
+            "case": state["case"].model_dump(),
+            "matched_ids": list(state.get("matched_ids") or []),
+            "no_match": bool(state.get("no_match")),
+            "priority": state["priority"].model_dump(),
+        }
+        signal = parse_tool_result(
+            ConfidenceResult, await tools["assess_confidence"](payload)
+        )
+        return {"confidence": signal}
+
+    return assess
 
 
 def verify(state: TriageState) -> dict[str, Any]:
@@ -378,6 +403,7 @@ def make_nodes(tools: ToolMap) -> dict[str, NodeFn]:
         "normalize": _make_normalize(tools),
         "retrieve": _make_retrieve(tools),
         "score": _make_score(tools),
+        "assess": _make_assess(tools),
         "verify": verify,
         "recheck": _make_recheck(tools),
         "approval_gate": approval_gate,
