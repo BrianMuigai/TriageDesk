@@ -4,9 +4,9 @@ milestone: v1.1
 milestone_name: Score Uplift
 status: Awaiting next milestone
 stopped_at: Phase 12 complete — all phases complete
-last_updated: "2026-10-13T18:24:11.664Z"
+last_updated: "2026-10-13T18:53:55.120Z"
 last_activity: 2026-10-13
-last_activity_desc: "Completed quick task 261013-sbd: desk panel shows the queue position the gated commit assigned"
+last_activity_desc: "Completed quick task 261013-taj: collapse the duplicated store-seam ceremony and give the tool map a CaseInput entry point"
 current_phase: 12
 progress:
   total_phases: 7
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 Phase: Milestone v1.1 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-10-13 - Completed quick task 261013-taj: collapse the duplicated store-seam ceremony and give the tool map a CaseInput entry point
+Last activity: 2026-10-13 - Completed quick task 261013-tqi: split the desk server module by SRP and document how to run the demos in the README
 
 ## Performance Metrics
 
@@ -171,6 +171,7 @@ None yet.
 |---|-------------|------|--------|--------|-----------|
 | 1 | desk panel shows the queue position the gated commit assigned | 2026-10-13 | ae611b4 | complete | [261013-sbd-desk-panel-shows-the-queue-position-the-](./quick/261013-sbd-desk-panel-shows-the-queue-position-the/) |
 | 2 | collapse the duplicated store-seam ceremony and give the tool map a CaseInput entry point | 2026-10-13 | ab58bbd | Verified | [261013-taj-collapse-the-duplicated-store-seam-cerem](./quick/261013-taj-collapse-the-duplicated-store-seam-cerem/) |
+| 3 | split the desk server module by SRP and document how to run the demos in the README | 2026-10-13 | 39e9cc8 | Verified | [261013-tqi-split-the-desk-server-module-by-srp-and-](./quick/261013-tqi-split-the-desk-server-module-by-srp-and-/) |
 
 ## Deferred Verification
 
