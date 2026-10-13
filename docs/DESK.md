@@ -56,7 +56,7 @@ Your decision
   Choose the priority colour:  GREEN   ORANGE   RED   YELLOW
   [ Approve suggestion ]   [ Edit colour ]   [ Dismiss (commit nothing) ]
 
-Approved by NAME (ROLE) — committed to the queue.
+Approved by NAME (ROLE) — committed to the queue at position 1.
 Dismissed — nothing has been committed.
 No decision was made — nothing has been committed.
 

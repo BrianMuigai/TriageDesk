@@ -300,6 +300,20 @@ same re-score the harness proves; the measured numbers live only in [`EVALS.md`]
 genuinely-human steps stay visible as open items (STATUS G1/G2) rather than papered over. No source
 behaviour and no dependency changed.
 
+### D26 — The committed queue position is a typed field, never parsed from the reason
+**Decision:** the queue position the gated write assigned is exposed as a typed
+`CommitResult.position: int | None`, set once from the store's `row.position` in the gated commit
+tool; the desk surface names the position when it is present and falls back to the position-free
+copy when it is absent.
+**Why:** the desk module reads **typed channels only** and never a free-text reason (per the
+`desk/server.py` module docstring and `terminal_kind()`'s explicit avoidance of
+`Escalation.reason`), so the panel must not string-parse `CommitResult.reason` even though the CLI's
+reason happens to carry the position in prose. The field is additive because `CommitResult` is the
+one contract model without `extra="forbid"`, so every existing constructor and reader is unaffected.
+**Consequence:** the surface reads the position off the typed channel (`getattr(commit, "position",
+None)`), never the reason; the CLI reason string is untouched; and the desk package still imports
+neither the store/queue nor the MCP server (the no-self-commit guard stays green).
+
 ---
 
 ## Disclosed third-party components (DQ-8)

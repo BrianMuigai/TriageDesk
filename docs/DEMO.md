@@ -264,8 +264,8 @@ instead of rendering a fresh gate.
 
 | Beat | Case | What is on screen |
 | --- | --- | --- |
-| Happy path | E-04 (emergency discriminator) | The **suggested** priority card — RED, target time, every "why" vital **next to its citation**, then the SATS evidence — then the real gate; a named nurse **approves** → `Approved by Nurse A. Demo (triage nurse) — committed to the queue`. |
-| Edge — edit | E-10 | The nurse overrides the colour → `Edited to ORANGE by Nurse A. Demo … committed to the queue`; the row is superseded, not duplicated. |
+| Happy path | E-04 (emergency discriminator) | The **suggested** priority card — RED, target time, every "why" vital **next to its citation**, then the SATS evidence — then the real gate; a named nurse **approves** → `Approved by Nurse A. Demo (triage nurse) — committed to the queue at position 1`. |
+| Edge — edit | E-10 | The nurse overrides the colour → `Edited to ORANGE by Nurse A. Demo (triage nurse) — committed to the queue at position 2`. A **different** patient (E-10, not E-04) is a genuinely new row, so the two approvals land at positions **1 and 2**. |
 | Edge — dismiss | E-02 | `Dismissed — nothing has been committed`. There is no default approve. |
 | Edge — recovery | E-05 | A scored vital is missing → `A scored vital is missing. Re-measure before scoring.` **No gate**. |
 | Edge — deferred | E-09 | No discriminator matched → the loud banner + a **read-only** card (`Not confirmed and not queued`). **No gate**. |
