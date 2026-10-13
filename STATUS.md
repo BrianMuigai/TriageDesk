@@ -4,6 +4,8 @@
 > <https://agentic-africa-challenge.lovable.app/tracks/healthcare>
 > This is a gap analysis, not a victory lap. It says what is done, what is missing, and what would
 > move the score.
+> **Snapshot:** the measured figures below are dated; [`EVALS.md`](EVALS.md) is the current single
+> source for every measured number (a full STATUS refresh is Phase 12's DOCS-06).
 
 ---
 
@@ -38,19 +40,19 @@ hard submission gap** (the demo video is recorded but **not uploaded**) and **on
 
 | Requirement | Status |
 | --- | --- |
-| Public repo + OSI licence + README one command | ✅ public, Apache-2.0 — ⚠️ README shows **two** commands (G3) |
+| Public repo + OSI licence + README one command | ✅ public, Apache-2.0 — one command (`uv run triagedesk demo`); G3 resolved |
 | Demo video <3 min, **uploaded to YouTube/Vimeo, publicly visible** | ❌ recorded (`docs/assets/triagedesk-demo.mp4`, 33 s) but **NOT uploaded** (G1) |
 | ~300-word description | ✅ `DESCRIPTION.md` (302 words) |
 | ARCHITECTURE.md — one page | ✅ 697 words / 94 lines |
-| EVALS.md — 8+ tasks + one unfixed failure | ✅ 14 cases; E-09 declared (G4) |
+| EVALS.md — 8+ tasks + one unfixed failure | ✅ 16 cases; E-09 declared (G4) |
 
 ## 3. Judging criteria — honest self-score
 
 | Criterion | Pts | Est. | Why not full |
 | --- | --- | --- | --- |
 | Agentic depth & MCP craft | 30 | **27–30** | Strong. Borrowed-server tools under-exercised (G7) |
-| Open-source rigour | 20 | **18–20** | Honest README; "one command" is two (G3) |
-| **Fit to the triage desk** | 20 | **7–12** | **No clinician interview** (G2) + **no desk surface** + 14–17 s latency (U1/U3) |
+| Open-source rigour | 20 | **18–20** | Honest README; one-command quickstart (G3 resolved) |
+| **Fit to the triage desk** | 20 | **7–12** | **No clinician interview** (G2) + **no desk surface** + 13–17 s latency (U1/U3) |
 | Evaluation & reliability | 15 | **13–15** | Honest & measured; 4 failures + a metrics-consistency question (G4) |
 | Defensibility | 10 | **9–10** | Deterministic, cited, hash-chained audit, cost/run — strong |
 | Demo | 5 | **3–5** | Recorded, failure shown — but 33 s and not hosted (G1/G5) |
@@ -69,11 +71,12 @@ every priority cited · synthetic only · repo runs · results are real · green
    paste the link. *(Human step.)*
 2. **G2 — No clinician interview.** "Fit to triage desk" explicitly asks *"did you talk to one?"* We
    declared the gap honestly but lose points. Fix: one real triage-nurse/clinician review + a quote.
-3. **G3 — "One command" is two.** README shows `uv sync --locked` **then** `uv run triagedesk demo`.
-   Fix: make `uv run triagedesk demo` the literal one-liner (`uv` auto-syncs).
-4. **G4 — Eval optics + a consistency question.** 4 failing cases (E-04 colour-unstable, E-07
-   recheck→recover, E-09 declared, E-13 injection→abstain) are honest, but `EVALS.md` §4 shows **14
-   cases** while §3 reports **16/16 cases** and **29/32 runs** — reconcile the counts.
+3. **G3 — resolved.** The README now shows the literal one-liner `uv run triagedesk demo` (`uv`
+   auto-syncs from the committed lock); the two-step install is gone and a test guards it.
+4. **G4 — Eval optics.** The honest misses stay visible and the counts are reconciled: `EVALS.md`
+   §4 lists **16 cases** and §3's figures are emitted from the same `report.json`. E-09 is the one
+   declared failure (a coverage deferral, not a delivered under-triage); E-11 and E-13 are recorded
+   gate failures and E-01/E-08/E-14 are coverage deferrals.
 5. **G5 — Demo length.** 33 s is under 3 min but thin against "three clear minutes showing the agent
    working."
 6. **G6 — Live-review readiness (Stage 2).** "A new requirement added live while we watch." Our YAML
@@ -108,7 +111,7 @@ schedule includes "UX refinement."
   decide" with a real approve/edit/dismiss affordance, or it risks reading as a **rubber stamp**
   (the automation-bias pitfall our own research flagged).
 - **U3 — Latency vs "Seconds."** The brief promises *seconds*; the **measured real-model path is
-  p50 13.6 s / p95 17.2 s**. The deterministic score is instant — the local model's extraction
+  p50 13.06 s / p95 17.41 s**. The deterministic score is instant — the local model's extraction
   dominates. Too slow for the desk.
 - **U4 — Uncertainty is not surfaced.** When no discriminator matches (the E-09 class) the card shows
   `no_discriminator_matched: true` buried in JSON. A nurse needs a loud "**no match — please check**".
@@ -141,14 +144,14 @@ state-of-the-art *general* agent**. The distance to "cutting edge" is almost ent
 | Guardrails / safety | structural: no dx/rx tools, citation invariant, gate | ✅ present (strong) |
 | Prompt-injection resistance | prose-as-data + deterministic scorer | ✅ present |
 | Reproducibility | hashing, pinned deps, deterministic scorer | ✅ present |
-| Evaluation | 14 cases, invariants, honest failure | 🟡 strong but offline-only |
+| Evaluation | 16 cases, invariants, honest failure | 🟡 strong but offline-only |
 | Dynamic planning / adaptive routing | fixed graph (bounded) | 🟡 partial — deliberate |
 | **Knowledge grounding (RAG)** | deterministic citations from YAML; **no retrieval** | ❌ **genuine gap** |
 | **Calibrated confidence + abstention** | none (deferred to v2) | ❌ **genuine gap** |
 | **Durable/resumable execution** | `checkpoints.db` built but **not wired E2E** (`InMemorySaver` used) | ❌ **genuine gap** |
 | **Observability / tracing / replay** | JSONL audit only; no spans | ❌ **genuine gap** |
 | Online eval / calibration / drift | offline report only | ❌ gap |
-| Cost/latency management | cost reported; **14–17 s**, no routing/caching/budgets | ❌ gap |
+| Cost/latency management | cost reported; **13–17 s**, no routing/caching/budgets | ❌ gap |
 | Approver authentication | recorded, not authenticated | ❌ gap (declared) |
 | MCP sampling / elicitation (current spec) | static tool calls only | ❌ gap |
 | Long-term / episodic memory | per-case only | ⛔ deliberate |
@@ -166,7 +169,7 @@ state-of-the-art *general* agent**. The distance to "cutting edge" is almost ent
 3. **Wire the durable `checkpoints.db`** into the E2E path — already built, just not exercised.
 4. **Span-based tracing + replay** (OTel/LangSmith) on top of the audit log.
 5. **MCP sampling / elicitation** — the current spec's agent↔server negotiation.
-6. **Model routing / caching / budgets** — attacks the 14–17 s desk latency.
+6. **Model routing / caching / budgets** — attacks the 13–17 s desk latency.
 7. **Online eval + calibration + drift monitoring**.
 8. **Multimodal intake** (voice + chart/cuff photo) — the real desk UX.
 
@@ -188,9 +191,8 @@ it is the discipline the brief rewards ("three tools that work beat nine that ha
 - **One clinician review** + a one-line quote in README/EVALS (G2) — the biggest available points.
 - **Rehearse the live review**: 10-min walkthrough + a dry-run "add a discriminator to
   `data/sats_discriminators.yaml` live and re-score" (G6).
-- **Fix E-07 and E-04**, re-run the measured eval; keep E-09 declared (G4).
-- **Tighten README to one command** (G3).
-- **Reconcile the EVALS numbers** (14 vs 16 cases; 29/32 runs) (G4).
+- **E-07 and E-04 fixed** (Phase 11); the measured eval was re-run; E-09 stays declared (G4).
+- **README one command — done**; the EVALS numbers are reconciled (G3/G4).
 
 **UX (cheap → expensive):**
 - Human-readable **priority card** ("SUGGESTED: ORANGE · <10 min · why: RR 24 + HR 118 + T 38.9") — not JSON.
@@ -210,7 +212,7 @@ it is the discipline the brief rewards ("three tools that work beat nine that ha
 ## 9. Bottom line
 
 - **Build: done.** All 6 "what to build" items, all safety rules, no disqualifiers; repo frozen, tagged
-  (`v1.0-submission`) and pushed; 239 tests pass; honest measured evaluation.
+  (`v1.0-submission`) and pushed; 440 tests pass; honest measured evaluation.
 - **Submission: one step short.** Upload the video.
 - **Score ceiling:** capped mainly by **fit-to-desk (no clinician + no desk surface)** and **demo
   (short + unhosted)** — both improvable before 2026-10-15.
