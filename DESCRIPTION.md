@@ -15,7 +15,9 @@ open-weights model (Qwen2.5 via Ollama) structures the note, selects relevant SA
 discriminators, and calls a set of MCP tools. Those tools validate the vitals, compute the Triage
 Early Warning Score deterministically, apply discriminator overrides, and propose a colour-coded
 priority with the exact rule and vital that produced it. If a patient's condition worsens while they
-wait, the agent raises a re-check flag for a second look; it does not re-classify on its own.
+wait, the agent raises a re-check flag for a second look; it does not re-classify on its own. The
+approval gate is durable (paused cases resume from `checkpoints.db`), and a complaint matching no
+discriminator shows a retrieval-grounded deferral banner, not a guess.
 
 Every priority is gated. The case card cannot be written to the queue until a **named nurse or
 clinician approves it**, and every tool call — inputs, outputs, timestamps, and approver — is logged
