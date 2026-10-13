@@ -97,12 +97,49 @@ uv run triagedesk desk
 ```
 
 The bare demo runs **offline by default** — it needs only `uv` and the locked dependencies (no model
-pulled, no network, no borrowed server). To drive the local open-weights model instead of the offline
-fixture, add `--online` (after `ollama pull qwen2.5:1.5b`). A single beat can be re-run with
-`uv run triagedesk demo --beat <name>`. The full presenter runbook — every beat, command, and the real
-expected output — is [`docs/DEMO.md`](docs/DEMO.md); it does not restate the demo here (DRY). Prefer
-plain `pip`? Pinned `requirements.txt` (runtime) and `requirements-dev.txt` (dev tools) are generated
-from `uv.lock`.
+pulled, no network, no borrowed server). How to drive it in full — the storyboard beats and the desk
+surface — is in [Running the demos](#running-the-demos) below. Prefer plain `pip`? Pinned
+`requirements.txt` (runtime) and `requirements-dev.txt` (dev tools) are generated from `uv.lock`.
+
+## Running the demos
+
+Those two commands are the whole surface. The full presenter scripts are
+[`docs/DEMO.md`](docs/DEMO.md) (storyboard) and [`docs/DESK.md`](docs/DESK.md) (desk); this section
+shows how to drive them and does not restate them (DRY).
+
+### The storyboard demo
+
+```bash
+# The whole demo, offline, on the bundled synthetic fixture (the default).
+uv run triagedesk demo
+
+# Drive the local open-weights model instead of the offline fixture
+# (after `ollama pull qwen2.5:1.5b`).
+uv run triagedesk demo --online
+
+# Re-run a single beat by name; repeat the flag to compose a shorter run.
+uv run triagedesk demo --beat <name>
+
+# Run ONE beat to the durable approval gate, print its thread id, and stop.
+uv run triagedesk demo --durable
+```
+
+To list the beat names, use `uv run triagedesk demo --list`. The `--durable` flag pauses ONE beat at
+the gate, prints its content-derived thread id, and exits **without** resuming; its printed follow-up
+is `uv run triagedesk resume --thread-id <id> --decision approve --approver <name> --role <role>` —
+add `--db <file>` only if the checkpoint was moved.
+
+### The desk surface
+
+```bash
+# Serve the local desk surface (loopback only, no external request).
+uv run triagedesk desk
+```
+
+Open **<http://127.0.0.1:8765>** in a browser and stop the server with **Ctrl-C**. The surface binds
+loopback only and makes no external request. The recorded walkthrough is
+[`docs/assets/desk-demo.mp4`](docs/assets/desk-demo.mp4); the nurse-facing quickstart is
+[`docs/DESK.md`](docs/DESK.md).
 
 ## Repository map
 
