@@ -188,8 +188,8 @@ We do **not** have guaranteed access to a working triage nurse or clinician duri
 published SATS rules, not from clinician adjudication. This is an honest limitation:
 
 - Grounding: SATS Training Manual (EMSSA) and published SATS validation studies.
-- Attempted mitigation: a single clinician review before Day 5 if access can be arranged; if not, the
-  gap stays declared here and in the README.
+- **Clinician review: none obtained as of 2026-10-13.** If a triage nurse/clinician review is arranged,
+  add their attributed quote here (name/role/date, with consent). Nothing is claimed until it is.
 
 ## 8. Reproducibility
 
