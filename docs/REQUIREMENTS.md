@@ -68,7 +68,7 @@ risks** — items we cannot yet close, tracked honestly.
 | SB-3 | **README** that gets a stranger running in one command | `uv run triagedesk demo`; `uv run` auto-syncs from the committed `uv.lock`, so there is no separate install step | ../README.md | ✅ one command — G3 resolved |
 | SB-4 | **Demo video under 3 minutes**, **uploaded to YouTube or Vimeo and publicly visible** | Recorded (`docs/assets/triagedesk-demo.mp4`, 33 s) — **not yet uploaded** | docs/DEMO.md | ⛔ the one submission blocker — STATUS G1 |
 | SB-5 | **Unedited agent run, tool calls on screen** — **not slides** | Real unedited terminal run of `triagedesk demo --online`, incl. a failure | docs/assets/triagedesk-demo.mp4 | ✅ |
-| SB-6 | **~300-word text description**: what it does, sub-theme, facility & workflow | DESCRIPTION.md (302 words) | DESCRIPTION.md | ✅ |
+| SB-6 | **~300-word text description**: what it does, sub-theme, facility & workflow | DESCRIPTION.md — within ±10% of 300 (guarded by `tests/test_docs_final.py`) | DESCRIPTION.md | ✅ |
 | SB-7 | **ARCHITECTURE.md — one page**: agent shape, MCP servers built vs borrowed, why | ARCHITECTURE.md (one page) | ../ARCHITECTURE.md | ✅ |
 | SB-8 | **EVALS.md**: 8+ test tasks with pass/fail, plus one failure not fixed + what you'd try next | 16 cases, measured; E-09 declared | ../EVALS.md | ✅ (counts reconciled — G4/STATUS) |
 | SB-9 | Repo that **runs** (not a repo that does not run) | One-command run + synthetic fixture + CI smoke test | ROADMAP.md | ✅ |

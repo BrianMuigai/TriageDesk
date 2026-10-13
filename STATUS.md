@@ -43,7 +43,7 @@ hard submission gap** (the demo video is recorded but **not uploaded**) and **on
 | --- | --- |
 | Public repo + OSI licence + README one command | ✅ public, Apache-2.0 — one command (`uv run triagedesk demo`); G3 resolved |
 | Demo video <3 min, **uploaded to YouTube/Vimeo, publicly visible** | ❌ recorded (`docs/assets/triagedesk-demo.mp4`, 33 s) but **NOT uploaded** (G1) |
-| ~300-word description | ✅ `DESCRIPTION.md` (302 words) |
+| ~300-word description | ✅ `DESCRIPTION.md` — within ±10% of 300, guarded by `tests/test_docs_final.py` |
 | ARCHITECTURE.md — one page | ✅ one page (see [`ARCHITECTURE.md`](ARCHITECTURE.md)) |
 | EVALS.md — 8+ tasks + one unfixed failure | ✅ 16 cases; E-09 declared (G4) |
 
