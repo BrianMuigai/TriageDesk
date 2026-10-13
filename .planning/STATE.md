@@ -1,20 +1,20 @@
 ---
-gsd_state_version: "1.0"
+gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Score Uplift
 status: Awaiting next milestone
 stopped_at: Phase 12 complete — all phases complete
-last_updated: "2026-10-13T13:49:55.188Z"
+last_updated: "2026-10-13T17:35:44.183Z"
 last_activity: 2026-10-13
-last_activity_desc: Milestone v1.1 completed and archived
-state_head: fa9e2571b66e4524c9159fdb69489c930244fff6
+last_activity_desc: "Completed quick task 261013-sbd: desk panel shows the queue position the gated commit assigned"
+current_phase: 12
 progress:
   total_phases: 7
   completed_phases: 12
   total_plans: 19
   completed_plans: 19
   percent: 100
-current_phase: 12
+state_head: fa9e2571b66e4524c9159fdb69489c930244fff6
 ---
 
 # Project State
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 Phase: Milestone v1.1 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-10-13 — Milestone v1.1 completed and archived
+Last activity: 2026-10-13 - Completed quick task 261013-sbd: desk panel shows the queue position the gated commit assigned
 
 ## Performance Metrics
 
@@ -165,6 +165,12 @@ None yet.
 - [Next milestone, tech debt]: Nine sub-threshold review advisories across Phases 6/7/10/12 plus one integration wording nuance; the material ones are `store/queue.py`'s supersede unconditionally overwriting `target`, the borrowed UPSERT being string-asserted rather than suite-executed, and the desk docstring's transitive-import wording. Full list in `.planning/milestones/v1.1-MILESTONE-AUDIT.md`.
 - [Next milestone, process]: `commit_docs` is `false`, so GSD's commit helper skips `.planning/`. The v1.1 archive was committed manually (matching the v1.0 precedent). Decide the convention for the next milestone.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 1 | desk panel shows the queue position the gated commit assigned | 2026-10-13 | ae611b4 | [261013-sbd-desk-panel-shows-the-queue-position-the-](./quick/261013-sbd-desk-panel-shows-the-queue-position-the/) |
+
 ## Deferred Verification
 
 | Phase | State | Resume |
@@ -172,9 +178,11 @@ None yet.
 | 12 | verification_deferred_human (submission-time, out-of-band) | `/gsd-verify-work 12` |
 
 Two human SUBMISSION actions remain for Phase 12 (the phase itself is verified `passed`, 13/13):
+
 1. **Record + publicly upload the demo video** — the one submission blocker (`STATUS` G1/G9). The
    2–3 min script + narration is shipped in `docs/DEMO.md`; the existing local tape is 32.88 s
    (flagged thin, G5).
+
 2. **Obtain a triage nurse/clinician review** (FIT-01) — the sanctioned fallback is shipped (an
    honest re-declaration with a marked, empty, attributed slot in `README.md`/`EVALS.md` §7).
 
