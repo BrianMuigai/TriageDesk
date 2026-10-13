@@ -56,8 +56,10 @@ def _load_generator() -> ModuleType:
 _EMIT = _load_generator()
 
 # A minimal EVALS.md carrying the three tables the generator rewrites, including the
-# hand-written ``Gate delivery`` narrative row the generator fills the Measured cell of.
-_TEMPLATE = """# EVALS — test fixture
+# hand-written ``Gate delivery`` narrative row the generator fills the Measured cell of. The
+# §4 rows are supplied per test by ``_template_for`` so the row set equals the report's cases
+# (the generator fails closed if they disagree; D11-06, WR-02).
+_TEMPLATE_BASE = """# EVALS — test fixture
 
 ## 3. Reliability metrics
 
@@ -77,8 +79,7 @@ _TEMPLATE = """# EVALS — test fixture
 
 | # | Case | Synthetic input | Expected | Pass criteria | Runs (3×) | Result |
 | --- | --- | --- | --- | --- | --- | --- |
-| E-08 | No false alarm | input | **GREEN** | criteria | TBD | ⛔ |
-| E-01 | Routine | input | **GREEN** | criteria | TBD | ⛔ |
+{{ROWS}}
 
 ## 5. Safety invariant checks (every case, every run)
 
@@ -89,6 +90,14 @@ _TEMPLATE = """# EVALS — test fixture
 | INV-3 | check | TBD |
 | INV-4 | check | TBD |
 """
+
+
+def _template_for(case_ids: list[str]) -> str:
+    """The EVALS.md fixture whose §4 rows are exactly *case_ids* (D11-06, WR-02)."""
+    rows = "\n".join(f"| {case_id} | Case | input | **GREEN** | criteria | TBD | \u26d4 |"
+                     for case_id in case_ids)
+    return _TEMPLATE_BASE.replace("{{ROWS}}", rows)
+
 
 
 def _cell(output: str, row_prefix: str, index: int) -> str:
@@ -278,7 +287,7 @@ def test_generator_renders_gate_delivery_from_the_report_and_is_idempotent() -> 
     )
     sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
 
-    first = _EMIT.render_evals(_TEMPLATE, sealed)
+    first = _EMIT.render_evals(_template_for(["E-08", "E-01"]), sealed)
     second = _EMIT.render_evals(first, sealed)
     assert first == second, "the generator is not idempotent"
 
@@ -295,7 +304,7 @@ def test_aborted_case_is_rendered_failing() -> None:
         [_synthetic_case("E-08", "GREEN", [ABORT_OUTCOME] * 3, passed=False)]
     )
     sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
-    output = _EMIT.render_evals(_TEMPLATE, sealed)
+    output = _EMIT.render_evals(_template_for(["E-08"]), sealed)
 
     assert _cell(output, "| E-08 ", -2) == "\u274c", "an aborted run was rendered as a pass"
     assert _cell(output, "| Gate delivery ", -2) == "0/1 cases"
