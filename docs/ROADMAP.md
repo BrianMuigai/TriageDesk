@@ -27,12 +27,13 @@ Unedited screen recording, **tool calls on screen, no slides**; uploaded publicl
 
 | Time | Content |
 | --- | --- |
-| 0:00–0:20 | The desk problem: 60–90 min wait; unsourced flags are dangerous. |
-| 0:20–1:10 | Routine case → GREEN, then an escalated case → ORANGE, **tool calls + citations on screen**. |
-| 1:10–1:50 | Deterioration re-check: a waiting patient flagged for a second look. |
-| 1:50–2:30 | **Approval gate:** the agent refuses to commit a queue position without the named nurse. |
-| 2:30–2:50 | The **E-09 failure**, shown and explained. |
-| 2:50–3:00 | Close: open source, offline, synthetic. |
+| 0:00–0:15 | The desk problem: 60–90 min wait; unsourced flags are dangerous. |
+| 0:15–0:50 | Routine case → GREEN, then defers (no commit). |
+| 0:50–1:20 | Escalated case → ORANGE, commits at queue position 1 after the named nurse approves. |
+| 1:20–1:45 | Deterioration re-check: a waiting patient flagged for a second look. |
+| 1:45–2:10 | **Approval gate:** the agent refuses to commit a queue position without the named nurse. |
+| 2:10–2:40 | The committed **measured** eval on screen, then the **E-09 failure** shown and explained. |
+| 2:40–2:50 | Close: open source, offline, synthetic. |
 
 ## Submission gate (Definition of Done)
 
