@@ -216,7 +216,7 @@ it is the discipline the brief rewards ("three tools that work beat nine that ha
 ## 9. Bottom line
 
 - **Build: done.** All 6 "what to build" items, all safety rules, no disqualifiers; repo frozen, tagged
-  (`v1.0-submission`) and pushed; **453 tests pass**; honest measured evaluation; the v1.1 milestone
+  (`v1.0-submission`) and pushed; the full suite is green (`uv run pytest -q`); honest measured evaluation; the v1.1 milestone
   (Phases 6–12) adds durable execution, tracing/replay, retrieval grounding, deferral, and the desk
   surface.
 - **Submission: one step short.** Upload the video.
