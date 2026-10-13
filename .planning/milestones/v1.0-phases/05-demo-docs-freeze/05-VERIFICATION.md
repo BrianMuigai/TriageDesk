@@ -17,6 +17,10 @@ human_verification:
   - test: "Confirm the submission tag points at the intended commit and that no post-freeze commit reaches the remote."
     expected: "v1.0-submission resolves to the final functional commit (9b1cddb) and origin/main has no commits beyond it."
     why_human: "Final human sign-off that the frozen artifact is the intended submission (programmatically confirmed here: tag → 9b1cddb == HEAD == origin/main)."
+audit_acknowledged:
+  milestone: v1.0
+  at: 2026-10-13
+  status: human_needed
 ---
 
 # Phase 5: Demo, Docs & Freeze Verification Report

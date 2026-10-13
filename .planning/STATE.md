@@ -1,39 +1,42 @@
 ---
-gsd_state_version: 1.0
+gsd_state_version: "1.0"
 milestone: v1.1
 milestone_name: Score Uplift
-status: planning
-last_updated: "2026-10-10T18:00:00.000Z"
-last_activity: 2026-10-10
+status: Awaiting next milestone
+stopped_at: Phase 12 complete — all phases complete
+last_updated: "2026-10-13T13:49:55.188Z"
+last_activity: 2026-10-13
+last_activity_desc: Milestone v1.1 completed and archived
+state_head: fa9e2571b66e4524c9159fdb69489c930244fff6
 progress:
   total_phases: 7
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 12
+  total_plans: 19
+  completed_plans: 19
+  percent: 100
+current_phase: 12
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-10-10)
+See: .planning/PROJECT.md (updated 2026-10-13)
 
 **Core value:** A triage nurse gets a sourced, confirmable priority for each patient in seconds, and nothing reaches the queue without her approval.
-**Current focus:** Phase 6 — Durable Execution & Idempotent Gate
+**Current focus:** Phase 12 — Live Review, Demo & Milestone-Close Documentation
 
 ## Current Position
 
-Phase: 6 of 12 (Durable Execution & Idempotent Gate) — v1.1 phase 1 of 7
-Plan: 0 of 0 in current phase
-Status: Ready to plan
-Last activity: 2026-10-10 — Milestone v1.1 roadmap created (7 phases, 16 requirements mapped)
-
-Progress: [░░░░░░░░░░] 0%
+Phase: Milestone v1.1 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-10-13 — Milestone v1.1 completed and archived
 
 ## Performance Metrics
 
 **Velocity:**
+
 - v1.0 shipped: 5 phases, 21 plans (archived in `.planning/milestones/v1.0-phases/`)
 - v1.1 plans completed: 0
 - Average duration: —
@@ -43,13 +46,43 @@ Progress: [░░░░░░░░░░] 0%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 6 | 2 | - | - |
+| 7 | 2 | - | - |
+| 8 | 3 | - | - |
+| 9 | 3 | - | - |
+| 10 | 3 | - | - |
+| 11 | 3 | - | - |
+| 12 | 3 | - | - |
 
 **Recent Trend:**
+
 - Last 5 plans: —
 - Trend: —
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 06 P01 | 8min | 2 tasks | 14 files |
+| Phase 06 P02 | 16min | 3 tasks | 7 files |
+| Phase 7 P01 | 8min | 3 tasks | 13 files |
+| Phase 07 P02 | 15min | 2 tasks | 8 files |
+| Phase 08 P01 | 19min | 2 tasks | 13 files |
+| Phase 08 P02 | 25min | 3 tasks | 9 files |
+| Phase 08 P03 | 30min | 2 tasks | 5 files |
+| Phase 09 P01 | 6min | 2 tasks | 10 files |
+| Phase 09 P02 | 10min | 2 tasks | 3 files |
+| Phase 09 P03 | 12min | 3 tasks | 6 files |
+| Phase 10 P01 | 13min | 2 tasks | 7 files |
+| Phase 10 P02 | 22min | 3 tasks | 4 files |
+| Phase 10 P03 | 3min | 2 tasks | 3 files |
+| Phase 11 P01 | 56 | 3 tasks | 7 files |
+| Phase 11 P03 | 3 | 2 tasks | 3 files |
+| Phase 11 P02 | 19min | 3 tasks | 4 files |
+| Phase 12 P01 | 20min | 2 tasks | 3 files |
+| Phase 12 P02 | 4min | 3 tasks | 3 files |
+| Phase 12 P03 | 18min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -68,6 +101,57 @@ Recent decisions affecting current work:
 - [v1.0, carried]: `approval_gate` is side-effect-free before `interrupt()`, and `commit` is reachable only through the resumed interrupt.
 - [v1.0, carried]: `EVALS.md` is generated only by `scripts/emit_evals.py` from `report.json`; the declared failure E-09 and honest misses stay visible (never tuned green).
 - [v1.0, carried]: SATS rules live only in `data/*.yaml`; a rule is added as data, never by editing code (extend by config, not working code).
+- [Phase 06]: The queue idempotency key covers the immutable CaseInput payload (schema-derived, D6-05), not the scored colour — an approve and an edit re-derive the SAME key (D6-04).
+- [Phase 06]: An edit supersedes the queue row in place: colour/target updated, position/created_at preserved, so exactly one row exists per case (D6-06).
+- [Phase 06]: commit_priority gained a required typed case: CaseInput; the signature change moved across every call site in one wave (Pitfall 1), with no migration for frozen v1.0 data.
+- [Phase 06]: Durable pause/resume plumbing lives in ONE helper (durable.py): demo --durable and resume share durable.invoke_graph and durable.approval_decision; resume reuses the ONE mcp.server._resolve_store seam and never auto-resumes.
+- [Phase 7]: Local span tracing: ONE JSONL writer (tool/node/model spans) + a content-derived trace_id first-class on AuditRecord, persisted through the borrowed audit table; spans need all four SQL edits or the field is silently dropped
+- [Phase 7]: No-egress guard: harden_offline pops the four tracer vars + clears langsmith's cached env read + asserts tracing_is_enabled() is False at CLI startup; all env logic stays outside graph/
+- [Phase 07]: Read-only replay is structural: replay.py reads the checkpoint via aget_tuple with the ONE msgpack allowlist, builds no tool map and no graph, and never calls the model, so the gated commit is unreachable by construction (D7-10)
+- [Phase 07]: replay_case reads the checkpoint BEFORE resolving the audit store (mcp.server._resolve_store), so an absent thread never launches the borrowed store or runs its schema DDL; read_spans is the ONE JSONL reader colocated with emit_span
+- [Phase 8]: Phase 08: The coverage/deferral signal is a pure four-component function of already-typed objects; the contract has no float/percentage field, so a model probability is unrepresentable (D8-01/02/04).
+- [Phase 8]: Phase 08: no_match forces a deferral; a deferral routes only to escalate/request_missing_info (no edge to commit), and assess sits immediately before approval_gate so the deterministic recheck still runs (D8-08/11/12).
+- [Phase 8]: Phase 08: DEFERRAL_MIN_SATISFIED_COMPONENTS=2 is a named constant derived from the D20 asymmetric cost (a missed emergency vastly outweighs a needless deferral); never tuned to make a test green (D8-09).
+- [Phase 08]: Phase 08-02: The deferral rate is derived from the report's per-run deferrals (count/reached-assess runs) and reported separately from the under/over direction split (D8-10/D8-16).
+- [Phase 08]: Phase 08-02: Calibration is declared by the existing held_out flag (E-01..E-14 calibration n=14 vs H-01/H-02 held-out n=2) with both n's named and an explicit small-sample caveat (D8-13/D8-15).
+- [Phase 08]: Phase 08-02: The confidence ordinal scalar lives only in evals/; the deferral-aware gate excludes a case from unexpected_failures ONLY when every run deferred, so a wrong colour is never hidden (D8-04/T-08-07).
+- [Phase 08]: Phase 08-03: REAL mode kept (owner decision 2026-10-12); the committed report is mode real and stably diverges on pre-existing E-04/E-07/E-13 — no fixture, threshold or mode tuned, not flipped to --offline
+- [Phase 08]: Phase 08-03: E-13 short-circuits before assess so it carries null deferrals and stays at its abstain terminal (correct, not a defect); E-07 reaches RECOVER in real mode so it also carries null; a terminal before assess cannot carry a deferral fact
+- [Phase 08]: Phase 08-03: The §6.1 coverage-deferral record is DERIVED from the report (moved cases via the §4 predicate, fraction via the analyser, gate failures via report.gate) so the published narrative cannot drift; the pre-existing real-mode gate failures are honest and belong to Phase 11
+- [Phase 09]: Phase 09-01: retrieval is a pure integer lexical scorer over data/*.yaml through the ONE loader; the EvidencePassage/EvidenceResult contract has no colour/target/priority/float field, so a colour is unrepresentable rather than merely unused (D9-03).
+- [Phase 09]: Phase 09-01: one normalisation owner — matcher._tokens was promoted to a public tokenize() (with _tokens = tokenize keeping the three call sites byte-identical); retrieval.tokenize is matcher.tokenize and no second regex exists (A3, D9 discretion).
+- [Phase 09]: Phase 09-01: the seventh owned tool retrieve_evidence is a thin @audited read-only wrapper (no store/approval token/model), and the seven-name owned-tool allowlist moved across all four set-equality sites in ONE atomic commit (D9-05/D9-06).
+- [Phase 09]: Phase 09-01: E-09's vague complaint stays an honest no_match read from the substrate warning — no alias, fixture, threshold or YAML file was added or tuned (D9-09).
+- [Phase 09]: MCP-01: READ_TOOLS allowlist + fail-closed is_read_only_statement applied at the ONE _call seam; write=True is the sole privileged route (D9-12/D9-13)
+- [Phase 09]: The trace_id column check stays on the verified PRAGMA table_info read; get_table_schema is used additively by ensure_schema's read-path probe (RESEARCH Pitfall 3)
+- [Phase 09]: The borrowed read-path probe degrades: every probe wrapped, shape surprises RECORDED in read_path_report and never raised (D9-14/T-09-22)
+- [Phase 09]: ground is placed score -> ground -> verify by plain edges only; route_after_score's LABEL stays verify while its destination is the advisory node, so no router reads evidence (D9-08)
+- [Phase 09]: The ground node returns exactly {evidence} and the evidence channel is proven byte-isolated from priority/citations/matched_ids/no_match, with each colour equal to a direct scorer call
+- [Phase 09]: A4 accepted and declared: the verify -> score retry re-runs ground deterministically on the unchanged complaint; only a second span/audit record on a retried case (E-12 slices)
+- [Phase 10]: The desk bridge is presentation-only: it reuses durable.run_to_gate / approval_decision / resume_thread and adds no commit path; GET / renders the empty state through the ONE template.
+- [Phase 10]: The deferred read-only card carries a dedicated framing line because the UI-SPEC state contract requires the not-confirmed-not-queued framing while its Copywriting Contract omits a row for it.
+- [Phase 10]: A non-DurableError server/graph failure renders the UI-SPEC _FAILURE_COPY; a DurableError (the gate's own refusal) renders its own message.
+- [Phase 10]: existed=True is terminal-aware: a deferred repeat stays a deferred terminal (never a gate); a committed thread shows the gate's own outcome.
+- [Phase 10]: The desk quickstart lives in a NEW docs/DESK.md (unconstrained by the existing doc guards); the desk runbook stays separate from the demo-video runbook (one concern per document).
+- [Phase 10]: The runbook-vs-CLI drift guard drives the public triagedesk.cli.main surface with triagedesk.desk.server.serve spied, so the documented invocation is the shipped command and no server starts.
+- [Phase 10]: The internal-identifier check set is derived from triagedesk.graph.build.TRACER_NODES (imported, never restated), so the guard tracks the code.
+- [Phase 10]: docs/DECISIONS.md gains exactly one D23 row recording the desk-surface design; it links to the reasoning rather than restating any colour list, target time or copy string (CONVENTIONS §1).
+- [Phase 11]: E-04 is an age-fidelity failure (not discriminator retrieval): fix the age_years contract at the extraction seam, never the matcher (D11-01)
+- [Phase 11]: Extraction fidelity is fixed at the CONTRACT the model fills: a general schema description on age_years and on the scored vitals (serial before/after resolves to the AFTER value); the 1.5B model is schema-sensitive so the age description must be emphatic (D11-01)
+- [Phase 11]: E-07's fixture note is repaired to state its golden temperature (D11-14); expectation unchanged; the serial-vitals contract resolves the arrow notation
+- [Phase 11]: Provenance.extraction_schema_hash seals the model INPUT and is covered by report_digest; defaulted + excluded-when-unset so the committed report stays valid until 11-02 regenerates it (T-11-03)
+- [Phase 11]: README quickstart is the literal one-liner 'uv run triagedesk demo' (uv auto-syncs from uv.lock; no separate install step); the optional desk command is named (D11-09/D11-11)
+- [Phase 11]: The one-command claim is guarded by driving the documented invocation through the public triagedesk.cli.main with the run_demo/serve seams spied (D11-10)
+- [Phase 11]: The §4 row-set guard lives in render_evals, so both --check and --write fail closed (ValueError) when a report case has no published row
+- [Phase 11]: The regenerated real report measures E-04 RED×3 and E-07 RECHECK×3 (both now pass); E-09 stays the declared failure; E-08/E-13 stay visible honest misses (null-age ABSTAIN)
+- [Phase 11]: Research A4 did not hold: E-13 stayed a null-age ABSTAIN (not a coverage deferral) — recorded as measured, never tuned (D11-03)
+- [Phase 12]: D12-01/02/03: docs/REVIEW.md runbook + tests/test_review_runbook.py CLI-drift guard + tests/test_data_extension.py hermetic data-only-extension proof (REV-01)
+- [Phase 12]: D12-04: a 2–3 minute narrated demo script with a one-line narration cue pinned per beat
+- [Phase 12]: D12-05: the recording and the public upload are flagged human_needed and never claimed
+- [Phase 12]: D12-06: the clinical-fit gap is re-declared honestly with a marked, attributed, empty slot
+- [Phase 12]: D12-10: the Phase-11 docs/DEMO.md output drift is closed by re-transcription from the shipped runner
+- [Phase 12]: Q2: the committed EVALS.md projection plus the live failure beat is the on-screen measured artefact; the ~10-min silent real run is NOT streamed
+- [Phase 12]: D25: the milestone close is demonstrated-not-claimed — data-only live extension (fresh process, no hot reload); the demo shows the committed EVALS.md projection + live failure beat, not the ~10-min run; the clinical-fit gap stays declared with an empty attributed slot; the upload and clinician review stay human flags
 
 ### Pending Todos
 
@@ -76,11 +160,31 @@ None yet.
 ### Blockers/Concerns
 
 - [All]: DRY + SOLID are iron-clad (CONVENTIONS.md) — a violation blocks the phase at plan-check, code-review, and verifier gates.
-- [v1.1 Phase 6]: The idempotency key currently covers `colour` only — widening it to immutable case content must be proven by an edit-resume test (one row, not two) before the real gate goes live.
-- [v1.1 Phase 7]: Replay must be read-only by construction (no-op commit injection / event-stream reconstruction); assert zero queue rows and zero commits.
-- [v1.1 Phase 8]: Small-sample (14-case) calibration — report ECE/risk–coverage as declared and tune the threshold to a stated asymmetric cost to avoid abstain-too-often alert fatigue.
-- [v1.1 Phase 9]: `rank-bm25==0.2.2` has a numpy-2 alias risk — prefer the in-house lexical scorer; the OTLP-JSON-file exporter is beta (keep the in-house JSONL fallback).
+- [v1.1 Phase 11]: **Owns the honest real-mode eval re-run.** The Phase-8 published report is `mode: real` and honestly shows the pre-existing failures `E-04`, `E-07`, `E-13` (the local model's extraction stably diverges from the offline fixture — identical to the committed v1.0 real report). Do not treat that as a Phase-8 defect; EVAL-06 fixes E-04/E-07 and regenerates.
 - [v1.1 Phase 12]: No guaranteed clinician access — FIT-01 must re-declare the gap honestly if a review cannot be arranged.
+- [Phase 06, carried]: Three Info findings left open by the code review — IN-06 (`docs/DEMO.md` per-beat blocks omit the printed `handover card:`/`commit:` lines), IN-07 (`store/queue.py` supersede unconditionally overwrites `target`), IN-08 (the borrowed UPSERT semantics are string-asserted, never executed). See `06-REVIEW-DISPOSITION.md`.
+- [Phase 07, carried]: Two Info findings left open — IN-02 (`read_spans` guards malformed JSON but not a valid-JSON non-object line or a sink I/O fault) and IN-04 (`test_observability.py` "exactly one span" over-claims for a resumed run). See `07-REVIEW-DISPOSITION.md`.
+- [Phase 07, scope note]: The `contextvars` trace binding does not cross the stdio-subprocess boundary, so an owned-MCP-subprocess run records `trace_id=""` (in-process demo/eval/resume/replay carry the trace). Declared in `SECURITY.md` §10 + D19.
+- [Phase 08, note]: `no_match` is an ABSOLUTE deferral (D8-11, owner-confirmed 2026-10-12). Measured impact: 9/16 fixtures have `no_match=True`; six reach the scored path, and five move to a safe terminal (E-01/E-08/E-09/E-13/E-14 in the offline path). The deferral rate is published honestly (12/32 in real mode) — never tuned.
+- [Phase 09, note]: The borrowed statement guard was found NOT fail-closed by the code review and hardened (`WITH`-DML, write-`PRAGMA`, multi-statement, then `EXPLAIN PRAGMA`); re-verified over 33 adversarial vectors. No real caller is broken (all read paths issue `SELECT`/`PRAGMA table_info`).
+- [Phase 10, note]: The desk surface is a dependency-free local HTML page on a stdlib `http.server` bridge (`uv run triagedesk desk`), loopback-only. The code review hardened it substantially: a CSRF token + an `Origin`/`Host` same-origin check + a loopback `Host` allowlist (a DNS-rebinding page was able to commit a row before the fix), and the `trauma` checkbox now submits an explicit `false` so the default browser submission reaches the card + gate. The UI audit scored 20/24 (advisory) and its three priority fixes were applied.
+- [Phase 10, design]: D10-17 — the uncertainty banner and the gate apply to DIFFERENT cases (a deferred case shows the banner + a read-only card and NO gate; a committable case shows the card + the gate). This is the honest consequence of D8-11 and reopens nothing.
+- [Phase 12, DOCS-06]: `docs/DEMO.md`'s "Expected on-screen output per beat" blocks are the **v1.0-freeze transcript** and **predate Phases 8/9/10**. The shipped CLI has diverged: `routine` (E-01) and `deterioration` (E-07) now **defer** (no `commit` line — routed to the safe `escalate` terminal), `escalation` (E-02) commits at **queue position 1** (not 2), and the owned server exposes **seven** tools (not five). Deferred from Phase 11 (dated 2026-10-13) with a dated "Known drift" note left in §Expected on-screen output per beat so no reader is misled meanwhile; a faithful refresh needs a re-run + re-transcription, which is Phase 12's DOCS-06 ("every submission document refreshed to the v1.1 state").
+- [Verification refresh, PENDING]: Phases 6, 7, 8 and 9 now read `verification: stale` — Phases 8, 9 and 10 additively edited shared files their reports cover (the fingerprint changed; the phases themselves are complete on the ROADMAP and were each verified `passed`). Re-verify them ONCE against the final codebase before the milestone lifecycle (`/gsd-execute-phase 6`, `7`, `8`, `9`, or a batch refresh) rather than after every phase.
+- [Phase 06, process]: `commit_docs` is `false` in this workspace — planning artifacts (CONTEXT/RESEARCH/PATTERNS/PLAN/SUMMARY/REVIEW/REVIEW-FIX/REVIEW-DISPOSITION/SECURITY/VERIFICATION) and the STATE/ROADMAP/PROJECT edits are **uncommitted** by design. Code, tests and regenerated docs ARE committed normally. Decide before the deadline whether to commit `.planning/`.
+
+## Deferred Verification
+
+| Phase | State | Resume |
+|-------|-------|--------|
+| 12 | verification_deferred_human (submission-time, out-of-band) | `/gsd-verify-work 12` |
+
+Two human SUBMISSION actions remain for Phase 12 (the phase itself is verified `passed`, 13/13):
+1. **Record + publicly upload the demo video** — the one submission blocker (`STATUS` G1/G9). The
+   2–3 min script + narration is shipped in `docs/DEMO.md`; the existing local tape is 32.88 s
+   (flagged thin, G5).
+2. **Obtain a triage nurse/clinician review** (FIT-01) — the sanctioned fallback is shipped (an
+   honest re-declaration with a marked, empty, attributed slot in `README.md`/`EVALS.md` §7).
 
 ## Deferred Items
 
@@ -92,6 +196,10 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-10
-Stopped at: Milestone v1.1 roadmap created (ROADMAP.md, REQUIREMENTS.md traceability, STATE.md)
+Last session: 2026-10-13
+Stopped at: All 7 phases (6–12) complete and verified; running the milestone lifecycle (audit → complete → cleanup)
 Resume file: None
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

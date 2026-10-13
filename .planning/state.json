@@ -1,7 +1,7 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v1.0",
+  "milestone": "v1.1 — Score Uplift",
   "phases": [
     {
       "number": "1",
@@ -26,13 +26,48 @@
     {
       "number": "5",
       "name": "Demo, Docs & Freeze",
-      "status": "pending"
+      "status": "complete"
+    },
+    {
+      "number": "6",
+      "name": "Durable Execution & Idempotent Gate",
+      "status": "complete"
+    },
+    {
+      "number": "7",
+      "name": "Local Observability — Span Tracing & Read-Only Replay",
+      "status": "complete"
+    },
+    {
+      "number": "8",
+      "name": "Calibrated Confidence & Abstention",
+      "status": "complete"
+    },
+    {
+      "number": "9",
+      "name": "Retrieval Grounding & Borrowed-MCP Depth",
+      "status": "complete"
+    },
+    {
+      "number": "10",
+      "name": "Desk UX & Real Approval Gate",
+      "status": "complete"
+    },
+    {
+      "number": "11",
+      "name": "Honest Evaluation Re-run & Rigour Docs",
+      "status": "complete"
+    },
+    {
+      "number": "12",
+      "name": "Live Review, Demo & Milestone-Close Documentation",
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "/gsd:progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 5 of 5 · executing"
+    "command": "/gsd:progress",
+    "label": "Show progress",
+    "reason": "Unsure of state — showing progress"
   },
-  "updated_at": "2026-10-09T21:55:41.054Z"
+  "updated_at": "2026-10-13T13:49:55.199Z"
 }
