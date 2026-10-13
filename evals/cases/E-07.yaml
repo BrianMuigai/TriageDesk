@@ -9,7 +9,7 @@ id: E-07
 description: "Deterioration"
 note: >-
   55 year old man, walking, alert, no trauma. Serial vitals: systolic BP 118 -> 96,
-  RR 16 -> 26, HR 80 -> 122. Complaint: looks worse than earlier.
+  RR 16 -> 26, HR 80 -> 122. Temperature 36.8. Complaint: looks worse than earlier.
 case:
   age_years: 55
   mobility: walking

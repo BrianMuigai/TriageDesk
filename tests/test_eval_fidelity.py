@@ -12,7 +12,9 @@ fidelity (D11-01):
 2. that description is a GENERAL contract sentence, not tuned to a fixture: it quotes no
    number that appears in any eval fixture and names no SATS value (a colour token or a
    discriminator id). The fixture checks read the cases through the ONE loader and the
-   SATS values through the loaded substrate, so nothing is restated here (D11-02).
+   SATS values through the loaded substrate, so nothing is restated here (D11-02);
+3. E-07's repaired note and its golden ``case`` agree — the note states the temperature the
+   golden case declares, and the expectation stays ``RECHECK`` (D11-14).
 """
 
 from __future__ import annotations
@@ -98,3 +100,65 @@ def test_age_years_description_is_general_not_tuned_to_a_fixture() -> None:
         assert disc_id not in description, (
             f"the age description names the discriminator id {disc_id!r}"
         )
+
+
+# ---------------- 2b. the serial-vitals contract is general, at the same seam (E-07, D11-01)
+
+# The scored numeric vitals whose before/after presentation the model must resolve to the
+# current (AFTER) reading. Declared here so the guard names the same set the schema does.
+_SERIAL_SCORED_VITALS = ("respiratory_rate", "heart_rate", "systolic_bp")
+
+
+def _vital_description(field: str) -> str:
+    """The schema description the model receives for one scored vital (the ONE accessor)."""
+    return CaseInput.model_json_schema()["properties"][field].get("description", "")
+
+
+def test_serial_vitals_carry_a_general_after_value_description() -> None:
+    """Each scored vital states the serial-reading rule, quoting no fixture number (D11-01/02).
+
+    The before/after arrow presentation is resolved to the AFTER (current) value at the
+    extraction seam. The clarification is general: it names no fixture number and no SATS
+    value, so it applies to any serial note and is not tuned to E-07's fragment (D11-02).
+    """
+    fixture_numbers: set[str] = set()
+    for spec in load_cases(CASES_DIR):
+        fixture_numbers |= _spec_numbers(spec)
+
+    for field in _SERIAL_SCORED_VITALS:
+        description = _vital_description(field)
+        assert description, f"{field} carries no serial-reading description"
+        description_numbers = set(re.findall(r"\d+", description))
+        assert not (description_numbers & fixture_numbers), (
+            f"the {field} description quotes a fixture number: "
+            f"{sorted(description_numbers & fixture_numbers)}"
+        )
+        for colour in _substrate_colours():
+            assert colour not in description, f"the {field} description names the colour {colour!r}"
+        for disc_id in _substrate_discriminator_ids():
+            assert disc_id not in description, (
+                f"the {field} description names the discriminator id {disc_id!r}"
+            )
+
+
+# -------------------- 3. E-07's note and golden case agree (D11-14, the one fixture repair)
+
+
+def test_e07_note_states_every_scored_vital_its_golden_case_declares() -> None:
+    """D11-14: the repaired E-07 note states the temperature its golden ``case`` declares.
+
+    The fixture's free-text ``note`` and its golden ``case`` disagreed (the note omitted the
+    temperature the case asserted), so a faithful extraction of the note could not produce the
+    golden case. The repair is a test-data-inconsistency fix ONLY: the golden ``case``, the
+    ``previous_case`` and ``expected: RECHECK`` are unchanged — the expectation never moved to
+    make a case pass, and nothing was tuned green.
+    """
+    case = next(spec for spec in load_cases(CASES_DIR) if spec.id == "E-07")
+
+    assert "temperature" in case.note.lower(), "the repaired E-07 note states no temperature"
+    assert case.case.temperature_c is not None, "the E-07 golden case declares no temperature"
+    assert case.expected == "RECHECK", "the E-07 expectation moved off RECHECK"
+
+    # The same consistency holds for the previous case (the serial comparison needs both).
+    assert case.previous_case is not None, "E-07 declares no previous_case"
+    assert case.previous_case.temperature_c is not None

@@ -20,6 +20,15 @@ from triagedesk.core.rules import get_tews
 Mobility = Literal["walking", "with_help", "stretcher"]
 AVPU = Literal["alert", "voice", "pain", "unresponsive"]
 
+# The shared clarification for a scored vital that a note may give as a before/after pair
+# joined by an arrow (the serial-vitals presentation): the value that matters for the
+# current case is the AFTER one. Declared once here, applied to the scored vitals, so the
+# wording lives in one place (CONVENTIONS §1).
+_AFTER_VALUE_OF_A_SERIAL_READING = (
+    "When the note gives a serial reading as a before/after pair joined by an arrow, "
+    "this is the AFTER value — the patient's current reading."
+)
+
 
 class CaseInput(BaseModel):
     """What the nurse provides (INTAKE-01).
@@ -39,7 +48,7 @@ class CaseInput(BaseModel):
         le=130,
         description=(
             "The patient's age in whole years, parsed from a stated age such as "
-            "'a 74 year old patient'."
+            "'a 74 year old patient'. It must never be left null when the note states an age."
         ),
     )
     # A months-expressed or ambiguous age is representable so the scorer can fail
@@ -47,9 +56,15 @@ class CaseInput(BaseModel):
     age_months: int | None = Field(default=None, ge=0, le=1560)
     age_ambiguous: bool = False
     height_cm: float | None = Field(default=None, ge=30.0, le=260.0)
-    respiratory_rate: int | None = Field(default=None, ge=0, le=100)
-    heart_rate: int | None = Field(default=None, ge=0, le=350)
-    systolic_bp: int | None = Field(default=None, ge=0, le=400)
+    respiratory_rate: int | None = Field(
+        default=None, ge=0, le=100, description=_AFTER_VALUE_OF_A_SERIAL_READING
+    )
+    heart_rate: int | None = Field(
+        default=None, ge=0, le=350, description=_AFTER_VALUE_OF_A_SERIAL_READING
+    )
+    systolic_bp: int | None = Field(
+        default=None, ge=0, le=400, description=_AFTER_VALUE_OF_A_SERIAL_READING
+    )
     diastolic_bp: int | None = Field(default=None, ge=0, le=300)  # captured, not scored (§4.1)
     temperature_c: float | None = Field(default=None, ge=20.0, le=45.0)  # rejects °F magnitudes
     spo2: int | None = Field(default=None, ge=0, le=100)  # captured, not scored (§4.1)
