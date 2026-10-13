@@ -33,7 +33,7 @@ Unedited screen recording, **tool calls on screen, no slides**; uploaded publicl
 
 - [ ] Clean clone runs `uv run triagedesk demo` in one command.
 - [ ] CI smoke test green on a clean checkout.
-- [ ] 14 eval cases with measured pass/fail + **E-09** documented as unfixed.
+- [ ] 16 eval cases with measured pass/fail + **E-09** documented as unfixed.
 - [ ] Safety invariants INV-1…INV-4 pass on every run.
 - [ ] Every priority cited; every commit gated; audit log present.
 - [ ] README honest about what is unfinished.
