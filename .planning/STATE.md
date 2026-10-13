@@ -24,7 +24,7 @@ current_phase: 12
 See: .planning/PROJECT.md (updated 2026-10-13)
 
 **Core value:** A triage nurse gets a sourced, confirmable priority for each patient in seconds, and nothing reaches the queue without her approval.
-**Current focus:** Phase 12 — Live Review, Demo & Milestone-Close Documentation
+**Current focus:** Milestone v1.1 shipped — awaiting the next milestone (`/gsd-new-milestone`)
 
 ## Current Position
 
@@ -159,19 +159,11 @@ None yet.
 
 ### Blockers/Concerns
 
-- [All]: DRY + SOLID are iron-clad (CONVENTIONS.md) — a violation blocks the phase at plan-check, code-review, and verifier gates.
-- [v1.1 Phase 11]: **Owns the honest real-mode eval re-run.** The Phase-8 published report is `mode: real` and honestly shows the pre-existing failures `E-04`, `E-07`, `E-13` (the local model's extraction stably diverges from the offline fixture — identical to the committed v1.0 real report). Do not treat that as a Phase-8 defect; EVAL-06 fixes E-04/E-07 and regenerates.
-- [v1.1 Phase 12]: No guaranteed clinician access — FIT-01 must re-declare the gap honestly if a review cannot be arranged.
-- [Phase 06, carried]: Three Info findings left open by the code review — IN-06 (`docs/DEMO.md` per-beat blocks omit the printed `handover card:`/`commit:` lines), IN-07 (`store/queue.py` supersede unconditionally overwrites `target`), IN-08 (the borrowed UPSERT semantics are string-asserted, never executed). See `06-REVIEW-DISPOSITION.md`.
-- [Phase 07, carried]: Two Info findings left open — IN-02 (`read_spans` guards malformed JSON but not a valid-JSON non-object line or a sink I/O fault) and IN-04 (`test_observability.py` "exactly one span" over-claims for a resumed run). See `07-REVIEW-DISPOSITION.md`.
-- [Phase 07, scope note]: The `contextvars` trace binding does not cross the stdio-subprocess boundary, so an owned-MCP-subprocess run records `trace_id=""` (in-process demo/eval/resume/replay carry the trace). Declared in `SECURITY.md` §10 + D19.
-- [Phase 08, note]: `no_match` is an ABSOLUTE deferral (D8-11, owner-confirmed 2026-10-12). Measured impact: 9/16 fixtures have `no_match=True`; six reach the scored path, and five move to a safe terminal (E-01/E-08/E-09/E-13/E-14 in the offline path). The deferral rate is published honestly (12/32 in real mode) — never tuned.
-- [Phase 09, note]: The borrowed statement guard was found NOT fail-closed by the code review and hardened (`WITH`-DML, write-`PRAGMA`, multi-statement, then `EXPLAIN PRAGMA`); re-verified over 33 adversarial vectors. No real caller is broken (all read paths issue `SELECT`/`PRAGMA table_info`).
-- [Phase 10, note]: The desk surface is a dependency-free local HTML page on a stdlib `http.server` bridge (`uv run triagedesk desk`), loopback-only. The code review hardened it substantially: a CSRF token + an `Origin`/`Host` same-origin check + a loopback `Host` allowlist (a DNS-rebinding page was able to commit a row before the fix), and the `trauma` checkbox now submits an explicit `false` so the default browser submission reaches the card + gate. The UI audit scored 20/24 (advisory) and its three priority fixes were applied.
-- [Phase 10, design]: D10-17 — the uncertainty banner and the gate apply to DIFFERENT cases (a deferred case shows the banner + a read-only card and NO gate; a committable case shows the card + the gate). This is the honest consequence of D8-11 and reopens nothing.
-- [Phase 12, DOCS-06]: `docs/DEMO.md`'s "Expected on-screen output per beat" blocks are the **v1.0-freeze transcript** and **predate Phases 8/9/10**. The shipped CLI has diverged: `routine` (E-01) and `deterioration` (E-07) now **defer** (no `commit` line — routed to the safe `escalate` terminal), `escalation` (E-02) commits at **queue position 1** (not 2), and the owned server exposes **seven** tools (not five). Deferred from Phase 11 (dated 2026-10-13) with a dated "Known drift" note left in §Expected on-screen output per beat so no reader is misled meanwhile; a faithful refresh needs a re-run + re-transcription, which is Phase 12's DOCS-06 ("every submission document refreshed to the v1.1 state").
-- [Verification refresh, PENDING]: Phases 6, 7, 8 and 9 now read `verification: stale` — Phases 8, 9 and 10 additively edited shared files their reports cover (the fingerprint changed; the phases themselves are complete on the ROADMAP and were each verified `passed`). Re-verify them ONCE against the final codebase before the milestone lifecycle (`/gsd-execute-phase 6`, `7`, `8`, `9`, or a batch refresh) rather than after every phase.
-- [Phase 06, process]: `commit_docs` is `false` in this workspace — planning artifacts (CONTEXT/RESEARCH/PATTERNS/PLAN/SUMMARY/REVIEW/REVIEW-FIX/REVIEW-DISPOSITION/SECURITY/VERIFICATION) and the STATE/ROADMAP/PROJECT edits are **uncommitted** by design. Code, tests and regenerated docs ARE committed normally. Decide before the deadline whether to commit `.planning/`.
+- [All]: DRY + SOLID are iron-clad (`docs/CONVENTIONS.md`) — a violation blocks the phase at plan-check, code-review, and verifier gates.
+- [All]: The v1.0 spine is frozen (tag `v1.0-submission`); every v1.1 change attached at a published seam and never edited the scorer's arithmetic, the citation helper, or the `@audited` interceptor.
+- [Next milestone, carried]: The two human SUBMISSION steps remain open (the demo video upload; a clinician review) — see `## Deferred Verification` below. They are submission actions, not milestone gaps.
+- [Next milestone, tech debt]: Nine sub-threshold review advisories across Phases 6/7/10/12 plus one integration wording nuance; the material ones are `store/queue.py`'s supersede unconditionally overwriting `target`, the borrowed UPSERT being string-asserted rather than suite-executed, and the desk docstring's transitive-import wording. Full list in `.planning/milestones/v1.1-MILESTONE-AUDIT.md`.
+- [Next milestone, process]: `commit_docs` is `false`, so GSD's commit helper skips `.planning/`. The v1.1 archive was committed manually (matching the v1.0 precedent). Decide the convention for the next milestone.
 
 ## Deferred Verification
 
@@ -197,7 +189,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-10-13
-Stopped at: All 7 phases (6–12) complete and verified; running the milestone lifecycle (audit → complete → cleanup)
+Stopped at: Milestone v1.1 Score Uplift shipped (audit passed; archived to `.planning/milestones/`; tagged `v1.1`)
 Resume file: None
 
 ## Operator Next Steps
