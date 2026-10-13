@@ -611,3 +611,56 @@ def test_committed_section_4_rows_equal_the_report_case_set() -> None:
 
     assert row_ids == {case.case_id for case in report.cases}, "§4 rows and the report disagree"
     assert len(row_ids) == len(report.cases)
+
+
+# ------------------- 10. the committed artefacts lock the honesty in (D11-07, D11-08)
+
+
+def test_section_4_row_count_equals_the_report_case_count() -> None:
+    """The §4 row count equals the report's own case count (no 14-vs-16 drift; D11-06)."""
+    report = Report.model_validate_json(REPORT_PATH.read_text(encoding="utf-8"))
+    lines = EVALS_PATH.read_text(encoding="utf-8").splitlines()
+    assert len(_section_4_row_ids(lines)) == len(report.cases)
+
+
+def test_declared_failure_stays_visible_and_is_not_a_bare_pass() -> None:
+    """Every declared failure is present in EVALS.md and never rendered as a bare pass (D11-07).
+
+    The report declares the failure; EVALS.md must show it. Both facts are read from the
+    committed artefacts — no colour, count or case list is hard-coded (CONVENTIONS §1).
+    """
+    report = Report.model_validate_json(REPORT_PATH.read_text(encoding="utf-8"))
+    evals_text = EVALS_PATH.read_text(encoding="utf-8")
+
+    declared = {case.case_id for case in report.cases if case.declared_failure}
+    assert declared, "the report declares no failure"
+    for case_id in declared:
+        assert case_id in evals_text, f"the declared failure {case_id} is not visible in EVALS.md"
+        assert _cell(evals_text, f"| {case_id} ", -2) != "\u2705", (
+            f"the declared failure {case_id} was rendered as a bare pass"
+        )
+
+
+def test_unfixed_gate_failures_appear_in_the_section_6_1_record() -> None:
+    """Every case the gate names as an unfixed failure is visible in the §6.1 record (D11-07).
+
+    The §6.1 block is DERIVED from ``report.gate``; this guard proves the derived record never
+    silently drops a recorded failure (and is vacuous when the gate names none — the report,
+    not the test, decides).
+    """
+    report = Report.model_validate_json(REPORT_PATH.read_text(encoding="utf-8"))
+    evals_text = EVALS_PATH.read_text(encoding="utf-8")
+    start = evals_text.index("<!-- BEGIN GENERATED: deferrals -->")
+    end = evals_text.index("<!-- END GENERATED: deferrals -->")
+    record = evals_text[start:end]
+
+    for case_id in report.gate.unexpected_failures:
+        assert case_id in record, (
+            f"the recorded unfixed failure {case_id} is missing from the §6.1 record"
+        )
+
+
+def test_committed_report_is_a_real_run() -> None:
+    """The published report is ``mode: real`` — the strongest evidence (D11-08)."""
+    report = Report.model_validate_json(REPORT_PATH.read_text(encoding="utf-8"))
+    assert report.mode == "real", "the published report is not a real measured run"
