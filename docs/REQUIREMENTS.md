@@ -48,7 +48,7 @@ risks** — items we cannot yet close, tracked honestly.
 
 | ID | Requirement (verbatim intent) | How we satisfy it | Artifact | Status |
 | --- | --- | --- | --- | --- |
-| BW-1 | **Your own MCP server**, three or more different tools | `triagedesk` server: `normalize_case`, `match_discriminators`, `score_priority`, `raise_recheck_flag`, `commit_priority` (5 tools) | ../ARCHITECTURE.md §4 | ✅ |
+| BW-1 | **Your own MCP server**, three or more different tools | `triagedesk` server: `normalize_case`, `match_discriminators`, `retrieve_evidence`, `score_priority`, `assess_confidence`, `raise_recheck_flag`, `commit_priority` (7 tools) | ../ARCHITECTURE.md §4 | ✅ |
 | BW-2 | At least one tool **does something** — scores a priority, raises a re-check flag, routes a referral; read-only is not enough | `score_priority` (scores), `raise_recheck_flag` (flags), `commit_priority` (writes) are all acting tools | ../ARCHITECTURE.md §4 | ✅ |
 | BW-3 | **One MCP server you did not write** — community, official, or vendor + one line on why it beats writing it yourself | Borrow **SQLite MCP** (`mcp-sqlite@1.0.9`); "persistence, schema and query safety are solved — hand-rolling a DB adds zero triage value" | ../ARCHITECTURE.md §4 | ✅ (under-exercised — STATUS G7) |
 | BW-4 | **Open-source orchestration** — LangGraph / CrewAI / Pydantic AI / smolagents / Letta / Goose / n8n or equivalent; no closed no-code builders | **LangGraph** (open source) | DECISIONS.md D4 | ✅ |

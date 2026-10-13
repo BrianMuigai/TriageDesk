@@ -31,22 +31,22 @@ offline, gated by a named clinician.
 
 **Edges:** missing vitals → recover · `out_of_scope` → abstain · uncited → retry · deterioration →
 `recheck`. **Why not ReAct:** a small CPU model is an unreliable free agent; a fixed plan with bounded
-decisions is reproducible (JC-1). Invalid output retries **once**, then falls back or escalates.
+decisions is reproducible (JC-1).
 
 ## 4. MCP servers
 
-### Built by us — `triage` server (5 tools)
+### Built by us — `triage` server (seven tools)
 
 | Tool | Read/Act | Contract |
 | --- | --- | --- |
 | `normalize_case` | read | prose + vitals → structured JSON, `missing[]`, `out_of_scope` |
 | `match_discriminators` | read | complaint → ranked discriminator IDs |
+| `retrieve_evidence` · `assess_confidence` | read | cited passages · confidence/deferral |
 | `score_priority` | **act** | case → `colour`, `tews`, `citations[]`, `target_time` |
 | `raise_recheck_flag` | **act** | serial vitals → deterioration flag (**never** a verdict) |
 | `commit_priority` | **act + gated** | approved case → queue write + audit; **refuses without a token** |
 
-Three of five act (BW-2); the gated tool is the only queue mutation (BW-9). SpO₂ capture:
-`docs/SATS.md` §4.1.
+Three of seven act (BW-2); only the gated tool mutates the queue (BW-9). SpO₂: `docs/SATS.md` §4.1.
 
 ### Borrowed — SQLite MCP
 

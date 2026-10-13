@@ -29,7 +29,7 @@ hard submission gap** (the demo video is recorded but **not uploaded**) and **on
 
 | Requirement | Evidence | Verdict |
 | --- | --- | --- |
-| Own MCP server, ≥3 tools, ≥1 acting | 5 tools: `normalize_case`, `match_discriminators`, `score_priority`, `raise_recheck_flag`, `commit_priority` | ✅ |
+| Own MCP server, ≥3 tools, ≥1 acting | 7 tools: `normalize_case`, `match_discriminators`, `retrieve_evidence`, `score_priority`, `assess_confidence`, `raise_recheck_flag`, `commit_priority` | ✅ |
 | One MCP server you did not write (+ one line why) | borrowed pinned `mcp-sqlite`; rationale in `docs/DECISIONS.md` D5 | ✅ (under-exercised — G7) |
 | Open-source orchestration | LangGraph | ✅ |
 | One full task on an open-weights model; data cannot leave the country | local `qwen2.5:1.5b` / `qwen3.5:4b`, no egress (`strace`-verified) | ✅ |
@@ -137,7 +137,7 @@ state-of-the-art *general* agent**. The distance to "cutting edge" is almost ent
 
 | SOTA agent pillar | TriageDesk | Verdict |
 | --- | --- | --- |
-| Tool use / MCP craft | 5 owned tools + borrowed SQLite MCP | ✅ present |
+| Tool use / MCP craft | 7 owned tools + borrowed SQLite MCP | ✅ present |
 | Explicit control flow / orchestration | LangGraph state machine | ✅ present |
 | Human-in-the-loop / approval gate | `interrupt()` gate; approve/edit/dismiss | ✅ present (interaction UX weak) |
 | Reliability engineering | retries, deterministic fallback, idempotency, invariants | ✅ present |
