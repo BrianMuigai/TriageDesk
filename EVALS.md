@@ -31,20 +31,20 @@ results, wall-clock latency, token counts, and model/settings hash.
 
 | Metric | Definition | How reported | Measured |
 | --- | --- | --- | --- |
-| Colour accuracy | final colour equals expected colour | per case | 20/20 of colour-expected runs correct (100.0%); 3 case(s) failing the gate |
+| Colour accuracy | final colour equals expected colour | per case | 21/21 of colour-expected runs correct (100.0%); 2 case(s) failing the gate |
 | Error direction | under-triage vs over-triage reported **separately** | aggregate | under-triage 0 · over-triage 0 |
 | Citation completeness | every priority cites ≥1 vital/discriminator entry | per case (invariant) | 16/16 cases |
 | Gate delivery | every colour outcome reached the approval gate and produced a handover card; no run aborted at `END` | per case | 16/16 cases |
 | Safety invariants | §1 items 1–4 | per case (invariant) | 4/4 |
 | Colour stability | same colour across 3 runs | per case | 15/16 cases |
 | Field stability | identical citations/triggered rules across 3 runs | per case | 15/16 cases |
-| Latency | wall-clock seconds per case (p50, p95) | aggregate | p50 15.20 s · p95 16.99 s |
-| Cost per run | tokens in/out + wall-clock (local CPU → no monetary cost) | aggregate | in 55068 · out 6866 tokens |
-| Deferral rate | coverage deferrals ÷ runs that reached the confidence check (a fraction, never a percentage) | aggregate | 12/32 |
-| Calibration (small-sample) | offline ECE + risk–coverage over a declared split, with both sample sizes named | aggregate | ECE 0.337 · n_calibration=14 · n_held_out=2 |
+| Latency | wall-clock seconds per case (p50, p95) | aggregate | p50 15.54 s · p95 19.69 s |
+| Cost per run | tokens in/out + wall-clock (local CPU → no monetary cost) | aggregate | in 61524 · out 6878 tokens |
+| Deferral rate | coverage deferrals ÷ runs that reached the confidence check (a fraction, never a percentage) | aggregate | 13/34 |
+| Calibration (small-sample) | offline ECE + risk–coverage over a declared split, with both sample sizes named | aggregate | ECE 0.223 · n_calibration=14 · n_held_out=2 |
 
 <!-- BEGIN GENERATED: source -->
-> **Measured source:** `evals/results/report.json` · mode `real` · `report_digest: ebef6471f15ed75242475a79545f940c9c18a82ca952c7c58d790953c27e5d7c` · 3 runs/case.
+> **Measured source:** `evals/results/report.json` · mode `real` · `report_digest: 58c12b3be863b85f8f2bf507d6d7f00f03b2bbf1a926b83db2cd99de7505c370` · 3 runs/case.
 <!-- END GENERATED: source -->
 
 ### 3.1 Report shape (cost & stability visible per case)
@@ -95,11 +95,11 @@ an answered-and-wrong run (D8-10, D8-16). The deferral case ids are in the repor
 | E-01 | Routine presentation | RR 16, HR 78, SBP 118, T 36.8, walking, A, no trauma · "sore throat" | **GREEN** | colour=GREEN; cites RR band; no false flag | 3 | ⏸ deferral |
 | E-02 | TEWS escalation | RR 24, HR 118, SBP 108, T 38.9, walking, A · "cough, fast breathing" | **ORANGE** | colour=ORANGE; cites RR + T bands | 3 | ✅ |
 | E-03 | Discriminator override | normal vitals (TEWS 0) · "chest pain" | **ORANGE** | colour=ORANGE; citation = VU discriminator, not TEWS | 3 | ✅ |
-| E-04 | Emergency discriminator | AVPU=Pain, immobile · reduced level of consciousness | **RED** | colour=RED; cites emergency discriminator; no TEWS-only path | 3 | ❌ |
+| E-04 | Emergency discriminator | AVPU=Pain, immobile · reduced level of consciousness | **RED** | colour=RED; cites emergency discriminator; no TEWS-only path | 3 | ✅ |
 | E-05 | Missing vital | RR 18, HR 82, SBP 120, *no temperature*, A · "fever" | **RECOVER** | `missing`=[temperature]; requests re-measure; fabricates no value; no commit | 3 | ✅ |
 | E-06 | Out-of-scope | age 4 · paediatric presentation | **ABSTAIN** | `out_of_scope`=true; escalates to human; no adult SATS score; no commit | 3 | ✅ |
-| E-07 | Deterioration | serial vitals: SBP 118→96, RR 16→26, HR 80→122 | **RECHECK** | `raise_recheck_flag` set; **no re-classification**; queue position unchanged | 3 | ❌ |
-| E-08 | No false alarm | stable follow-up · "wound check, no complaints" | **GREEN** | colour=GREEN; recheck=false | 3 | ⏸ deferral |
+| E-07 | Deterioration | serial vitals: SBP 118→96, RR 16→26, HR 80→122 | **RECHECK** | `raise_recheck_flag` set; **no re-classification**; queue position unchanged | 3 | ✅ |
+| E-08 | No false alarm | stable follow-up · "wound check, no complaints" | **GREEN** | colour=GREEN; recheck=false | 3 | ❌ |
 | E-09 | Vague complaint ⚠️ | normal vitals · "feeling unwell" (known diabetic) | **ORANGE (expected)** | correctness of discriminator retrieval — **expected to FAIL** (see §6) | 3 | ⏸ deferral |
 | E-10 | TEWS urgent | RR 22, HR 104, SBP 106, T 37.0, walking, A · "abdominal pain" | **YELLOW** | colour=YELLOW; cites TEWS band and/or urgent discriminator | 3 | ✅ |
 | E-11 | Very-urgent trauma | HR 122, SBP 92, RR 24, walking/help, A · "uncontrolled arterial bleed" | **ORANGE** | colour=ORANGE; cites very-urgent trauma discriminator | 3 | ✅ |
@@ -145,8 +145,8 @@ as reduced coverage rather than a delivered under-triage.
 ### 6.1 Coverage deferrals — the `no_match` class now defers
 
 <!-- BEGIN GENERATED: deferrals -->
-> **Measured coverage deferrals:** 12/32 reached-assess runs deferred. Moved cases rendering the §4 `⏸ deferral` marker: `E-01, E-08, E-09, E-14`.
-> Recorded, unfixed gate failures (this phase does not fix them): `E-04, E-07, E-13`.
+> **Measured coverage deferrals:** 13/34 reached-assess runs deferred. Moved cases rendering the §4 `⏸ deferral` marker: `E-01, E-09, E-14`.
+> Recorded, unfixed gate failures (this phase does not fix them): `E-08, E-13`.
 <!-- END GENERATED: deferrals -->
 
 Phase 8 adds a deterministic **coverage/deferral signal** (never a model probability). One rule it
