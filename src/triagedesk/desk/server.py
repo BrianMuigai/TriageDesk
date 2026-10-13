@@ -604,6 +604,12 @@ def _gate_html(thread_id: str, csrf_token: str | None = None) -> str:
     :func:`editable_colours` with NO value preselected, so a missing choice is a rejected
     decision rather than a silent default. The gate-scoped timeout panel is inert until the
     inline client timer reveals it on expiry (D10-10); no decision is ever preselected.
+
+    ``Your name``/``Your role`` carry a client-side ``required`` affordance so an approve/edit
+    is refused before the round-trip when the identity is blank; the dismiss action carries
+    ``formnovalidate`` so it stays available without an identity (dismiss commits nothing). The
+    server still enforces non-blank (whitespace-only) identity through ``durable`` — the
+    affordance is a cue, never the enforcement.
     """
     radios = "".join(
         '<label class="colour-choice">'
@@ -618,16 +624,16 @@ def _gate_html(thread_id: str, csrf_token: str | None = None) -> str:
         f"{_csrf_field(csrf_token)}"
         f'<input type="hidden" name="thread_id" value="{_escaped(thread_id)}">'
         '<div class="field"><label for="approver-name">Your name</label>'
-        '<input id="approver-name" name="name" type="text" autocomplete="off"></div>'
+        '<input id="approver-name" name="name" type="text" autocomplete="off" required></div>'
         '<div class="field"><label for="approver-role">Your role</label>'
-        '<input id="approver-role" name="role" type="text" autocomplete="off"></div>'
+        '<input id="approver-role" name="role" type="text" autocomplete="off" required></div>'
         '<fieldset class="field colour-fieldset"><legend>Choose the priority colour</legend>'
         f'<div class="colour-choices">{radios}</div></fieldset>'
         '<div class="gate-actions">'
         '<button type="submit" name="decision" value="approve" class="primary">'
         "Approve suggestion</button>"
         '<button type="submit" name="decision" value="edit">Edit colour</button>'
-        '<button type="submit" name="decision" value="dismiss">'
+        '<button type="submit" name="decision" value="dismiss" formnovalidate>'
         "Dismiss (commit nothing)</button>"
         "</div></form></section>"
         f'<section id="gate-timeout" class="state-panel state-muted" hidden>'

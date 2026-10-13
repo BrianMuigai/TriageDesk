@@ -1054,6 +1054,24 @@ def test_gate_carries_the_paused_thread_id(tmp_path: Path, injected_store: Any) 
     assert _thread_id(desk_server.render_state(paused)) == paused.thread_id
 
 
+def test_gate_identity_fields_carry_a_required_affordance(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """The gate's name/role inputs carry a client-side ``required`` cue; dismiss bypasses it.
+
+    A blank identity is still rejected server-side by ``durable``; the ``required`` attribute is
+    only a pre-submit cue, so it must not block the identity-free ``dismiss`` action — that
+    button carries ``formnovalidate`` (dismiss commits nothing).
+    """
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        body = _post(_base(server) + "/case", _form_from_case(COMPLETE_CASE))
+
+    gate = _section(body, "approval-gate")
+    assert re.search(r'<input[^>]*id="approver-name"[^>]*\brequired\b', gate)
+    assert re.search(r'<input[^>]*id="approver-role"[^>]*\brequired\b', gate)
+    assert re.search(r'<button[^>]*value="dismiss"[^>]*\bformnovalidate\b', gate)
+
+
 def test_dismiss_commits_nothing(tmp_path: Path, injected_store: Any) -> None:
     """A dismiss returns ``refused=True``/``committed=False`` and writes no row (D10-10)."""
     db = tmp_path / "checkpoints.db"
