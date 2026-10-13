@@ -80,8 +80,11 @@ every priority cited · synthetic only · repo runs · results are real · green
    gate failures and E-01/E-08/E-14 are coverage deferrals.
 5. **G5 — Demo length.** 33 s is under 3 min but thin against "three clear minutes showing the agent
    working."
-6. **G6 — Live-review readiness (Stage 2).** "A new requirement added live while we watch." Our YAML
-   design makes this a one-line edit, but we have not **rehearsed** it or a 10-min code walkthrough.
+6. **G6 — resolved (Phase 12).** "A new requirement added live while we watch." The guarded
+   [`docs/REVIEW.md`](docs/REVIEW.md) runbook rehearses the data-only extension and the 10-min code
+   walkthrough — its `uv run triagedesk …` commands are exercised by `tests/test_review_runbook.py`,
+   and the durable dismissal is driven end-to-end (pause → resume). What remains **human** is
+   performing it live on the day.
 7. **G7 — resolved (Phase 9).** The borrowed server's read paths (`db_info`, `list_tables`,
    `get_table_schema`, `read_records`) are now exercised behind the unchanged `Store` protocol
    (MCP-01); a mutation on the read path fails closed before reaching the server.
