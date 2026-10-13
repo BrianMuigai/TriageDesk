@@ -746,6 +746,32 @@ def test_no_self_commit_path_in_the_desk_package() -> None:
         )
 
 
+def test_no_eval_harness_import_in_the_desk_package() -> None:
+    """No ``desk/`` module imports the eval harness module ``triagedesk.evals.case`` (D10-15).
+
+    The desk presentation surface needs no ``CaseSpec`` — it builds its tool map through the
+    harness-free ``evals.tools.offline_tools`` — so a direct ``triagedesk.evals.case`` import
+    would be a needless coupling to the evaluation vocabulary. The scan recurses the WHOLE
+    package and resolves relative imports, so neither a relative import nor one added in a
+    ``desk/`` subpackage can evade the guard. The desk's legitimate *transitive* reach into the
+    harness (through ``evals.tools``) is untouched: this guard bounds direct imports only.
+    """
+    harness_module = "triagedesk.evals.case"
+    modules = sorted(DESK_DIR.rglob("*.py"))
+    assert modules, "the desk package scan visited no module"
+    for path in modules:
+        source = path.read_text(encoding="utf-8")
+        resolved = set(resolved_imports(source, package_parts_for(path, SRC_ROOT)))
+        offenders = {
+            name
+            for name in resolved
+            if name == harness_module or name.startswith(harness_module + ".")
+        }
+        assert not offenders, (
+            f"{path.name} imports the eval harness directly: {sorted(offenders)}"
+        )
+
+
 def test_commit_path_guard_resolves_relative_and_symbol_imports() -> None:
     """The guard is not vacuous: relative and symbol imports of a commit path are caught (WR-04)."""
     parts = ["triagedesk", "desk"]  # the __package__ of a desk/ module
