@@ -1,9 +1,10 @@
 # REVIEW — TriageDesk live-review rehearsal runbook
 
 > **One page, driven from the page.** This is the 10-minute Stage-2 live technical review. Every
-> command below is exercised against the shipped CLI by
-> [`tests/test_review_runbook.py`](../tests/test_review_runbook.py), so the walkthrough cannot drift
-> from what the entry point actually accepts. The headline claim is that the live extension is a
+> `uv run triagedesk …` invocation below is exercised against the shipped CLI by
+> [`tests/test_review_runbook.py`](../tests/test_review_runbook.py), and the Beat-3 durable dismissal
+> is driven **end-to-end** (pause → resume over a throwaway checkpoint file), so the walkthrough cannot
+> drift from what the entry point actually runs. The headline claim is that the live extension is a
 > **data edit** — one line in `data/sats_discriminators.yaml`, no code change.
 
 > **What is human.** The screen recording and the public upload (YouTube/Vimeo) are **HUMAN** actions.
