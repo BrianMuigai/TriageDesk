@@ -212,7 +212,7 @@ it is the discipline the brief rewards ("three tools that work beat nine that ha
 ## 9. Bottom line
 
 - **Build: done.** All 6 "what to build" items, all safety rules, no disqualifiers; repo frozen, tagged
-  (`v1.0-submission`) and pushed; 440 tests pass; honest measured evaluation.
+  (`v1.0-submission`) and pushed; 444 tests pass; honest measured evaluation.
 - **Submission: one step short.** Upload the video.
 - **Score ceiling:** capped mainly by **fit-to-desk (no clinician + no desk surface)** and **demo
   (short + unhosted)** — both improvable before 2026-10-15.
