@@ -281,6 +281,24 @@ re-generated and re-published rather than hand-edited. No expectation, threshold
 edited to make a case pass and no literal alias was added (D11-02); the published measured outcomes
 live in `EVALS.md` and are not restated here.
 
+### D25 — Milestone close: demonstrated-not-claimed, and two steps stay human
+**Decision:** the Phase-12 close makes four honesty choices explicit. (a) The live extension is
+demonstrated **data-only** — a discriminator added to `data/sats_discriminators.yaml` re-scores through
+the shipped matcher/scorer in a **fresh process**; there is **no** hot reload and no cache-clear flag
+(the substrate is `@lru_cache`d per process), and the demonstration is a hermetic harness, not a
+narrative ([`REVIEW.md`](REVIEW.md)). (b) The demo shows the committed [`EVALS.md`](EVALS.md) projection
+plus the live `failure` beat (E-09) and does **not** stream the ~10-minute real eval run — the
+projection is the measured artefact ([`DEMO.md`](DEMO.md)). (c) The clinical-fit gap stays **declared**
+with a marked, attributed, **empty** slot; no review is invented. (d) The demo-video upload and the
+clinician review are **human** steps, flagged `human_needed`, never claimed.
+**Why:** the milestone's whole credibility is "extend by data, not code" (D11) and "honest beats an
+over-claim" — a rehearsal that pretended to hot-reload, a demo that faked a ~10-minute run, or a
+fabricated clinician quote would each be a scored repudiation risk (D12-02, D12-05, D12-06, D12-07).
+**Consequence:** the reviewer can drive the live extension from [`REVIEW.md`](REVIEW.md) and see the
+same re-score the harness proves; the measured numbers live only in [`EVALS.md`](EVALS.md); and the two
+genuinely-human steps stay visible as open items (STATUS G1/G2) rather than papered over. No source
+behaviour and no dependency changed.
+
 ---
 
 ## Disclosed third-party components (DQ-8)
