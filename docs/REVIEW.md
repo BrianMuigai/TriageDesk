@@ -62,7 +62,9 @@ uv run triagedesk resume --thread-id <content-id> --decision dismiss --db /tmp/r
 ## Beat 4 — Read-only replay
 
 Reconstruct a past case from the checkpoint plus the local span stream. Replay re-runs nothing and
-writes nothing.
+writes nothing. Run this **after Beat 2** — it reads the case that pause left in the default
+`checkpoints.db` (standalone, with no such checkpoint, it exits non-zero: `no checkpoint for
+thread_id …`).
 
 ```bash
 uv run triagedesk replay --thread-id <content-id>
