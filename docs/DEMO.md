@@ -1,8 +1,14 @@
 # DEMO — TriageDesk submission video runbook
 
-> **The recording is a HUMAN action.** The 3-minute video is an **unedited screen recording**
-> (`< 3 min`) — **tool calls on screen, no slides** — uploaded publicly to YouTube or Vimeo. This
+> **The recording is a HUMAN action.** The 2–3 minute video is an **unedited screen recording**
+> (`2–3 min`) — **tool calls on screen, no slides** — uploaded publicly to YouTube or Vimeo. This
 > document is the runbook a person follows to record it; the agent does **not** record the video.
+>
+> **`human_needed` — the public upload.** The recording **and** the public upload are **HUMAN** actions.
+> The upload is the **one submission blocker** (`STATUS.md` G1, `docs/REQUIREMENTS.md` G-9); this runbook
+> prepares the script and never claims a video is recorded or hosted. A local recording exists
+> (`docs/assets/triagedesk-demo.mp4`) but is **not yet uploaded**; paste the public URL into the
+> submission form once it is.
 >
 > Record against the **frozen submission tag `v1.0-submission`** — the commit the freeze protocol in
 > [`ROADMAP.md`](ROADMAP.md) creates (tagged in plan 05-03). The canonical storyboard is the table
@@ -42,6 +48,23 @@ The bare command runs all five beats in order, prints every owned tool call, and
 approval gate. `--beat <name>` runs just that beat; the beat names are exactly those
 `uv run triagedesk demo --list` prints. Add `--online` only to drive the pulled local model instead of
 the offline golden fixture.
+
+## The measured eval on screen (not a live run)
+
+The committed report is `mode: real`, takes **~10 minutes** (3 runs × 16 cases ≈ 13 s/case on local CPU)
+and the harness is **silent** — `uv run triagedesk eval …` writes `evals/results/report.json` and prints
+nothing. A 2–3 minute recording therefore **cannot** stream the real eval run. The honest on-screen
+artefact is the committed [`EVALS.md`](../EVALS.md) projection (generated from `report.json`) plus the
+live `failure` beat:
+
+```bash
+# Open the committed measured projection, then run the live declared-failure beat:
+uv run triagedesk demo --beat failure
+```
+
+The `failure` beat prints `DECLARED: ORANGE` / `MEASURED: GREEN (SHOWN MISMATCH)` on screen — the
+declared-versus-measured mismatch, shown rather than hidden. Narrate it plainly: the committed projection
+**is** the measured artefact, and the real ~10-minute run is **not** streamed.
 
 ## Durable mode (two-command durability story)
 
@@ -98,35 +121,31 @@ Each storyboard timing band maps to the beat(s) it plays and the command to run 
 command is exercised against the shipped CLI by [`tests/test_demo_runbook.py`](../tests/test_demo_runbook.py),
 so the runbook cannot drift from what a presenter will actually run (T-05-06).
 
-| Time (ROADMAP) | Beat(s) | Command | Expected on screen |
+| Time | Beat(s) | Command | Expected on screen |
 | --- | --- | --- | --- |
-| 0:00–0:20 | — (narration) | *(no command)* | The desk problem: 60–90 min wait; unsourced flags are dangerous. |
-| 0:20–1:10 | `routine` → `escalation` | `uv run triagedesk demo --beat routine` then `--beat escalation` (or the bare command) | GREEN routine, then ORANGE escalation — **tool calls + citations on screen**. |
-| 1:10–1:50 | `deterioration` | `uv run triagedesk demo --beat deterioration` | A waiting patient flagged for a **second look** (`raise_recheck_flag`). |
-| 1:50–2:30 | `refusal` | `uv run triagedesk demo --beat refusal` | The **approval gate refusing** to commit without the named nurse. |
-| 2:30–2:50 | `failure` | `uv run triagedesk demo --beat failure` | The **E-09 failure**, shown and explained. |
-| 2:50–3:00 | — (narration) | *(no command)* | Close: open source, offline, synthetic. |
+| 0:00–0:15 | — (narration) | *(no command)* | The desk problem: 60–90 min wait; unsourced flags are dangerous. |
+| 0:15–0:50 | `routine` | `uv run triagedesk demo --beat routine` | GREEN routine scores, then **defers** — no commit (nothing reaches the queue unapproved). |
+| 0:50–1:20 | `escalation` | `uv run triagedesk demo --beat escalation` | ORANGE escalation **commits at queue position 1** — after the named nurse approves. |
+| 1:20–1:45 | `deterioration` | `uv run triagedesk demo --beat deterioration` | A waiting patient flagged for a **second look** (`raise_recheck_flag`); the case defers. |
+| 1:45–2:10 | `refusal` | `uv run triagedesk demo --beat refusal` | The **approval gate refusing** to commit without the named nurse. |
+| 2:10–2:40 | `failure` + the measured eval | open [`EVALS.md`](../EVALS.md), then `uv run triagedesk demo --beat failure` | The committed **measured** eval on screen, then the live **E-09 failure** (`DECLARED: ORANGE` / `MEASURED: GREEN`). |
+| 2:40–2:50 | — (narration) | *(no command)* | Close: open source, offline, synthetic. |
 
 ## Expected on-screen output per beat
 
-> **Known drift — refreshed in Phase 12 (DOCS-06).** The blocks below are the transcript recorded
-> against the **v1.0 freeze**; they **predate Phases 8/9/10**, so the shipped CLI has since diverged.
-> In the current build the `routine` (E-01) and `deterioration` (E-07) beats **defer** (no `commit`
-> line — the graph routes to the safe `escalate` terminal), and `escalation` (E-02) commits at **queue
-> position 1** because `routine` no longer commits. The owned server also exposes **seven** tools, not
-> the five the per-beat annotations name. A faithful re-transcription is Phase 12's DOCS-06 ("every
-> submission document refreshed to the v1.1 state"); until then this section is **not** a byte-exact
-> transcript of the shipped output.
+Every line below is transcribed from the shipped runner (`uv run triagedesk demo`, offline) — it is not
+a hand-written mock. Tool calls print as `[tool] <name> <inputs> -> <outputs>`; each beat closes with a
+`--- outcome ---` block carrying the **sourced priority** — colour, target, the matched discriminator
+ids, and the citation(s) behind the colour. Case ids are content-derived, so they are stable per case.
+The run shows **seven owned tools** — `normalize_case`, `match_discriminators`, `score_priority`,
+`retrieve_evidence`, `assess_confidence`, `raise_recheck_flag`, `commit_priority` — and only the
+`escalation` beat commits a queue row (at position 1).
 
-Every line below is the recorded v1.0 output (not a hand-written mock); see the drift note above for
-how the shipped CLI has since moved. Tool calls print as
-`[tool] <name> <inputs> -> <outputs>`; each beat closes with a `--- outcome ---` block carrying the
-**sourced priority** — colour, target, the matched discriminator ids, and the citation(s) behind the
-colour. Case ids are content-derived, so they are stable per case; queue positions accumulate across
-the run.
+**`routine` (E-01 → GREEN, then deferred).** Five tool calls — `normalize_case`,
+`match_discriminators`, `score_priority`, `retrieve_evidence`, `assess_confidence` (no commit) — then:
 
-**`routine` (E-01 → GREEN).** Four tool calls — `normalize_case`, `match_discriminators`,
-`score_priority`, `commit_priority` — then:
+> **Narration cue:** "Watch the routine case score GREEN and then DEFER — no commit, because nothing
+> reaches the queue unapproved."
 
 ```
 --- outcome ---
@@ -134,10 +153,16 @@ the run.
   target       : < 4 hours
   matched ids  : []
   citation     : SATS Training Manual 2012 (EMSSA), adult TEWS — respiratory_rate band
-  commit       : committed case <content-id> at queue position 1 (GREEN)
 ```
 
-**`escalation` (E-02 → ORANGE, committed under the named nurse).** Same four tools, three citations:
+The `no_match` complaint (`sore throat` matches no discriminator) routes the case to a safe terminal, so
+there is **no `commit` line** — nothing reached the queue.
+
+**`escalation` (E-02 → ORANGE, committed under the named nurse).** Six tool calls — the five above plus
+`commit_priority` — and three citations:
+
+> **Narration cue:** "Watch an ORANGE escalation commit at queue position 1 — only after a named
+> approver says yes."
 
 ```
 --- outcome ---
@@ -147,43 +172,59 @@ the run.
   citation     : SATS Training Manual 2012 (EMSSA), adult TEWS — respiratory_rate band
   citation     : SATS Training Manual 2012 (EMSSA), adult TEWS — heart_rate band
   citation     : SATS Training Manual 2012 (EMSSA), adult TEWS — temperature band
-  commit       : committed case <content-id> at queue position 2 (ORANGE)
+  commit       : committed case 9300336d37c3651c at queue position 1 (ORANGE)
+  handover card: {"case_id":"9300336d37c3651c","colour":"ORANGE","target":"< 10 min", ...}
 ```
 
-**`deterioration` (E-07 → second look).** Reaches the fifth owned tool, `raise_recheck_flag`, which
-flags the serial-vitals change **without re-classifying** the patient:
+**`deterioration` (E-07 → second look, then deferred).** Six tool calls — the five above plus
+`raise_recheck_flag` — which flags the serial-vitals change **without re-classifying** the patient:
+
+> **Narration cue:** "Watch the second look raise a recheck flag — the case defers rather than
+> committing a stale colour."
 
 ```
 --- outcome ---
   colour       : ORANGE
   target       : < 10 min
+  matched ids  : []
   citation     : SATS Training Manual 2012 (EMSSA), adult TEWS — respiratory_rate band
   citation     : SATS Training Manual 2012 (EMSSA), adult TEWS — heart_rate band
   citation     : SATS Training Manual 2012 (EMSSA), adult TEWS — systolic_bp band
   second look  : {"flag":true,"deteriorations":["respiratory_rate","heart_rate","systolic_bp"], ...}
-  commit       : committed case <content-id> at queue position 3 (ORANGE)
 ```
+
+The `second look` line is the only queue-facing output — the case **defers** rather than committing a
+stale colour, so there is **no `commit` line**.
 
 **`refusal` (the climax).** The same E-02 priority is scored, but the gate is resumed with a `dismiss`
 naming **no approver**, so the gated commit refuses and writes nothing — the refusal is read from the
 real store row delta, not asserted:
 
+> **Narration cue:** "Watch a dismiss attempt — the agent refuses to commit and says why, in its own
+> words."
+
 ```
 --- outcome ---
   colour       : ORANGE
   target       : < 10 min
+  matched ids  : ['acute_shortness_of_breath']
   commit       : clinician dismissed the priority; refusing to commit
   GATE REFUSED : no queue row written (rows added this beat: 0)
+  handover card: {"case_id":"9300336d37c3651c","colour":"ORANGE","target":"< 10 min", ...}
 ```
 
 **`failure` (E-09, the declared failure — shown, not hidden).** The vague complaint *"feeling unwell"*
 matches no discriminator, so the score falls back to vitals alone. The beat prints the declared vs the
 measured outcome on screen:
 
+> **Narration cue:** "Watch the honest failure — the declared ORANGE meets a measured GREEN, shown
+> rather than hidden."
+
 ```
 --- outcome ---
   colour       : GREEN
   target       : < 4 hours
+  matched ids  : []
   citation     : SATS Training Manual 2012 (EMSSA), adult TEWS — all recorded parameters within normal SATS bands
   DECLARED     : ORANGE
   MEASURED     : GREEN (SHOWN MISMATCH)
@@ -204,6 +245,9 @@ The video must be as honest as the docs. Point the close at what the repository 
 - [`README.md`](../README.md) — the honest "what is unfinished" statement and the one-command
   quickstart.
 - Clinician validation remains a **declared gap** (`EVALS.md` §7): the expected colours come from the
-  published SATS rules, not clinician adjudication.
+  published SATS rules, not clinician adjudication. **No** triage nurse/clinician review was obtained as
+  of 2026-10-13.
+- The video is recorded but **not yet uploaded** — the one submission blocker (see the `human_needed`
+  note above).
 
 Record the close over the running terminal, not over slides: open source, offline, synthetic.
