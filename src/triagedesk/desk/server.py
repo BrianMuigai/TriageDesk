@@ -25,12 +25,16 @@ The uncertainty signal (UX-01, D10-09/D10-17) is read from the graph's typed cha
 or ``missing_vitals`` alone. Because Phase 8 routes any ``no_match``/deferral to a safe
 terminal (D8-11/D8-12), a deferred case renders the loud banner plus a **read-only** card and
 NO gate, while a committable case renders the card plus the real gate and no banner.
+
+This module is now the HTTP layer plus the facade over the split presentation modules
+(``copy``/``markup``/``assets``/``pipeline``/``forms``/``card``/``gate``/``views``): it keeps
+the request handler, the loopback guards and the graph-runner re-exports, and imports every
+moved name so ``triagedesk.desk.server`` stays the seam the CLI and the suite reach.
 """
 
 from __future__ import annotations
 
 import asyncio
-import html
 import ipaddress
 import secrets
 import string
@@ -46,28 +50,30 @@ from pydantic import ValidationError
 
 from triagedesk.core.rules import get_tews
 from triagedesk.core.schema import CaseInput
-from triagedesk.durable import (
-    DurableError,
-    PausedRun,
-    approval_decision,
-    resume_thread,
-    run_to_gate,
+from triagedesk.desk.assets import _ASSETS, STATIC_DIR
+from triagedesk.desk.copy import (
+    _BANNER_HEADLINE,
+    _BANNER_LOW_CONFIDENCE_BODY,
+    _BANNER_NO_MATCH_BODY,
+    _CARD_FRAMING,
+    _DEFERRED_COPY,
+    _DISMISSED_COPY,
+    _EMPTY_BODY,
+    _EMPTY_HEADING,
+    _ESCALATED_COPY,
+    _FAILURE_COPY,
+    _NO_EVIDENCE_LINE,
+    _NO_THREAD_COPY,
+    _READ_ONLY_FRAMING,
+    _RECOVERY_COPY,
+    _SCHEMA_HINT,
+    _TIMEOUT_COPY,
+    _UNREACHED_COPY,
 )
-from triagedesk.evals.tools import offline_tools
-from triagedesk.evals.usage import UsageRecorder
+from triagedesk.desk.markup import _escaped
+from triagedesk.desk.pipeline import decide, submit_case
+from triagedesk.durable import DurableError, PausedRun
 from triagedesk.graph.build import CHECKPOINTS_DB_PATH
-
-# The one home for the two hand-authored assets (D10-01). Keeping the markup out of Python
-# string literals is what keeps a SATS colour/band literal out of ``src/**/*.py`` (CONVENTIONS
-# §1); the Python emits only a generic ``colour-{name}`` class.
-STATIC_DIR = Path(__file__).parent / "static"
-
-# The fixed two-name asset allowlist: filename -> content type. A request for anything not in
-# this map is a 404, so no path is ever built from ``self.path`` (no traversal).
-_ASSETS: dict[str, str] = {
-    "index.html": "text/html; charset=utf-8",
-    "styles.css": "text/css; charset=utf-8",
-}
 
 # The checkbox values that read as "set". Deliberately excludes the bare word a data file
 # might also carry, so the guard's exact-match scan is never tripped.
@@ -109,36 +115,6 @@ _VITALS_LAYOUT: tuple[tuple[str, str], ...] = (
     ("trauma", "Trauma"),
     ("complaint", "Complaint"),
 )
-
-# The UI-SPEC copy the bridge selects between (no clinical value, no SATS literal). The
-# banner headline is verbatim from UX-01; the banner BODY varies with the trigger so the
-# banner never asserts a fact its trigger did not establish (D10-09).
-_BANNER_HEADLINE = "No discriminator matched / low confidence — nurse to confirm"
-_BANNER_NO_MATCH_BODY = (
-    "No discriminator matched this complaint, so this suggestion may be incomplete. "
-    "Confirm before you act."
-)
-_BANNER_LOW_CONFIDENCE_BODY = (
-    "Confidence is low for this suggestion, so it may be incomplete. Confirm before you act."
-)
-_EMPTY_HEADING = "No case yet"
-_EMPTY_BODY = "Enter the patient's vitals and complaint, then choose Get suggested priority."
-_CARD_FRAMING = "This is a suggestion, not a decision. You confirm the priority."
-_READ_ONLY_FRAMING = (
-    "Not confirmed and not queued — this is what the system computed from the vitals alone."
-)
-_NO_EVIDENCE_LINE = "No evidence excerpt matched this complaint."
-_DEFERRED_COPY = "This case was deferred for human review — no priority was committed."
-_ESCALATED_COPY = "This case was escalated for human review — no priority was committed."
-_RECOVERY_COPY = "A scored vital is missing. Re-measure before scoring."
-_UNREACHED_COPY = "This case did not reach the approval gate — nothing has been committed."
-_DISMISSED_COPY = "Dismissed — nothing has been committed."
-_TIMEOUT_COPY = "No decision was made — nothing has been committed."
-_FAILURE_COPY = (
-    "The case could not be scored. Nothing has been committed. Try again, or check the desk log."
-)
-_SCHEMA_HINT = "Check the highlighted field and try again."
-_NO_THREAD_COPY = "There is no paused case to decide. Submit the vitals first."
 
 
 def form_to_case(form: Mapping[str, str]) -> CaseInput:
@@ -186,52 +162,6 @@ def form_to_case(form: Mapping[str, str]) -> CaseInput:
         "complaint": str(form.get("complaint", "")) or "",
     }
     return CaseInput.model_validate(payload)
-
-
-def _tools_for(case: CaseInput) -> dict[str, Any]:
-    """Build the offline in-process tool map for one desk submission (D10-15).
-
-    The form already supplies a structured ``CaseInput``, so the surface is model-free: the
-    offline mapping returns the case's own extraction while the matcher, scorer, retrieval,
-    confidence and the gated commit all run for real. It needs no harness ``CaseSpec`` — the
-    harness-free ``evals.tools.offline_tools`` builds the mapping from the ``CaseInput`` alone.
-    """
-    return offline_tools(case, UsageRecorder())
-
-
-async def submit_case(case: CaseInput, db_path: str | Path) -> PausedRun:
-    """Run one desk case to the approval gate over the shipped pause plumbing (D10-11).
-
-    The content-derived thread id comes from the ONE plumbing (``durable.run_to_gate``); the
-    bridge derives no second id and hashes nothing.
-    """
-    return await run_to_gate(
-        _tools_for(case),
-        raw_note=case.model_dump_json(),
-        case=case,
-        db_path=db_path,
-    )
-
-
-async def decide(
-    thread_id: str, form: Mapping[str, str], db_path: str | Path
-) -> Mapping[str, Any]:
-    """Resume a paused thread with a named human decision (D10-11).
-
-    The decision is built by the ONE ``durable.approval_decision`` — a whitespace-only name or
-    role is rejected there — and resumed by the ONE ``durable.resume_thread``. The bridge
-    re-implements no identity check and never calls the queue writer or the commit tool.
-    ``thread_id`` is the value the handler read from the gate form's hidden ``thread_id``
-    field (rendered from the interrupt payload's ``case_id`` — the ONE content-derived thread
-    id).
-    """
-    decision = approval_decision(
-        str(form.get("decision", "")),
-        approver=form.get("name"),
-        role=form.get("role"),
-        colour=form.get("colour"),
-    )
-    return await resume_thread(thread_id=thread_id, decision=decision, db_path=db_path)
 
 
 def banner_trigger(state: Mapping[str, Any]) -> str | None:
@@ -287,11 +217,6 @@ def _colour_class(colour: str) -> str:
     not scan), so no SATS colour literal enters Python.
     """
     return f"colour-{colour.lower()}"
-
-
-def _escaped(value: Any) -> str:
-    """Escape one rendered value for HTML (ASVS V5)."""
-    return html.escape(str(value))
 
 
 def _panel(copy: str, kind: str) -> str:
