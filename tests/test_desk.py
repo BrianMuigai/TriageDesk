@@ -296,7 +296,10 @@ def test_form_to_card_to_gate_to_commit(tmp_path: Path, injected_store: Any) -> 
                 "role": "triage nurse",
             },
         )
-        assert "Approved by Nurse Demo (triage nurse) — committed to the queue." in decision
+        assert (
+            "Approved by Nurse Demo (triage nurse) — committed to the queue at position 1."
+            in decision
+        )
         assert len(injected_store.rows) == 1, "an approve did not land exactly one queue row"
 
 
