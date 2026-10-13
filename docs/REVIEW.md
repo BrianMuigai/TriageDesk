@@ -48,10 +48,13 @@ uv run triagedesk resume --thread-id <content-id> --decision approve --approver 
 
 ## Beat 3 — A legitimate refusal
 
-A `dismiss` needs no identity and commits nothing — the gate refuses it and writes no queue row. This
-uses a throwaway checkpoint file so the durable demo state is untouched.
+A `dismiss` needs no identity and commits nothing — the gate refuses it and writes no queue row. A
+dismissal resumes a **paused** thread, so the beat is **two** commands: pause a fresh case into a
+throwaway checkpoint file, then resume the SAME thread/db and watch the gate refuse. The throwaway
+file leaves the Beat-2 durable demo state untouched.
 
 ```bash
+uv run triagedesk demo --durable --beat escalation --db /tmp/review-dismiss.db
 uv run triagedesk resume --thread-id <content-id> --decision dismiss --db /tmp/review-dismiss.db
 ```
 
