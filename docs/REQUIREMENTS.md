@@ -5,8 +5,8 @@
 > This document tracks **every** requirement, judging criterion, and instant-disqualifier from that
 > page, and maps each to the artifact that satisfies it and its current status.
 >
-> **Updated 2026-10-10, post-build.** Full honest gap analysis — the one submission gap, UX, and
-> state-of-the-art gaps — lives in [`../STATUS.md`](../STATUS.md).
+> **Updated 2026-10-13, post-build (v1.1 milestone close).** Full honest gap analysis — the one
+> submission gap, UX, and state-of-the-art gaps — lives in [`../STATUS.md`](../STATUS.md).
 >
 > Legend — Status: ✅ **done & verified** · 🟡 **partial / open** · ⛔ **not done / blocked** · ⏳ **active
 > (time-bounded)**.
@@ -50,9 +50,9 @@ risks** — items we cannot yet close, tracked honestly.
 | --- | --- | --- | --- | --- |
 | BW-1 | **Your own MCP server**, three or more different tools | `triagedesk` server: `normalize_case`, `match_discriminators`, `retrieve_evidence`, `score_priority`, `assess_confidence`, `raise_recheck_flag`, `commit_priority` (7 tools) | ../ARCHITECTURE.md §4 | ✅ |
 | BW-2 | At least one tool **does something** — scores a priority, raises a re-check flag, routes a referral; read-only is not enough | `score_priority` (scores), `raise_recheck_flag` (flags), `commit_priority` (writes) are all acting tools | ../ARCHITECTURE.md §4 | ✅ |
-| BW-3 | **One MCP server you did not write** — community, official, or vendor + one line on why it beats writing it yourself | Borrow **SQLite MCP** (`mcp-sqlite@1.0.9`); "persistence, schema and query safety are solved — hand-rolling a DB adds zero triage value" | ../ARCHITECTURE.md §4 | ✅ (under-exercised — STATUS G7) |
+| BW-3 | **One MCP server you did not write** — community, official, or vendor + one line on why it beats writing it yourself | Borrow **SQLite MCP** (`mcp-sqlite@1.0.9`); "persistence, schema and query safety are solved — hand-rolling a DB adds zero triage value" | ../ARCHITECTURE.md §4 | ✅ (read paths exercised — MCP-01) |
 | BW-4 | **Open-source orchestration** — LangGraph / CrewAI / Pydantic AI / smolagents / Letta / Goose / n8n or equivalent; no closed no-code builders | **LangGraph** (open source) | DECISIONS.md D4 | ✅ |
-| BW-5 | **One full task on an open-weights model** | The **entire end-to-end triage task** (raw input → plan → tool calls → sourced priority + handover) runs on **Qwen2.5 / Qwen3.5** (open weights) via Ollama — no frontier model in the required path | DECISIONS.md D3 | ✅ (demo default is the offline golden fixture; `--online` runs the model) |
+| BW-5 | **One full task on an open-weights model** | The **entire end-to-end triage task** (raw input → plan → tool calls → sourced priority + handover) runs on **Qwen2.5** (open weights) via Ollama — the measured default is `qwen2.5:1.5b` ([`../EVALS.md`](../EVALS.md)); no frontier model in the required path | DECISIONS.md D3 | ✅ (demo default is the offline golden fixture; `--online` runs the model) |
 | BW-6 | Patient health data **cannot leave the country / full stop** | Fully local inference + synthetic data; no network egress in the agent path | ../ARCHITECTURE.md §7 | ✅ (`strace`-verified) |
 | BW-7 | Frontier model **optional, synthetic data only** | Frontier comparison (if any) runs only on the synthetic fixture; never required to run | PROJECT.md §6 C-3 | 🟡 optional, not built |
 | BW-8 | **A logged tool call for every action** | Every tool call appended to the hash-chained audit log | ../ARCHITECTURE.md §6 | ✅ |
@@ -69,7 +69,7 @@ risks** — items we cannot yet close, tracked honestly.
 | SB-4 | **Demo video under 3 minutes**, **uploaded to YouTube or Vimeo and publicly visible** | Recorded (`docs/assets/triagedesk-demo.mp4`, 33 s) — **not yet uploaded** | docs/DEMO.md | ⛔ the one submission blocker — STATUS G1 |
 | SB-5 | **Unedited agent run, tool calls on screen** — **not slides** | Real unedited terminal run of `triagedesk demo --online`, incl. a failure | docs/assets/triagedesk-demo.mp4 | ✅ |
 | SB-6 | **~300-word text description**: what it does, sub-theme, facility & workflow | DESCRIPTION.md (302 words) | DESCRIPTION.md | ✅ |
-| SB-7 | **ARCHITECTURE.md — one page**: agent shape, MCP servers built vs borrowed, why | ARCHITECTURE.md (697 words / 94 lines) | ../ARCHITECTURE.md | ✅ |
+| SB-7 | **ARCHITECTURE.md — one page**: agent shape, MCP servers built vs borrowed, why | ARCHITECTURE.md (one page) | ../ARCHITECTURE.md | ✅ |
 | SB-8 | **EVALS.md**: 8+ test tasks with pass/fail, plus one failure not fixed + what you'd try next | 16 cases, measured; E-09 declared | ../EVALS.md | ✅ (counts reconciled — G4/STATUS) |
 | SB-9 | Repo that **runs** (not a repo that does not run) | One-command run + synthetic fixture + CI smoke test | ROADMAP.md | ✅ |
 
@@ -86,9 +86,9 @@ risks** — items we cannot yet close, tracked honestly.
 
 | ID | Criterion (pts) | What the judge checks | Our answer | Artifact |
 | --- | --- | --- | --- | --- |
-| JC-1 | Agentic depth & MCP craft (**30**) | Plans, calls tools, recovers — not one model call in a loop; tool boundaries a stranger could reuse | Explicit LangGraph plan with a `verify`/retry loop, missing-vital recovery, tool-failure recovery, safe abstention, and 5 reusable tool contracts | ../ARCHITECTURE.md §3–4 |
+| JC-1 | Agentic depth & MCP craft (**30**) | Plans, calls tools, recovers — not one model call in a loop; tool boundaries a stranger could reuse | Explicit LangGraph plan with a `verify`/retry loop, missing-vital recovery, tool-failure recovery, safe abstention, and seven reusable tool contracts | ../ARCHITECTURE.md §3–4 |
 | JC-2 | Open-source rigour (**20**) | Clone & run; README honest about unfinished | One-command run, synthetic fixture, CI smoke test, honest status table incl. unfinished items | README, EVALS |
-| JC-3 | Fit to triage desk (**20**) | Named nurse does a real thing faster, at the desk, under queue pressure; *did you talk to one?* | Models the real five-step SATS desk process with an assumption-labelled throughput model; **no clinician interview available** and **no desk surface** — declared gaps | PROJECT.md §3, §3.1; EVALS §7; STATUS §6 |
+| JC-3 | Fit to triage desk (**20**) | Named nurse does a real thing faster, at the desk, under queue pressure; *did you talk to one?* | Models the real five-step SATS desk process with an assumption-labelled throughput model; a loopback desk surface now ships ([`DEMO.md`](DEMO.md), [`DESK.md`](DESK.md)), while **no clinician interview available** remains a declared gap | PROJECT.md §3, §3.1; EVALS §7; STATUS §6 |
 | JC-4 | Evaluation & reliability (**15**) | Honest test set, not curated to pass; run-to-run variation measured or hidden | 16 cases incl. a declared failure; 3 runs/case; variation + latency + cost reported | ../EVALS.md |
 | JC-5 | Defensibility (**10**) | Priority survives a clinical-audit question; sourced, readable log; known cost per run | Deterministic SATS scorer + exact citations + hash-chained audit log + measured cost/run (tokens + wall-clock) | ../ARCHITECTURE.md §3, §6; ../EVALS.md §3.1 |
 | JC-6 | Demo (**5**) | Three clear minutes, including where it fails | Recorded run with a failure segment (33 s) | docs/DEMO.md |
@@ -98,7 +98,7 @@ risks** — items we cannot yet close, tracked honestly.
 | ID | Disqualifier (from brief) | Our structural safeguard | Status |
 | --- | --- | --- | --- |
 | DQ-1 | Chatbot wrapper with no autonomous tool use | Graph plans, calls acting tools, verifies, recovers; tools change state | ✅ |
-| DQ-2 | MCP server that proxies a single endpoint | Our server exposes 5 distinct tools with real logic; the borrowed server is external storage, not a proxy | ✅ |
+| DQ-2 | MCP server that proxies a single endpoint | Our server exposes seven distinct tools with real logic; the borrowed server is external storage, not a proxy | ✅ |
 | DQ-3 | Agent that diagnoses / prescribes / moves a patient without approval | No dx/rx tools; queue write gated on named approval | ✅ |
 | DQ-4 | A priority level with no source | `verify` node blocks any uncited priority; INV-1 asserts it | ✅ |
 | DQ-5 | Real patient health data without consent | Synthetic only; no real data | ✅ |
@@ -124,7 +124,7 @@ Not required by the brief, tracked because the agent touches a clinical queue. F
 
 | ID | Requirement | How we prepare | Artifact | Status |
 | --- | --- | --- | --- | --- |
-| ST-1 | 10-min code walkthrough + a **new requirement added live** while judges watch | Keep SATS rules in **YAML data files**, so adding a rule/level is a one-line edit; keep graph nodes small and named we can explain line-by-line | ../ARCHITECTURE.md §8, DECISIONS.md D14, ROADMAP.md | 🟡 ready by design; **rehearsal pending** — STATUS G6 |
+| ST-1 | 10-min code walkthrough + a **new requirement added live** while judges watch | Keep SATS rules in **YAML data files**, so adding a rule/level is a one-line edit; keep graph nodes small and named we can explain line-by-line | [`REVIEW.md`](REVIEW.md) (the guarded runbook), ../ARCHITECTURE.md §8, DECISIONS.md D14 | ✅ rehearsed — STATUS G6 resolved |
 
 ## 10. Traceability matrix (requirement → artifact)
 
@@ -158,7 +158,7 @@ Not required by the brief, tracked because the agent touches a clinical queue. F
 | G-8 | **Approver authentication deferred** (identity recorded only) | T-8 | Declared production requirement (`../SECURITY.md` §6) | **OPEN** (declared) |
 | G-9 | **Demo video not uploaded** (SB-4) | The one submission blocker | Upload `docs/assets/triagedesk-demo.mp4` to YouTube/Vimeo (Public) | **OPEN** — human |
 | G-10 | **README "one command" is two** (SB-3) | Open-source rigour | **Resolved:** `uv run triagedesk demo` is the literal one-liner (`uv run` auto-syncs); a test guards it (D11-09) | ✅ resolved |
-| G-11 | **No desk-facing UX surface / gate interaction** (JC-3, JC-6) | Fit-to-desk + demo | Human-readable card + real approve prompt + one-screen quickstart (STATUS §6) | **OPEN** |
+| G-11 | **Residual desk-UX gaps** (JC-3, JC-6) | Fit-to-desk + demo | Desk surface + real approve/edit/dismiss gate shipped (Phase 10, [`DESK.md`](DESK.md)); remaining: vitals-entry ergonomics, environment/accessibility, approver authn (STATUS §6) | 🟡 **partial** |
 
 > The full ranked analysis, UX considerations, and state-of-the-art gap assessment are in
 > [`../STATUS.md`](../STATUS.md).

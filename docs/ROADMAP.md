@@ -1,7 +1,8 @@
 # ROADMAP — TriageDesk (submission packaging)
 
 > **Phase-level execution plan (authoritative): [`../.planning/ROADMAP.md`](../.planning/ROADMAP.md)** — GSD,
-> 5 phases, 44 mapped requirements, in `.planning/`.
+> **v1.0 MVP** (Phases 1–5, 44 mapped requirements, shipped 2026-10-10) plus the additive **v1.1 — Score
+> Uplift** milestone (Phases 6–12, close 2026-10-13).
 > This file covers **submission packaging only** — what the challenge needs delivered and frozen. It
 > deliberately does **not** repeat the phase plan (DRY).
 
@@ -13,8 +14,12 @@
 | Midpoint Stress Test | **Phase 3** | Gate + audit + end-to-end run |
 | Final submission | **Phase 5** | Frozen repo + video + docs |
 
-Six days off the calendar (Oct 9 → Oct 15) map onto the five phases; the phase plan is the single
-source of truth for sequencing.
+The **v1.1 — Score Uplift** milestone (Phases 6–12) is additive over the frozen `v1.0-submission` tag:
+durable execution, span tracing + read-only replay, the coverage/deferral signal, retrieval grounding,
+the loopback desk surface, an honest eval re-run, and the live-review rehearsal + milestone-close docs.
+
+Six days off the calendar (Oct 9 → Oct 15) map onto the v1.0 phases; the phase plan in
+[`../.planning/ROADMAP.md`](../.planning/ROADMAP.md) is the single source of truth for sequencing.
 
 ## Demo storyboard (< 3 min, unedited)
 
