@@ -22,8 +22,10 @@ AVPU = Literal["alert", "voice", "pain", "unresponsive"]
 
 # The shared clarification for a scored vital that a note may give as a before/after pair
 # joined by an arrow (the serial-vitals presentation): the value that matters for the
-# current case is the AFTER one. Declared once here, applied to the scored vitals, so the
-# wording lives in one place (CONVENTIONS §1).
+# current case is the AFTER one. Declared once here and applied to EVERY scored numeric
+# vital — the set ``data/sats_tews.yaml`` defines and the serial-vitals recheck compares —
+# so the wording lives in one place (CONVENTIONS §1). A guard test asserts the described set
+# equals the substrate's scored numeric vitals, so the two cannot drift with any one fixture.
 _AFTER_VALUE_OF_A_SERIAL_READING = (
     "When the note gives a serial reading as a before/after pair joined by an arrow, "
     "this is the AFTER value — the patient's current reading."
@@ -66,7 +68,9 @@ class CaseInput(BaseModel):
         default=None, ge=0, le=400, description=_AFTER_VALUE_OF_A_SERIAL_READING
     )
     diastolic_bp: int | None = Field(default=None, ge=0, le=300)  # captured, not scored (§4.1)
-    temperature_c: float | None = Field(default=None, ge=20.0, le=45.0)  # rejects °F magnitudes
+    temperature_c: float | None = Field(
+        default=None, ge=20.0, le=45.0, description=_AFTER_VALUE_OF_A_SERIAL_READING
+    )  # rejects °F magnitudes
     spo2: int | None = Field(default=None, ge=0, le=100)  # captured, not scored (§4.1)
     mobility: Mobility | None = None
     avpu: AVPU | None = None
