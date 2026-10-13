@@ -75,11 +75,15 @@ submission gap (video upload), UX considerations, and state-of-the-art gaps — 
 
 ## Quickstart
 
-From a clean clone, two commands:
+From a clean clone, one command:
 
 ```bash
-uv sync --locked              # deterministic install from the committed uv.lock
-uv run triagedesk demo        # the whole demo, offline, on the bundled synthetic fixture
+# The whole demo, offline, on the bundled synthetic fixture. `uv run` syncs the locked
+# environment from the committed uv.lock before it runs — there is no separate install step.
+uv run triagedesk demo
+
+# The optional second command: serve the local desk surface (loopback only, no external request).
+uv run triagedesk desk
 ```
 
 The bare demo runs **offline by default** — it needs only `uv` and the locked dependencies (no model

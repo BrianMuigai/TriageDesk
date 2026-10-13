@@ -75,10 +75,16 @@ def test_description_is_about_300_words() -> None:
 
 
 def test_readme_has_the_one_command_quickstart() -> None:
-    """README.md carries the REAL one-command quickstart (D-06)."""
+    """README.md carries the REAL one-command quickstart (D-06, D11-09).
+
+    The quickstart is the literal ``uv run triagedesk demo`` — ``uv run`` syncs the project
+    environment from the committed ``uv.lock`` before it runs (``--no-sync`` opts out), so a
+    separate ``uv sync --locked`` install step is unnecessary and must not survive in the doc.
+    """
     text = _text(README)
-    assert "uv sync --locked" in text
     assert "uv run triagedesk demo" in text
+    # The two-step install is gone: `uv run` auto-syncs from the committed lock (D11-09).
+    assert "uv sync --locked" not in text
 
 
 def test_readme_has_no_stale_prebuild_status_rows() -> None:
