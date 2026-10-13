@@ -23,7 +23,8 @@ import re
 from pathlib import Path
 
 from triagedesk.core.rules import get_discriminators, get_tews
-from triagedesk.core.schema import CaseInput
+from triagedesk.core.schema import _AFTER_VALUE_OF_A_SERIAL_READING, CaseInput
+from triagedesk.core.scorer import case_field
 from triagedesk.evals.case import CaseSpec, load_cases
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -104,9 +105,37 @@ def test_age_years_description_is_general_not_tuned_to_a_fixture() -> None:
 
 # ---------------- 2b. the serial-vitals contract is general, at the same seam (E-07, D11-01)
 
-# The scored numeric vitals whose before/after presentation the model must resolve to the
-# current (AFTER) reading. Declared here so the guard names the same set the schema does.
-_SERIAL_SCORED_VITALS = ("respiratory_rate", "heart_rate", "systolic_bp")
+
+def _scored_numeric_vital_fields() -> set[str]:
+    """The schema fields of the scored NUMERIC vitals, derived from the loaded substrate.
+
+    A scored TEWS parameter whose bands are numeric (a range, not a discrete ``value``) is a vital
+    the scorer and the serial-vitals recheck both treat as scored, so a note may present it as a
+    before/after pair. The parameter key is bound to its schema field structurally through the ONE
+    binding (``core.scorer.case_field``), so the set follows the substrate and cannot drift with any
+    single fixture (CONVENTIONS §1). The categorical parameters (``mobility``/``avpu``/``trauma``)
+    carry a discrete ``value`` and are excluded.
+    """
+    return {
+        case_field(name)
+        for name, param in get_tews().parameters.items()
+        if all(band.value is None for band in param.bands)
+    }
+
+
+def _described_serial_vital_fields() -> set[str]:
+    """The schema fields whose description IS the shared serial-reading clarification.
+
+    Read from the live JSON schema the model receives — the same schema ``extract()`` sends as both
+    the prompt text and the ``format=`` grammar — so the guard follows the schema rather than a
+    hand-kept list (IN-04).
+    """
+    properties = CaseInput.model_json_schema()["properties"]
+    return {
+        field
+        for field, spec in properties.items()
+        if spec.get("description") == _AFTER_VALUE_OF_A_SERIAL_READING
+    }
 
 
 def _vital_description(field: str) -> str:
@@ -117,15 +146,16 @@ def _vital_description(field: str) -> str:
 def test_serial_vitals_carry_a_general_after_value_description() -> None:
     """Each scored vital states the serial-reading rule, quoting no fixture number (D11-01/02).
 
-    The before/after arrow presentation is resolved to the AFTER (current) value at the
-    extraction seam. The clarification is general: it names no fixture number and no SATS
-    value, so it applies to any serial note and is not tuned to E-07's fragment (D11-02).
+    The before/after arrow presentation is resolved to the AFTER (current) value at the extraction
+    seam. The clarification is general: it names no fixture number and no SATS value, so it applies
+    to any serial note and is not tuned to E-07's fragment (D11-02). The field set is derived from
+    the loaded substrate, never a hand-kept tuple (IN-04).
     """
     fixture_numbers: set[str] = set()
     for spec in load_cases(CASES_DIR):
         fixture_numbers |= _spec_numbers(spec)
 
-    for field in _SERIAL_SCORED_VITALS:
+    for field in _scored_numeric_vital_fields():
         description = _vital_description(field)
         assert description, f"{field} carries no serial-reading description"
         description_numbers = set(re.findall(r"\d+", description))
@@ -139,6 +169,23 @@ def test_serial_vitals_carry_a_general_after_value_description() -> None:
             assert disc_id not in description, (
                 f"the {field} description names the discriminator id {disc_id!r}"
             )
+
+
+def test_the_described_serial_vitals_equal_the_scored_numeric_vitals() -> None:
+    """The serial-reading description covers EXACTLY the scored numeric vitals (WR-01, IN-04).
+
+    Both sides are derived, never hand-listed: the described set from the live schema the model
+    receives, the scored set from the loaded TEWS substrate through the ONE parameter→field
+    binding. A scored vital added to the substrate without the clarification (the temperature
+    omission this closes) fails here, and a non-scored field carrying the clarification fails too.
+    """
+    scored = _scored_numeric_vital_fields()
+    described = _described_serial_vital_fields()
+    assert scored, "no scored numeric vitals were derived (the guard would be vacuous)"
+    assert described == scored, (
+        f"the serial-reading description set {sorted(described)} != the scored numeric vitals "
+        f"{sorted(scored)}"
+    )
 
 
 # -------------------- 3. E-07's note and golden case agree (D11-14, the one fixture repair)
