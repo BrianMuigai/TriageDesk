@@ -22,17 +22,18 @@ straightforward to encode. MTS is licensed (proprietary), which conflicts with a
 **Consequence:** adult SATS in scope; paediatric SATS de-scoped (see D6). Source: SATS Training Manual
 2012 (EMSSA), <https://emssa.org.za>.
 
-### D3 — Local open-weights model: qwen3.5:4b, RAM-constrained
-**Decision:** run the agent loop on the locally installed **`qwen3.5:4b`** (3.3 GB) via Ollama; a
-**smaller Qwen is the documented fallback** if Phase 1's RAM measurement shows the 4B cannot run within
-budget. Frontier models optional and never required to run. Extraction uses **structured JSON output**
-(`format=<schema>`), not native tool-calling.
+### D3 — Local open-weights model: qwen2.5:1.5b default, qwen3.5:4b fallback, RAM-constrained
+**Decision:** run the agent loop on a locally installed Qwen via Ollama. The Phase-1 model spike
+(`evidence/model-spike.json`) selected **`qwen2.5:1.5b`** as the **default** because with the 4B loaded
+available RAM fell to 641 MB (< 1024 MB budget); **`qwen3.5:4b`** (3.3 GB) remains the verified
+**fallback**. Frontier models optional and never required to run. Extraction uses **structured JSON
+output** (`format=<schema>`), not native tool-calling.
 **Why:** eligibility requires a full task on an open-weights model, and patient data must not leave the
-country; the 4B is already installed and gives better extraction than a 1.5B.
+country; both Qwens ran the path end-to-end, and the smaller one is the safe default on this host.
 **Constraint discovered:** the host has **~6.9 GB RAM total and as little as ~0.8 GB free** — the 4B
-needs ~3.3 GB, so the demo machine must free memory; the fallback keeps the demo runnable otherwise.
+needs ~3.3 GB, so it cannot be the default here; the fallback keeps the demo runnable.
 **Consequence:** possible latency/swap pressure (documented in `REQUIREMENTS.md` G-2); measured in
-Phase 1 and recorded honestly. Record the `qwen3.5:4b` licence in the NOTICE.
+Phase 1 and recorded honestly. Both `qwen2.5:1.5b` and `qwen3.5:4b` licences are recorded in the NOTICE.
 
 ### D4 — LangGraph for orchestration
 **Decision:** LangGraph.
@@ -308,6 +309,7 @@ behaviour and no dependency changed.
 | LangGraph | LangChain (open source) | MIT |
 | MCP client adapter | `langchain.mcp` namespace | current; replaces archived `langchain-mcp-adapters` |
 | Ollama | Ollama (open source) | MIT; runtime only |
-| qwen3.5:4b | Alibaba (open weights) | record licence in NOTICE; installed locally |
+| qwen2.5:1.5b | Alibaba (open weights) | selected default (D-01/D-03); Apache-2.0; licence in NOTICE |
+| qwen3.5:4b | Alibaba (open weights) | verified fallback; Apache-2.0; licence in NOTICE |
 | SQLite MCP server | maintained community (`jparkerweb/mcp-sqlite` / `rusq/mcp-sqlite`) | official reference server is archived |
 | SATS manual | EMSSA | clinical content; cited, not redistributed wholesale |
