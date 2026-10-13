@@ -459,20 +459,16 @@ async def run_eval(
     if case_filter is not None:
         cases = [case for case in cases if case.id == case_filter]
 
-    resolved_store = store if store is not None else InMemoryStore()
     factory = tool_factory if tool_factory is not None else _default_tool_factory
     mode: Mode = "offline" if offline else "real"
 
-    server_module.set_store(resolved_store)
-    try:
+    async with server_module.store_seam(store, default=InMemoryStore) as resolved_store:
         report_cases = [
             await _run_case(
                 case, runs=runs, offline=offline, factory=factory, store=resolved_store
             )
             for case in cases
         ]
-    finally:
-        server_module.set_store(None)
 
     aggregate_invariants = {
         invariant_id: all(

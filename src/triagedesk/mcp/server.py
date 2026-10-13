@@ -21,7 +21,8 @@ from __future__ import annotations
 
 import functools
 import inspect
-from collections.abc import Callable, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
+from contextlib import asynccontextmanager
 from typing import Any
 
 from mcp.server import MCPServer
@@ -76,6 +77,38 @@ async def resolve_store() -> Store:
     if _store is not None:
         return _store
     return await default_store()
+
+
+@asynccontextmanager
+async def store_seam(
+    store: Store | None = None,
+    *,
+    default: Callable[[], Store] | None = None,
+) -> AsyncIterator[Store]:
+    """Install the store seam for the duration of one block — the ONE install path (D-13).
+
+    The single place the seam is *held*: it resolves the store once — the injected
+    ``store`` when given, else a caller's offline ``default`` factory, else the ONE
+    resolver :func:`resolve_store` (the borrowed default) — installs it through
+    :func:`set_store`, yields that SAME instance so the caller reads what it installed,
+    and always clears the seam to ``None`` in a ``finally``.
+
+    The restore always resets to ``None`` (never a saved prior store): an offline run
+    installs an in-memory double that must never leak into a later call, so the seam's
+    post-condition is the borrowed default, exactly as :func:`set_store`'s contract
+    states. Callers therefore never repeat the resolve/install/restore ceremony.
+    """
+    if store is not None:
+        resolved = store
+    elif default is not None:
+        resolved = default()
+    else:
+        resolved = await resolve_store()
+    set_store(resolved)
+    try:
+        yield resolved
+    finally:
+        set_store(None)
 
 
 def _jsonable(value: Any) -> Any:

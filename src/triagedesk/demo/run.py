@@ -7,9 +7,9 @@ every owned tool call is printed (name + inputs -> outputs) so the tool path is 
 on screen (D-07), the run pauses at the approval gate, and the gated commit is shown
 REFUSING without a named nurse.
 
-Like ``evals.runner.run_eval``, the runner injects the in-memory store into the owned
-server's seam (``mcp.server.set_store``, restored in a ``finally``), so the offline path
-launches no borrowed ``npx mcp-sqlite`` subprocess (D-01, T-05-10). No value is
+Like ``evals.runner.run_eval``, the runner installs the store through the ONE seam context
+manager (``mcp.server.store_seam``), which restores the borrowed default on exit, so the
+offline path launches no borrowed ``npx mcp-sqlite`` subprocess (D-01, T-05-10). No value is
 hard-coded: every printed colour, citation and tool name is returned by the real graph
 (T-05-01). This is packaging, not new capability — no scoring logic lives here.
 """
@@ -215,15 +215,13 @@ async def _run_durable(
     beat = selected[0]
     case = cases[beat.case]
     resume_db = Path(db_path) if db_path is not None else CHECKPOINTS_DB_PATH
-    # ``--durable`` resolves its store through the ONE seam (``mcp.server.resolve_store``),
-    # so an already-injected store is honoured and the default falls through to the borrowed
-    # factory only when nothing is injected — the queue row still survives the restart
-    # (D6-14, D-13, SOLID: D). A test injects the in-memory double so no borrowed
-    # subprocess is launched; a second resolver here would be a duplicate seam.
-    resolved_store = store if store is not None else await server_module.resolve_store()
+    # ``--durable`` installs its store through the ONE seam context manager
+    # (``mcp.server.store_seam``): with nothing injected it resolves the borrowed default
+    # through the ONE resolver, so the queue row still survives the restart (D6-14, D-13,
+    # SOLID: D). A test injects the in-memory double so no borrowed subprocess is launched;
+    # a second resolver here would be a duplicate seam.
     tools = build_tools(case, offline=offline, recorder=UsageRecorder())
-    server_module.set_store(resolved_store)
-    try:
+    async with server_module.store_seam(store):
         paused = await run_to_gate(
             _traced_tools(tools, _print_tool_call),
             raw_note=case.note,
@@ -231,8 +229,6 @@ async def _run_durable(
             db_path=resume_db,
             previous_case=case.previous_case,
         )
-    finally:
-        server_module.set_store(None)
 
     if paused.existed:
         print(
@@ -276,9 +272,10 @@ async def run_demo(
     ``store`` injects the store the gated commit resolves (default: a fresh in-memory
     store, so no borrowed subprocess is launched) — the ONE seam the demo regression test
     uses (SOLID: D). ``offline`` defaults to True, so the bare ``uv run triagedesk demo``
-    runs from a clean clone with no model pulled (D-01). The store is injected through
-    ``mcp.server.set_store`` and restored in a ``finally``, so the offline path never
-    falls through to the borrowed ``npx mcp-sqlite`` subprocess (T-05-10).
+    runs from a clean clone with no model pulled (D-01). The store is installed through the
+    ONE seam context manager (``mcp.server.store_seam``), which restores the borrowed default
+    on exit, so the offline path never falls through to the borrowed ``npx mcp-sqlite``
+    subprocess (T-05-10).
 
     ``durable`` swaps the in-memory saver for ``checkpointed_graph`` over *db_path*
     (``checkpoints.db`` by default) and runs exactly ONE beat to the gate, printing the
@@ -296,9 +293,7 @@ async def run_demo(
         return await _run_durable(
             selected, cases, offline=offline, store=store, db_path=db_path
         )
-    resolved_store = store if store is not None else InMemoryStore()
-    server_module.set_store(resolved_store)
-    try:
+    async with server_module.store_seam(store, default=InMemoryStore) as resolved_store:
         for index, beat in enumerate(selected, start=1):
             await _run_beat(
                 beat,
@@ -308,8 +303,6 @@ async def run_demo(
                 total=len(selected),
                 store=resolved_store,
             )
-    finally:
-        server_module.set_store(None)
     return 0
 
 
