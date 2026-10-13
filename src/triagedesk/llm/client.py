@@ -29,15 +29,16 @@ from triagedesk.observability import span
 UsageSink = Callable[[int, int], None]
 
 # Model tags are config values here: a model swap is a config change behind this
-# wrapper (SOLID: D). The Phase-1 spike measures RAM/latency for both and selects
+# wrapper (SOLID: D). The Phase-1 spike measured RAM/latency for both and selected
 # the default; the outcome is recorded in evidence/model-spike.json (D-01).
-PRIMARY_MODEL = "qwen3.5:4b"
-FALLBACK_MODEL = "qwen2.5:1.5b"
+BIG_MODEL = "qwen3.5:4b"  # the larger, aspirational alternative (docs' "verified fallback")
+SMALL_MODEL = "qwen2.5:1.5b"
 
 # Selected default, decided by the Phase-1 model spike on measured evidence
-# (evidence/model-spike.json): with qwen3.5:4b loaded, available RAM fell to
-# 587 MB (< 1024 MB budget), so the smaller Qwen is the safe default.
-DEFAULT_MODEL = FALLBACK_MODEL
+# (evidence/model-spike.json): with the 4B (qwen3.5:4b) loaded, available RAM fell
+# to 641 MB (< 1024 MB budget), so the smaller Qwen (qwen2.5:1.5b) is the safe
+# default. The 4B is the aspirational alternative / verified fallback (DECISIONS D3).
+DEFAULT_MODEL = SMALL_MODEL
 
 # `think=False` is MANDATORY: qwen3.5:4b is a reasoning model and without it the
 # constrained JSON is emitted into the thinking channel and `response` is empty

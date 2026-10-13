@@ -1,10 +1,10 @@
 """Model-fit spike — the D-07 evidence that retires Day-1 unknown (a) (D-01).
 
-Measures RAM and latency for the primary model (``qwen3.5:4b``) and runs the
+Measures RAM and latency for the larger model (``qwen3.5:4b``) and runs the
 schema-constrained extraction round-trip through ``llm/client.py`` on a fixed
 synthetic note. It then runs the **identical** path end-to-end on the
-smaller-Qwen fallback **unconditionally**, so Roadmap SC3 is satisfied on
-evidence regardless of the budget gate's outcome. The gate then decides which
+smaller model (``qwen2.5:1.5b``) **unconditionally**, so Roadmap SC3 is satisfied
+on evidence regardless of the budget gate's outcome. The gate then decides which
 model is the *default*.
 
 Writes the full record to ``evidence/model-spike.json``.
@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 
 from triagedesk.core.schema import ExtractionResult
-from triagedesk.llm.client import FALLBACK_MODEL, PRIMARY_MODEL, extract
+from triagedesk.llm.client import BIG_MODEL, SMALL_MODEL, extract
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE_PATH = REPO_ROOT / "evidence" / "model-spike.json"
@@ -30,7 +30,7 @@ EVIDENCE_PATH = REPO_ROOT / "evidence" / "model-spike.json"
 # Fixed synthetic note — synthetic data only (T-01-01-05). Same note the tracer uses.
 NOTE = "RR 24, HR 118, BP 108/70, temp 38.9, alert, coughing and fast breathing"
 
-# Budget gate (Pitfall 2): if available RAM with the primary model loaded falls
+# Budget gate (Pitfall 2): if available RAM with the larger model loaded falls
 # below this, the smaller Qwen becomes the default.
 MIN_AVAILABLE_MB = 1024
 
@@ -106,38 +106,40 @@ def _measure(model: str) -> dict:
 
 
 def main() -> int:
-    _ensure_model(PRIMARY_MODEL)
-    _ensure_model(FALLBACK_MODEL)
+    _ensure_model(BIG_MODEL)
+    _ensure_model(SMALL_MODEL)
 
-    primary = _measure(PRIMARY_MODEL)
-    fallback = _measure(FALLBACK_MODEL)
-    fallback["ran_end_to_end"] = True
+    big = _measure(BIG_MODEL)
+    small = _measure(SMALL_MODEL)
+    small["ran_end_to_end"] = True
 
-    # Budget gate: only the *default* depends on it; the fallback was run either way.
-    primary_within_budget = primary["ram_after"]["available_mb"] >= MIN_AVAILABLE_MB
-    if primary_within_budget:
-        selected = PRIMARY_MODEL
+    # Budget gate: only the *default* depends on it; the smaller model was run either way.
+    big_within_budget = big["ram_after"]["available_mb"] >= MIN_AVAILABLE_MB
+    if big_within_budget:
+        selected = BIG_MODEL
         rationale = (
-            f"{PRIMARY_MODEL} selected: available RAM with the model loaded was "
-            f"{primary['ram_after']['available_mb']} MB (>= {MIN_AVAILABLE_MB} MB budget) "
-            f"and the round-trip returned valid JSON (warm {primary['warm_latency_s']} s). "
-            f"{FALLBACK_MODEL} is the verified fallback (run end-to-end)."
+            f"{BIG_MODEL} selected: available RAM with the model loaded was "
+            f"{big['ram_after']['available_mb']} MB (>= {MIN_AVAILABLE_MB} MB budget) "
+            f"and the round-trip returned valid JSON (warm {big['warm_latency_s']} s). "
+            f"{SMALL_MODEL} is the safe smaller default (run end-to-end)."
         )
     else:
-        selected = FALLBACK_MODEL
+        selected = SMALL_MODEL
         rationale = (
-            f"{FALLBACK_MODEL} selected: available RAM with {PRIMARY_MODEL} loaded fell to "
-            f"{primary['ram_after']['available_mb']} MB (< {MIN_AVAILABLE_MB} MB budget), so the "
+            f"{SMALL_MODEL} selected: available RAM with {BIG_MODEL} loaded fell to "
+            f"{big['ram_after']['available_mb']} MB (< {MIN_AVAILABLE_MB} MB budget), so the "
             f"smaller Qwen is the safe default. Both models ran the path end-to-end."
         )
 
-    selected_record = primary if selected == PRIMARY_MODEL else fallback
+    selected_record = big if selected == BIG_MODEL else small
     evidence = {
         "measured_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "note": NOTE,
         "min_available_mb_budget": MIN_AVAILABLE_MB,
-        "primary": primary,
-        "fallback": fallback,
+        # Evidence-schema keys kept as-is: "primary" = the larger candidate (qwen3.5:4b),
+        # "fallback" = the smaller candidate (qwen2.5:1.5b).
+        "primary": big,
+        "fallback": small,
         "selected_model": selected,
         "selection_rationale": rationale,
         # Top-level mirrors the SELECTED model so the evidence is unambiguous.
