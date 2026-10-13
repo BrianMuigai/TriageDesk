@@ -53,7 +53,7 @@ hard submission gap** (the demo video is recorded but **not uploaded**) and **on
 | Agentic depth & MCP craft | 30 | **27–30** | Strong. Borrowed-server tools under-exercised (G7) |
 | Open-source rigour | 20 | **18–20** | Honest README; one-command quickstart (G3 resolved) |
 | **Fit to the triage desk** | 20 | **7–12** | **No clinician interview** (G2) + **no desk surface** + 13–17 s latency (U1/U3) |
-| Evaluation & reliability | 15 | **13–15** | Honest & measured; 4 failures + a metrics-consistency question (G4) |
+| Evaluation & reliability | 15 | **13–15** | Honest & measured; 2 recorded gate failures + 1 declared deferral + 3 coverage deferrals (G4) |
 | Defensibility | 10 | **9–10** | Deterministic, cited, hash-chained audit, cost/run — strong |
 | Demo | 5 | **3–5** | Recorded, failure shown — but 33 s and not hosted (G1/G5) |
 
