@@ -48,4 +48,4 @@ Unedited screen recording, **tool calls on screen, no slides**; uploaded publicl
   post-deadline commit disqualifies. Audit the remote for any post-freeze commit.
 - Repositories are cloned at the deadline; there are no exceptions.
 
-For risks and their mitigations, see [`REQUIREMENTS.md`](REQUIREMENTS.md) §10.
+For risks and their mitigations, see [`REQUIREMENTS.md`](REQUIREMENTS.md) §11.
