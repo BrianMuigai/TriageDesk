@@ -19,6 +19,7 @@ Offline and deterministic (the local model is never called). Six behaviours:
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 from types import ModuleType
 
@@ -36,6 +37,7 @@ from triagedesk.evals.report import (
     Report,
     ReportCase,
     RiskCoveragePoint,
+    _digest_payload,
     build_provenance,
     compute_report_digest,
 )
@@ -581,6 +583,33 @@ def test_a_report_with_the_provenance_block_constructs_and_seals() -> None:
     sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
 
     assert sealed.provenance.extraction_schema_hash == _PROVENANCE.extraction_schema_hash
+    assert compute_report_digest(sealed) == sealed.report_digest
+
+
+def test_a_report_written_before_the_provenance_field_still_validates() -> None:
+    """A report written BEFORE ``extraction_schema_hash`` existed still validates (T-11-03, IN-03).
+
+    ``Provenance.extraction_schema_hash`` defaults to the empty string and ``_digest_payload``
+    dumps the provenance with ``exclude_defaults=True``, so an older report's ``report_digest``
+    recomputes and it is left untouched until a re-run regenerates it. That property depends on a
+    subtle mechanism and is otherwise untested: a future change to ``exclude_defaults`` (or a new
+    defaulted field the pipeline does not always supply) would silently unseal every old report.
+    """
+    report = _report([_report_case("A", "GREEN", ["GREEN"] * 3)])
+    # Simulate the on-disk report written BEFORE the field existed: its JSON has no
+    # ``extraction_schema_hash`` key at all, so it validates to the empty default.
+    payload = json.loads(report.model_dump_json())
+    payload["provenance"].pop("extraction_schema_hash", None)
+    legacy = Report.model_validate(payload)
+    assert legacy.provenance.extraction_schema_hash == ""
+
+    # The defaulted field is omitted from the sealed payload (so an old digest stays valid)...
+    assert "extraction_schema_hash" not in _digest_payload(legacy)["provenance"]
+    # ...while a report the pipeline produced supplies a real hash, which IS sealed.
+    assert "extraction_schema_hash" in _digest_payload(report)["provenance"]
+
+    # The legacy report's digest recomputes through the ONE sealing path (it is left untouched).
+    sealed = legacy.model_copy(update={"report_digest": compute_report_digest(legacy)})
     assert compute_report_digest(sealed) == sealed.report_digest
 
 
