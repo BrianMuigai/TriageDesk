@@ -166,10 +166,43 @@ def test_the_chosen_alias_is_absent_from_every_published_case() -> None:
         )
 
 
-def test_the_extension_never_touches_src() -> None:
-    """The demonstration edits no source file — ``git status --porcelain -- src/`` is empty."""
+def _src_status() -> tuple[int, bytes]:
+    """The ``git status --porcelain -- src/`` return code and output (the ONE fingerprint).
+
+    The return code is paired with the output so a FAILED ``git`` call (empty stdout) cannot be
+    mistaken for a clean tree — the vacuous-pass failure mode IN-02 named.
+    """
     result = subprocess.run(
         ["git", "status", "--porcelain", "--", "src/"],
         capture_output=True,
     )
-    assert result.stdout == b"", f"src/ is not byte-unchanged: {result.stdout!r}"
+    return result.returncode, result.stdout
+
+
+def test_the_extension_never_touches_src(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The demonstration edits no source file (IN-02).
+
+    ``src/``'s working-tree status is byte-identical BEFORE and AFTER the demonstration harness
+    (which writes only under ``tmp_path``), so the check is scoped to the demonstration: an
+    unrelated ``src/`` edit already present in the tree does not fail it. The ``git`` return code
+    is asserted first, so a failed invocation cannot pass vacuously.
+    """
+    code_before, status_before = _src_status()
+    assert code_before == 0, "git status failed; the src/ check would be vacuous"
+
+    # Exercise the demonstration harness end to end (the same path the sibling tests drive).
+    phrase = ADDITION["aliases"][0]
+    _redirect_loader_to_extended_substrate(tmp_path, monkeypatch)
+    try:
+        after = match_discriminators(phrase)
+        assert after.matched_ids == [ADDITION["id"]], "the harness did not exercise the loader"
+    finally:
+        rules.get_discriminators.cache_clear()
+
+    code_after, status_after = _src_status()
+    assert code_after == 0, "git status failed; the src/ check would be vacuous"
+    assert status_after == status_before, (
+        f"the demonstration changed src/: {status_before!r} -> {status_after!r}"
+    )
