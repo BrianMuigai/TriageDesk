@@ -42,6 +42,8 @@ from triagedesk.evals.report import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GENERATOR_PATH = REPO_ROOT / "scripts" / "emit_evals.py"
+REPORT_PATH = REPO_ROOT / "evals" / "results" / "report.json"
+EVALS_PATH = REPO_ROOT / "EVALS.md"
 
 _ALL_INVARIANTS = {"INV-1": True, "INV-2": True, "INV-3": True, "INV-4": True}
 
@@ -93,6 +95,9 @@ _TEMPLATE = """# EVALS — test fixture
 | --- | --- | --- | --- | --- | --- | --- |
 | E-01 | Routine | input | **GREEN** | criteria | TBD | ⛔ |
 | E-09 | Vague | input | **ORANGE (expected)** | expected to fail | TBD | ⛔ |
+| D-1 | Deferral | input | **GREEN** | criteria | TBD | ⛔ |
+| D-2 | Delivered | input | **GREEN** | criteria | TBD | ⛔ |
+| H-9 | Held-out | input | **ORANGE** | criteria | TBD | ⛔ |
 
 ## 5. Safety invariant checks (every case, every run)
 
@@ -562,3 +567,47 @@ def test_a_report_with_the_provenance_block_constructs_and_seals() -> None:
 
     assert sealed.provenance.extraction_schema_hash == _PROVENANCE.extraction_schema_hash
     assert compute_report_digest(sealed) == sealed.report_digest
+
+
+# --------------------------- 9. the §4 row set reconciles with the report (D11-06, DOCS-05)
+
+
+def _section_4_row_ids(lines: list[str]) -> set[str]:
+    """The §4 row ids, read through the generator's OWN helpers (never re-implemented).
+
+    Reusing ``_find_table``/``_table_end``/``_split_row`` means this guard cannot drift from
+    the renderer's notion of the §4 table (DRY, D11-06).
+    """
+    start = _EMIT._find_table(lines, ["#", "Case"])
+    assert start is not None, "EVALS.md is missing the §4 case table"
+    end = _EMIT._table_end(lines, start)
+    return {
+        _EMIT._split_row(line)[0]
+        for line in lines[start + 2 : end]
+        if line.strip().startswith("|")
+    }
+
+
+def test_case_table_guard_raises_when_a_report_case_has_no_row() -> None:
+    """The §4 row-set guard fails closed for a report case with no §4 row (D11-06, T-11-06).
+
+    A newly-measured case (e.g. a held-out H-01/H-02) that has no §4 row must stop the
+    generator, so the 14-vs-16 drift cannot silently return.
+    """
+    report = _report([_report_case("E-42", "GREEN", ["GREEN"] * 3)])
+    with pytest.raises(ValueError, match="E-42"):
+        _EMIT._assert_case_table_covers_report(_TEMPLATE.splitlines(), report)
+
+
+def test_committed_section_4_rows_equal_the_report_case_set() -> None:
+    """The committed §4 row-id set equals the committed report's case-id set (D11-06).
+
+    The report is the sole source (CONVENTIONS §1): the row count is the report's own case
+    count, so §3's "16/16" and §4's rows can never disagree.
+    """
+    report = Report.model_validate_json(REPORT_PATH.read_text(encoding="utf-8"))
+    lines = EVALS_PATH.read_text(encoding="utf-8").splitlines()
+    row_ids = _section_4_row_ids(lines)
+
+    assert row_ids == {case.case_id for case in report.cases}, "§4 rows and the report disagree"
+    assert len(row_ids) == len(report.cases)

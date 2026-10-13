@@ -200,6 +200,34 @@ def _render_case_table(lines: list[str], report: Report) -> list[str]:
     return lines[:start] + rows + lines[end:]
 
 
+def _assert_case_table_covers_report(lines: list[str], report: Report) -> None:
+    """Refuse to publish when a report case has no §4 row (D11-06, T-11-06).
+
+    The §4 case table is hand-authored narrative; :func:`_render_case_table` only fills the
+    result cells of rows already present, so nothing forces a newly-measured case (e.g. a
+    held-out H-01/H-02) to have a row — the row set could silently drift short of the
+    report's own case set (the real 14-vs-16 drift this guard closes). It fails closed — a
+    ``ValueError`` naming every report case id with no row, the same posture as
+    :func:`validate_report` — so ``--check``/``--write`` exit non-zero and a case can never be
+    published unlisted.
+    """
+    start = _find_table(lines, ["#", "Case"])
+    if start is None:
+        raise ValueError("EVALS.md is missing the §4 case table; refusing to publish")
+    end = _table_end(lines, start)
+    row_ids = {
+        _split_row(line)[0]
+        for line in lines[start + 2 : end]
+        if line.strip().startswith("|")
+    }
+    missing = {case.case_id for case in report.cases} - row_ids
+    if missing:
+        raise ValueError(
+            f"EVALS.md §4 is missing rows for report cases: {sorted(missing)} "
+            "(every measured case must be listed; D11-06)"
+        )
+
+
 def _render_invariant_table(lines: list[str], report: Report) -> list[str]:
     """Fill the §5 invariant ``Result`` cells from the report's aggregate verdicts."""
     start = _find_table(lines, ["Invariant", "Check"])
@@ -286,6 +314,7 @@ def render_evals(template: str, report: Report) -> str:
     lines = _render_metrics_table(lines, report, analysis)
     lines = _render_source_block(lines, report)
     lines = _render_case_table(lines, report)
+    _assert_case_table_covers_report(lines, report)
     lines = _render_invariant_table(lines, report)
     lines = _render_deferral_block(lines, report, analysis)
     return "\n".join(lines) + "\n"
