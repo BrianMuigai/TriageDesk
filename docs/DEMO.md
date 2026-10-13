@@ -271,7 +271,10 @@ instead of rendering a fresh gate.
 | Edge — deferred | E-09 | No discriminator matched → the loud banner + a **read-only** card (`Not confirmed and not queued`). **No gate**. |
 | Edge — escalation | E-06 | An out-of-scope (paediatric) case → `escalated for human review — no priority was committed`. **No gate**. |
 
-The recording is **captioned on screen** (it has no audio track). Duration 2:48.
+The recording is **captioned on screen** — it carries no audio track, so the narration *is* the
+on-screen line, and the pacing is deliberately human: the vitals are typed character by character, the
+page scrolls with momentum rather than jumping, and the pointer and its clicks are visible. The happy
+path is recorded at a careful pace; the edge beats move at a practiced-nurse pace. Duration 2:53.
 
 > **Note — a defect this recording surfaced.** Driving the real page (not the request-level tests, which
 > POST directly) exposed that the gate's `submit` handler disabled **the submitting button** before the
