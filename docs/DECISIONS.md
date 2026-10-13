@@ -258,8 +258,9 @@ never in the scorer. (a) **E-04** — the emergency-discriminator case — is fi
 `Field(description=…)`** on `CaseInput.age_years`: the model intermittently dropped the stated age,
 and a null age short-circuits to the fail-closed `ABSTAIN`, so the honesty lever is the **contract
 the model is asked to fill**, not prose engineering of the prompt. The same seam carries a general
-`Field(description=…)` on the scored vitals (`respiratory_rate`, `heart_rate`, `systolic_bp`) that
-resolves a serial `before -> after` reading to the AFTER (current) value. Both descriptions are
+`Field(description=…)` on **every scored numeric vital** — the set `data/sats_tews.yaml` defines and
+the serial-vitals recheck compares, bound to its schema field structurally rather than hand-listed —
+that resolves a serial `before -> after` reading to the AFTER (current) value. Both descriptions are
 general (no fixture number, no fixture wording, no SATS value) and the extraction schema is sealed
 into the report provenance as `extraction_schema_hash`, so a contract change cannot leave the
 published provenance stale. (b) **E-07** — the deterioration-recheck case — is a
