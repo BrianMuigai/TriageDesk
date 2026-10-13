@@ -27,7 +27,7 @@ from pydantic import BaseModel
 
 from triagedesk.durable import approval_decision, invoke_graph, run_to_gate
 from triagedesk.evals.case import CaseSpec, load_cases
-from triagedesk.evals.runner import _capture
+from triagedesk.evals.outcome import capture_outcome
 from triagedesk.evals.tools import ToolMap, build_tools
 from triagedesk.evals.usage import UsageRecorder
 from triagedesk.graph.build import CHECKPOINTS_DB_PATH, build_graph, in_memory_checkpointer
@@ -131,7 +131,7 @@ def _print_outcome(
     case: CaseSpec, payload: dict[str, Any] | None, result: Any, *, rows_added: int
 ) -> None:
     """Print the beat's sourced outcome — every value read from the graph (T-05-01)."""
-    captured = _capture(result, payload)
+    captured = capture_outcome(result, payload)
     priority = result.get("priority")
     if payload is not None:
         target = payload.get("target")
