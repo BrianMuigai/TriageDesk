@@ -10,11 +10,14 @@
 > (`docs/assets/triagedesk-demo.mp4`) but is **not yet uploaded**; paste the public URL into the
 > submission form once it is.
 >
-> Record against the **frozen submission tag `v1.0-submission`** — the commit the freeze protocol in
-> [`ROADMAP.md`](ROADMAP.md) creates (tagged in plan 05-03). The canonical storyboard is the table
-> in [`ROADMAP.md`](ROADMAP.md) → *Demo storyboard*; this runbook maps those timing bands to exact
-> commands and expected output and does **not** restate the storyboard (DRY — it links to the single
-> source).
+> **Record against the v1.1 state (this commit), not the frozen `v1.0-submission` tag.** The
+> Durable-mode and desk sections below document v1.1-only behaviour — `--durable`/`resume`/`replay`,
+> `desk`, and the `no_match` **deferral** — none of which exists at `v1.0-submission`, whose CLI
+> exposes only `eval` and `demo`. The frozen tag remains the reference for the **freeze protocol**
+> ([`ROADMAP.md`](ROADMAP.md) §Freeze), not for this runbook's commands. The canonical storyboard is
+> the table in [`ROADMAP.md`](ROADMAP.md) → *Demo storyboard*; this runbook maps those timing bands to
+> exact commands and expected output and does **not** restate the storyboard (DRY — it links to the
+> single source).
 
 ## One-time setup (from a clean clone)
 
