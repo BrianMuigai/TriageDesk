@@ -8,7 +8,7 @@
 > Organisers: Nairobi AI Community / Qhala Trust
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Status: frozen submission](https://img.shields.io/badge/status-v1.0--submission-blue.svg)](#project-status)
+[![Status: v1.1 milestone close](https://img.shields.io/badge/status-v1.1--milestone-close-blue.svg)](#project-status)
 
 ---
 
@@ -54,6 +54,11 @@ case card in the queue is gated behind a named human approver.
 run offline. This README states what works and what is unfinished; the **measured** results — including
 a failure we did not fix — live in [`EVALS.md`](EVALS.md), generated from `evals/results/report.json`.
 
+**v1.1 milestone close (additive).** The v1.1 line adds durable approve/resume over `checkpoints.db`, a
+`no_match` deferral banner with audit-trail retrieval grounding, and a loopback desk surface
+([`docs/DESK.md`](docs/DESK.md)). It extends the frozen v1.0 build at published seams and changes no
+v1.0 behaviour.
+
 | Area | State |
 | --- | --- |
 | Problem framing & scope | ✅ Documented → [`docs/PROJECT.md`](docs/PROJECT.md) |
@@ -70,9 +75,13 @@ a failure we did not fix — live in [`EVALS.md`](EVALS.md), generated from `eva
 **What is unfinished.** The measured run records honest misses, not a green sweep: the declared failure
 **E-09** (a vague complaint's discriminator is not retrieved — deferred, not under-triaged) is shown, not
 hidden, and the other misses are recorded in
-[`EVALS.md`](EVALS.md) §4–§6. Clinician validation remains a declared gap ([`EVALS.md`](EVALS.md) §7).
-[`EVALS.md`](EVALS.md) is the single source for every number. A full honest gap analysis — the one
-submission gap (video upload), UX considerations, and state-of-the-art gaps — is in [`STATUS.md`](STATUS.md).
+[`EVALS.md`](EVALS.md) §4–§6. **No** triage nurse/clinician review was obtained as of 2026-10-13, so the
+fit-to-desk claim is scoped to what was built and measured; if a review is arranged, an attributed quote
+(name/role/date, with consent) will be added to [`EVALS.md`](EVALS.md) §7 — nothing is claimed until it
+is. The demo video is **recorded but not yet uploaded** — the one submission blocker
+([`docs/DEMO.md`](docs/DEMO.md)). [`EVALS.md`](EVALS.md) is the single source for every number. A full
+honest gap analysis — the video upload, UX considerations, and state-of-the-art gaps — is in
+[`STATUS.md`](STATUS.md).
 
 ## Quickstart
 
