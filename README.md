@@ -127,6 +127,8 @@ triagedesk/
 │   ├── CONVENTIONS.md     DRY + SOLID engineering standard
 │   ├── SATS.md            SATS domain model
 │   ├── DEMO.md            demo runbook
+│   ├── DESK.md            loopback desk-surface quickstart
+│   ├── REVIEW.md          live-review (Stage 2) rehearsal runbook
 │   └── assets/            architecture diagram, demo tape + video
 ├── data/                  SATS rules (the single source of thresholds)
 ├── evals/                 case fixtures + the measured report.json
