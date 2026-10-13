@@ -201,15 +201,20 @@ def _render_case_table(lines: list[str], report: Report) -> list[str]:
 
 
 def _assert_case_table_covers_report(lines: list[str], report: Report) -> None:
-    """Refuse to publish when a report case has no §4 row (D11-06, T-11-06).
+    """Refuse to publish unless the §4 row set EQUALS the report's case set (D11-06, T-11-06).
 
     The §4 case table is hand-authored narrative; :func:`_render_case_table` only fills the
-    result cells of rows already present, so nothing forces a newly-measured case (e.g. a
-    held-out H-01/H-02) to have a row — the row set could silently drift short of the
-    report's own case set (the real 14-vs-16 drift this guard closes). It fails closed — a
-    ``ValueError`` naming every report case id with no row, the same posture as
-    :func:`validate_report` — so ``--check``/``--write`` exit non-zero and a case can never be
-    published unlisted.
+    result cells of rows already present, so nothing forces the two sets to agree. The guard is
+    therefore **bidirectional**, and fails closed in both directions (a ``ValueError`` naming the
+    offending ids, the same posture as :func:`validate_report`):
+
+    * a report case with no §4 row — a newly-measured case (e.g. a held-out H-01/H-02) would be
+      published unlisted (the real 14-vs-16 drift this guard closes);
+    * a §4 row with no report case — a stale row (e.g. a case removed from ``evals/cases/`` while
+      its hand-authored row remains) would keep its previous ``Runs``/``Result`` cells and pass
+      ``--check`` (WR-02).
+
+    Enforcing set equality means neither drift can reach the published document.
     """
     start = _find_table(lines, ["#", "Case"])
     if start is None:
@@ -220,11 +225,18 @@ def _assert_case_table_covers_report(lines: list[str], report: Report) -> None:
         for line in lines[start + 2 : end]
         if line.strip().startswith("|")
     }
-    missing = {case.case_id for case in report.cases} - row_ids
+    report_ids = {case.case_id for case in report.cases}
+    missing = report_ids - row_ids
     if missing:
         raise ValueError(
             f"EVALS.md §4 is missing rows for report cases: {sorted(missing)} "
             "(every measured case must be listed; D11-06)"
+        )
+    extra = row_ids - report_ids
+    if extra:
+        raise ValueError(
+            f"EVALS.md §4 has rows for cases not in the report: {sorted(extra)} "
+            "(a stale row must not be published; D11-06)"
         )
 
 

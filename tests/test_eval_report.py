@@ -71,8 +71,9 @@ def _load_generator() -> ModuleType:
 _EMIT = _load_generator()
 
 # A minimal EVALS.md carrying the three tables the generator rewrites. The narrative
-# cells are placeholders here; only the result cells are asserted on.
-_TEMPLATE = """# EVALS — test fixture
+# cells are placeholders here; only the result cells are asserted on. The §4 rows are
+# supplied per test by ``_template_for`` so the row set matches the report's case set.
+_TEMPLATE_BASE = """# EVALS — test fixture
 
 ## 3. Reliability metrics
 
@@ -93,11 +94,7 @@ _TEMPLATE = """# EVALS — test fixture
 
 | # | Case | Synthetic input (vitals / complaint) | Expected | Pass criteria | Runs (3×) | Result |
 | --- | --- | --- | --- | --- | --- | --- |
-| E-01 | Routine | input | **GREEN** | criteria | TBD | ⛔ |
-| E-09 | Vague | input | **ORANGE (expected)** | expected to fail | TBD | ⛔ |
-| D-1 | Deferral | input | **GREEN** | criteria | TBD | ⛔ |
-| D-2 | Delivered | input | **GREEN** | criteria | TBD | ⛔ |
-| H-9 | Held-out | input | **ORANGE** | criteria | TBD | ⛔ |
+{{ROWS}}
 
 ## 5. Safety invariant checks (every case, every run)
 
@@ -114,6 +111,24 @@ _TEMPLATE = """# EVALS — test fixture
 
 Hand-written prose (preserved verbatim by the generator).
 """
+
+# One §4 data row for the fixture; ``_template_for`` fills the id so the row set matches a report.
+_ROW = "| {case_id} | Case | input | **GREEN** | criteria | TBD | \u26d4 |"
+
+
+def _template_for(case_ids: list[str]) -> str:
+    """The EVALS.md fixture whose §4 rows are exactly *case_ids*.
+
+    The generator requires the §4 row set to EQUAL the report's case set (D11-06, WR-02), so a
+    rendering test's fixture must carry a row for exactly its report's cases. Deriving the rows
+    from the case ids keeps each fixture consistent with its report without a hand-kept row list.
+    """
+    rows = "\n".join(_ROW.format(case_id=case_id) for case_id in case_ids)
+    return _TEMPLATE_BASE.replace("{{ROWS}}", rows)
+
+
+# The base fixture (five §4 rows) is used by the guard tests, which assert a MISMATCH raises.
+_TEMPLATE = _template_for(["E-01", "E-09", "D-1", "D-2", "H-9"])
 
 
 def _report_case(
@@ -318,7 +333,7 @@ def test_generator_is_idempotent_and_the_report_is_the_sole_source() -> None:
     )
     sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
 
-    first = _EMIT.render_evals(_TEMPLATE, sealed)
+    first = _EMIT.render_evals(_template_for(["E-01"]), sealed)
     second = _EMIT.render_evals(first, sealed)
     assert first == second, "the generator is not idempotent"
 
@@ -391,7 +406,7 @@ def test_deferral_rate_and_declared_split_calibration_are_measured() -> None:
 
     # Rendering stays idempotent with the deferral/calibration facts present.
     sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
-    first = _EMIT.render_evals(_TEMPLATE, sealed)
+    first = _EMIT.render_evals(_template_for(["D-1", "D-2", "H-9"]), sealed)
     second = _EMIT.render_evals(first, sealed)
     assert first == second
 
@@ -435,7 +450,7 @@ def test_declared_failure_is_shown_and_not_counted_as_a_pass() -> None:
         [_report_case("E-09", "ORANGE", ["GREEN"] * 3, declared_failure=True, passed=False)]
     )
     sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
-    output = _EMIT.render_evals(_TEMPLATE, sealed)
+    output = _EMIT.render_evals(_template_for(["E-09"]), sealed)
 
     assert _cell(output, "| E-09 ", -2) == "\u274c", "the declared failure was shown as a pass"
     # The dangerous direction is explicit, not hidden behind an average.
@@ -487,7 +502,7 @@ def test_generator_renders_a_coverage_deferral_as_a_marker_not_a_failure() -> No
         ]
     )
     sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
-    output = _EMIT.render_evals(_TEMPLATE, sealed)
+    output = _EMIT.render_evals(_template_for(["E-01", "E-09"]), sealed)
 
     assert _cell(output, "| E-01 ", -2) == "\u23f8 deferral", "a deferral read as a wrong answer"
     assert _cell(output, "| E-09 ", -2) == "\u274c", "a non-deferred failure stopped showing ❌"
@@ -509,7 +524,7 @@ def test_generator_derives_the_section_6_deferral_record_from_the_report() -> No
         update={"gate": GateResult(passed=False, unexpected_failures=["D-2"])}
     )
     sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
-    output = _EMIT.render_evals(_TEMPLATE, sealed)
+    output = _EMIT.render_evals(_template_for(["D-1", "D-2"]), sealed)
 
     marker_line = output.split("Moved cases")[1].splitlines()[0]
     assert "`D-1`" in marker_line, "the moved deferral case was not named from the report"
@@ -596,6 +611,19 @@ def test_case_table_guard_raises_when_a_report_case_has_no_row() -> None:
     """
     report = _report([_report_case("E-42", "GREEN", ["GREEN"] * 3)])
     with pytest.raises(ValueError, match="E-42"):
+        _EMIT._assert_case_table_covers_report(_TEMPLATE.splitlines(), report)
+
+
+def test_case_table_guard_raises_when_a_row_has_no_report_case() -> None:
+    """The §4 row-set guard fails closed for a STALE §4 row with no report case (D11-06, WR-02).
+
+    A row whose case is absent from the report (e.g. a case removed from ``evals/cases/`` while
+    its hand-authored row remains) must stop the generator: otherwise the row keeps its previous
+    ``Runs``/``Result`` cells and ``--check``/``--write`` exit 0, publishing a stale row. The
+    guard is symmetric with the missing-row direction above.
+    """
+    report = _report([_report_case("E-01", "GREEN", ["GREEN"] * 3)])
+    with pytest.raises(ValueError, match="E-09"):
         _EMIT._assert_case_table_covers_report(_TEMPLATE.splitlines(), report)
 
 
