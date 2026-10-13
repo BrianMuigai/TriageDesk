@@ -179,8 +179,10 @@ measured outcome on screen:
   MEASURED     : GREEN (SHOWN MISMATCH)
 ```
 
-Narrate the failure while it is on screen: the under-triage of a vague complaint is a real, declared
-limitation, and the demo does not hide it.
+Narrate the failure while it is on screen: the vague complaint's discriminator is **not retrieved** — a
+deferral, not a delivered under-triage. The printed colour is the residual vitals-only result shown
+*before* the deferral routes the case to a safe terminal (`escalate`/`request_missing_info`); the demo
+does not hide the miss.
 
 ## What is unfinished
 
