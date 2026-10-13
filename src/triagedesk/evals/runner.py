@@ -20,9 +20,6 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
-from langgraph.checkpoint.memory import InMemorySaver
-from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
-
 from triagedesk.evals.analysis import analyse
 from triagedesk.evals.case import ABORT_OUTCOME, CaseSpec, load_cases
 from triagedesk.evals.invariants import (
@@ -31,6 +28,7 @@ from triagedesk.evals.invariants import (
     RunEvidence,
     evaluate,
 )
+from triagedesk.evals.outcome import capture_outcome, error_capture
 from triagedesk.evals.report import (
     GateResult,
     GateViolation,
@@ -42,7 +40,7 @@ from triagedesk.evals.report import (
 )
 from triagedesk.evals.tools import ToolMap, build_tools, recorded_extract_seam
 from triagedesk.evals.usage import UsageRecorder
-from triagedesk.graph.build import _allowed_msgpack_modules, build_graph
+from triagedesk.graph.build import build_graph, in_memory_checkpointer
 from triagedesk.mcp import server as server_module
 from triagedesk.store import Store
 from triagedesk.store.memory import InMemoryStore
@@ -55,60 +53,6 @@ ToolFactory = Callable[[CaseSpec, bool, UsageRecorder], ToolMap]
 def _default_tool_factory(case: CaseSpec, offline: bool, recorder: UsageRecorder) -> ToolMap:
     """The production tool factory: the real owned tools, model stubbed offline."""
     return build_tools(case, offline=offline, recorder=recorder)
-
-
-def _capture(result: Any, payload: dict[str, Any] | None) -> dict[str, Any]:
-    """Capture the outcome facts of one run from the interrupt payload or the end state.
-
-    Reads the graph's own channels — never re-derives a colour or re-scores. When the run
-    paused at the gate, the payload is the source (the colour and the evidence the
-    clinician saw); otherwise the terminal state is read directly. The graph's terminal
-    channels (``recovery``/``escalation``/``second_look``) are captured too, so the runner
-    can map a first-class outcome without re-deriving one (ORCH-05).
-
-    The graph's own TERMINAL facts are captured here as well: ``delivered`` is True only
-    when the run produced a ``handover`` card (i.e. it reached the approval gate), and
-    ``route``/``attempt`` are the graph's own routing channels. They distinguish a run
-    delivered THROUGH the gate from one that aborted at ``END`` — never re-derived (G-2).
-    """
-    recovery = result.get("recovery")
-    escalation = result.get("escalation")
-    second_look = result.get("second_look")
-    # The graph's OWN confidence channel (written by ``assess``) is read here — the runner
-    # never re-derives the signal (D8-08, T-08-08). ``None`` when the run short-circuited
-    # before ``assess`` (a recovery/abstention case that never reached the scored path).
-    confidence = result.get("confidence")
-    if payload is not None:
-        colour = payload.get("colour")
-        citations = list(payload.get("citations") or [])
-        triggered = list(payload.get("triggered_rules") or [])
-        matched = list(payload.get("matched_ids") or [])
-    else:
-        priority = result.get("priority")
-        triggered = (
-            [rule.model_dump(mode="json") for rule in priority.triggered_rules]
-            if priority is not None
-            else []
-        )
-        colour = priority.colour if priority is not None else None
-        citations = list(priority.citations) if priority is not None else []
-        matched = list(result.get("matched_ids") or [])
-    return {
-        "colour": colour,
-        "citations": citations,
-        "triggered_rules": triggered,
-        "matched_ids": matched,
-        "recovery": recovery is not None,
-        "escalation": escalation is not None,
-        "second_look": (
-            second_look.model_dump(mode="json") if second_look is not None else None
-        ),
-        "delivered": result.get("handover") is not None,
-        "route": result.get("route"),
-        "attempt": int(result.get("attempt") or 0),
-        "confidence": confidence.model_dump(mode="json") if confidence is not None else None,
-        "error": None,
-    }
 
 
 def _outcome(captured: dict[str, Any], expected: str) -> str | None:
@@ -148,31 +92,6 @@ def _outcome(captured: dict[str, Any], expected: str) -> str | None:
     return colour
 
 
-def _error_capture(exc: Exception) -> dict[str, Any]:
-    """The fail-closed capture for a run whose graph invocation raised (WR-04).
-
-    A run that raised before producing a result carries no colour, no terminal and no
-    confidence signal; it is recorded with an explicit ``error`` so :func:`_outcome` maps
-    it to the declared ``ABORT`` outcome (a non-delivered run) and the runner surfaces the
-    message in ``ReportCase.run_errors`` — never as the ``None`` a legitimate
-    short-circuit-before-assess uses.
-    """
-    return {
-        "colour": None,
-        "citations": [],
-        "triggered_rules": [],
-        "matched_ids": [],
-        "recovery": False,
-        "escalation": False,
-        "second_look": None,
-        "delivered": False,
-        "route": None,
-        "attempt": 0,
-        "confidence": None,
-        "error": f"{type(exc).__name__}: {exc}",
-    }
-
-
 def _errored_invariant_report(message: str | None) -> InvariantReport:
     """A fail-closed invariant verdict for a run that raised before producing a result (WR-04).
 
@@ -185,18 +104,6 @@ def _errored_invariant_report(message: str | None) -> InvariantReport:
         results={invariant_id: False for invariant_id in INVARIANT_IDS},
         reasons={invariant_id: reason for invariant_id in INVARIANT_IDS},
         passed=False,
-    )
-
-
-def _checkpointer() -> InMemorySaver:
-    """An in-memory saver carrying the graph's ONE msgpack allowlist (DRY).
-
-    Reuses ``graph.build``'s single allowlist of state types, so the eval's throwaway
-    checkpointer registers the same contracts the durable saver does and the resume does
-    not trip the future strict-msgpack block. An allowlist — never ``True``.
-    """
-    return InMemorySaver(
-        serde=JsonPlusSerializer(allowed_msgpack_modules=_allowed_msgpack_modules())
     )
 
 
@@ -215,7 +122,7 @@ async def _run_once(
     """
     from triagedesk.durable import approval_decision, invoke_graph
 
-    graph = build_graph(tools, checkpointer=_checkpointer())
+    graph = build_graph(tools, checkpointer=in_memory_checkpointer())
     config = {"configurable": {"thread_id": f"{case.id}-{run_index}"}}
     initial: dict[str, Any] = {"raw_note": case.note, "case": case.case}
     previous = getattr(case, "previous_case", None)
@@ -225,7 +132,7 @@ async def _run_once(
     started = time.perf_counter()
     result, payload = await invoke_graph(graph, initial, config, approval_decision("dismiss"))
     latency = time.perf_counter() - started
-    return _capture(result, payload), latency, result
+    return capture_outcome(result, payload), latency, result
 
 
 def _evidence(
@@ -339,7 +246,7 @@ async def _run_case(
             # in ``run_errors`` and its fail-closed ``ABORT`` outcome in ``outcomes``, and the
             # invariants are recorded as not held (they cannot be shown to hold on a run that
             # produced no result). A partially-lost run is therefore still reported.
-            captured = _error_capture(exc)
+            captured = error_capture(exc)
             # An errored run produced no timed result, so it contributes ``None`` — excluded
             # from the latency percentiles — rather than a spurious ``0.0`` sample (IN-04).
             run_latency: float | None = None
