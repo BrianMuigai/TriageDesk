@@ -238,6 +238,50 @@ deferral, not a delivered under-triage. The printed colour is the residual vital
 *before* the deferral routes the case to a safe terminal (`escalate`/`request_missing_info`); the demo
 does not hide the miss.
 
+## The desk surface (browser screen recording)
+
+`docs/assets/desk-demo.mp4` is a **silent browser screen recording of the local desk surface** (the v1.1
+`desk` bridge — not the terminal). It is **supplementary**: it shows the desk UX end to end (happy path
++ edge cases) so a reviewer can see the surface without running it. It is **not** the narrated 2–3
+minute submission video — that remains the terminal recording above
+(`docs/assets/triagedesk-demo.mp4`), which carries the measured eval and the declared failure. The "the
+agent does not record the video" rule at the top of this document applies to *that* video; this capture
+is a separate, clearly-labelled artefact.
+
+Run the surface it records (offline, local, CPU-only — no egress):
+
+```bash
+uv run triagedesk desk --port 8765 --db /tmp/desk-demo.db
+```
+
+Then open `http://127.0.0.1:8765/`. Nothing here is a new project dependency: the surface is the shipped
+stdlib bridge, and the capture used Playwright only as **dev-only** tooling — it is never added to
+`pyproject.toml` and no runtime path imports it.
+
+**What the recording covers** — the happy path, then five edge cases. Every gate beat is a **distinct
+case**: the thread id is content-addressed, so re-submitting the *same* case resumes the paused thread
+instead of rendering a fresh gate.
+
+| Beat | Case | What is on screen |
+| --- | --- | --- |
+| Happy path | E-04 (emergency discriminator) | The **suggested** priority card — RED, target time, every "why" vital **next to its citation**, then the SATS evidence — then the real gate; a named nurse **approves** → `Approved by Nurse A. Demo (triage nurse) — committed to the queue`. |
+| Edge — edit | E-10 | The nurse overrides the colour → `Edited to ORANGE by Nurse A. Demo … committed to the queue`; the row is superseded, not duplicated. |
+| Edge — dismiss | E-02 | `Dismissed — nothing has been committed`. There is no default approve. |
+| Edge — recovery | E-05 | A scored vital is missing → `A scored vital is missing. Re-measure before scoring.` **No gate**. |
+| Edge — deferred | E-09 | No discriminator matched → the loud banner + a **read-only** card (`Not confirmed and not queued`). **No gate**. |
+| Edge — escalation | E-06 | An out-of-scope (paediatric) case → `escalated for human review — no priority was committed`. **No gate**. |
+
+The recording is **captioned on screen** (it has no audio track). Duration 2:48.
+
+> **Note — a defect this recording surfaced.** Driving the real page (not the request-level tests, which
+> POST directly) exposed that the gate's `submit` handler disabled **the submitting button** before the
+> form data set was built. A disabled submit button is not a successful control, so its
+> `name=decision value=approve|edit|dismiss` was dropped and the server refused **every** decision
+> (`unknown decision ''`) — the gate was unusable through its own UI. It is fixed in
+> `src/triagedesk/desk/static/index.html` (disable only the *siblings*, block a second decision with a
+> flag) and guarded by
+> `tests/test_desk.py::test_the_gate_script_keeps_the_submitting_button_enabled`.
+
 ## What is unfinished
 
 The video must be as honest as the docs. Point the close at what the repository itself declares:
