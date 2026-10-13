@@ -68,7 +68,8 @@ a failure we did not fix — live in [`EVALS.md`](EVALS.md), generated from `eva
 | Status & gap analysis | 🟡 Honest self-assessment → [`STATUS.md`](STATUS.md) |
 
 **What is unfinished.** The measured run records honest misses, not a green sweep: the declared failure
-**E-09** (a vague complaint is under-triaged) is shown, not hidden, and the other misses are recorded in
+**E-09** (a vague complaint's discriminator is not retrieved — deferred, not under-triaged) is shown, not
+hidden, and the other misses are recorded in
 [`EVALS.md`](EVALS.md) §4–§6. Clinician validation remains a declared gap ([`EVALS.md`](EVALS.md) §7).
 [`EVALS.md`](EVALS.md) is the single source for every number. A full honest gap analysis — the one
 submission gap (video upload), UX considerations, and state-of-the-art gaps — is in [`STATUS.md`](STATUS.md).
