@@ -22,8 +22,15 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from triagedesk.core.hashing import canonical_json, hash_prompt, hash_rule_object, hash_value
+from triagedesk.core.hashing import (
+    canonical_json,
+    hash_prompt,
+    hash_rule_object,
+    hash_tool_schema,
+    hash_value,
+)
 from triagedesk.core.rules import load_discriminators, load_tews
+from triagedesk.core.schema import ExtractionResult
 from triagedesk.llm.client import DEFAULT_MODEL
 from triagedesk.llm.prompts import EXTRACTION_PROMPT
 
@@ -35,11 +42,26 @@ _UNKNOWN = "unknown"
 
 
 class Provenance(BaseModel):
-    """The hashes and version facts that make a run reproducible (D-08, §8)."""
+    """The hashes and version facts that make a run reproducible (D-08, §8).
+
+    ``prompt_hash`` covers the ``EXTRACTION_PROMPT`` template only, so a schema change (a
+    ``Field(description=…)`` that alters the model INPUT without touching the prompt) would
+    leave it unmoved. ``extraction_schema_hash`` seals the LIVE extraction schema the model
+    was asked to fill — ``ExtractionResult.model_json_schema()``, the same schema
+    ``llm.client.extract`` sends as both the prompt text and the ``format=`` grammar — so the
+    published provenance records the contract and not only the prompt template (T-11-03).
+
+    ``extraction_schema_hash`` defaults to the empty string so a report written BEFORE the
+    field existed still validates: :func:`_digest_payload` omits a defaulted field, so such a
+    report's ``report_digest`` still recomputes and it is left untouched until the re-run
+    regenerates it (a non-empty hash — the value :func:`build_provenance` always supplies — is
+    sealed in full).
+    """
 
     model_tag: str
     ollama_version: str
     prompt_hash: str
+    extraction_schema_hash: str = ""
     sats_tews_hash: str
     sats_discriminators_hash: str
     harness_commit: str
@@ -282,13 +304,17 @@ def build_provenance(mode: Mode) -> Provenance:
 
     The SATS YAML and prompt hashes are RECOMPUTED through the ONE hashing path (never
     read from ``evidence/hashes.json``), so a drifted YAML is caught rather than trusted
-    (D-08). The Ollama version is read only for a real run; an offline run records
-    ``"unknown"`` (T-04-01).
+    (D-08). The extraction-schema hash is recomputed from the loaded model class through the
+    same path, so the published provenance seals the contract the model was asked to fill
+    even when a ``Field(description=…)`` moves the model input without moving ``prompt_hash``
+    (Pitfall 4, T-11-03). The Ollama version is read only for a real run; an offline run
+    records ``"unknown"`` (T-04-01).
     """
     return Provenance(
         model_tag=DEFAULT_MODEL,
         ollama_version=_ollama_version() if mode == "real" else _UNKNOWN,
         prompt_hash=hash_prompt(EXTRACTION_PROMPT),
+        extraction_schema_hash=hash_tool_schema(ExtractionResult.model_json_schema()),
         sats_tews_hash=hash_rule_object(load_tews()),
         sats_discriminators_hash=hash_rule_object(load_discriminators()),
         harness_commit=_git_commit(),
@@ -310,9 +336,14 @@ def _digest_payload(report: Report) -> dict[str, Any]:
     ``report_digest`` (D8-14). The aggregate ``Calibration`` block is left in ``Analysis``
     (which the digest never covers — it carries the volatile cost totals), so only the
     deterministic per-case content is sealed here.
+
+    The provenance is dumped with ``exclude_defaults`` so a report written BEFORE the
+    ``extraction_schema_hash`` field existed (its value is the empty default) still recomputes
+    its digest; a report the pipeline produced supplies a non-empty hash, which IS sealed
+    (T-11-03).
     """
     return {
-        "provenance": report.provenance.model_dump(mode="json"),
+        "provenance": report.provenance.model_dump(mode="json", exclude_defaults=True),
         "cases": [
             {
                 "case_id": case.case_id,

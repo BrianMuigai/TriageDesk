@@ -252,6 +252,34 @@ the honest reachable design reopens no locked decision. The edit set, the copy a
 lists stay in their single sources (the substrate, the UI-SPEC and the schema) and are never restated
 here. No new dependency, no graph change and no second validation rule.
 
+### D24 — Extraction fidelity is fixed at the contract the model fills
+**Decision:** the two fixable measured failures are corrected at the **extraction seam** (D11-01),
+never in the scorer. (a) **E-04** — the emergency-discriminator case — is fixed by a **general
+`Field(description=…)`** on `CaseInput.age_years`: the model intermittently dropped the stated age,
+and a null age short-circuits to the fail-closed `ABSTAIN`, so the honesty lever is the **contract
+the model is asked to fill**, not prose engineering of the prompt. The same seam carries a general
+`Field(description=…)` on the scored vitals (`respiratory_rate`, `heart_rate`, `systolic_bp`) that
+resolves a serial `before -> after` reading to the AFTER (current) value. Both descriptions are
+general (no fixture number, no fixture wording, no SATS value) and the extraction schema is sealed
+into the report provenance as `extraction_schema_hash`, so a contract change cannot leave the
+published provenance stale. (b) **E-07** — the deterioration-recheck case — is a
+**test-data-inconsistency repair** (D11-14): the fixture's free-text `note` omitted the temperature
+its golden `case` already declared, so a faithful extraction could not produce the golden case; the
+note now states it. The golden `case`, the `previous_case` and the expectation are **unchanged**.
+**Why:** the ROADMAP premise ("the extraction loses the clinical phrasing") was only half true — the
+matcher retrieved the emergency discriminator on every run, and E-07's blocker was a fixture defect,
+not an extraction gap. Fixing the *contract* (the schema the model fills) keeps one schema source
+(§1) and one extractor, where a deterministic field-parser would be a second extractor for one field
+(SRP/DRY), a prompt worked-example quoting the fixture would be tuning to the test (D11-02), and a
+scorer/routing relaxation would weaken the fail-closed design. Repairing the note restores the
+fixture-consistency rule the other note-bearing fixtures already satisfy; it edits no expectation
+and leaves the deterministic `--offline` control unregressed (D11-04).
+**Consequence:** the model input changed while `prompt_hash` (which covers the prompt template only)
+did not, so the provenance now also carries `extraction_schema_hash`, and the measured artefact is
+re-generated and re-published rather than hand-edited. No expectation, threshold or golden value was
+edited to make a case pass and no literal alias was added (D11-02); the published measured outcomes
+live in `EVALS.md` and are not restated here.
+
 ---
 
 ## Disclosed third-party components (DQ-8)

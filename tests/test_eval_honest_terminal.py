@@ -128,6 +128,7 @@ def _synthetic_report(cases: list[ReportCase]) -> Report:
             model_tag="test-model",
             ollama_version="test",
             prompt_hash="prompt",
+            extraction_schema_hash="extraction-schema",
             sats_tews_hash="tews",
             sats_discriminators_hash="discriminators",
             harness_commit="commit",

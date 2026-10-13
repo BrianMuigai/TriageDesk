@@ -24,6 +24,8 @@ from types import ModuleType
 
 import pytest
 
+from triagedesk.core.hashing import hash_tool_schema
+from triagedesk.core.schema import ExtractionResult
 from triagedesk.evals.analysis import analyse, colour_urgency
 from triagedesk.evals.report import (
     Analysis,
@@ -34,6 +36,7 @@ from triagedesk.evals.report import (
     Report,
     ReportCase,
     RiskCoveragePoint,
+    build_provenance,
     compute_report_digest,
 )
 
@@ -47,6 +50,7 @@ _PROVENANCE = Provenance(
     model_tag="test-model",
     ollama_version="test",
     prompt_hash="prompt",
+    extraction_schema_hash="extraction-schema",
     sats_tews_hash="tews",
     sats_discriminators_hash="discriminators",
     harness_commit="commit",
@@ -513,3 +517,48 @@ def test_generator_derives_the_section_6_deferral_record_from_the_report() -> No
     again = _EMIT.render_evals(output, sealed)
     assert again == output
     assert output.count("<!-- BEGIN GENERATED: deferrals -->") == 1
+
+
+# --------------------------- 8. the provenance seals the extraction schema (D11-02, T-11-03)
+
+
+def test_provenance_seals_the_extraction_schema_hash() -> None:
+    """``build_provenance`` seals the LIVE extraction schema through the ONE hashing helper.
+
+    ``prompt_hash`` covers the ``EXTRACTION_PROMPT`` template only, so a ``Field(description=…)``
+    changes the model INPUT without moving it (Pitfall 4). The provenance therefore also carries
+    ``extraction_schema_hash`` — the hash the model was actually asked to fill.
+    """
+    provenance = build_provenance("offline")
+    assert provenance.extraction_schema_hash == hash_tool_schema(
+        ExtractionResult.model_json_schema()
+    )
+
+
+def test_report_digest_seals_the_extraction_schema_hash() -> None:
+    """Changing the sealed extraction-schema hash moves ``compute_report_digest`` (T-11-03)."""
+    report = _report([_report_case("A", "GREEN", ["GREEN"] * 3)])
+    sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
+    assert compute_report_digest(sealed) == sealed.report_digest
+
+    # A different extraction schema (a contract change) is a different sealed provenance.
+    mutated_provenance = sealed.provenance.model_copy(
+        update={"extraction_schema_hash": "a-different-schema"}
+    )
+    mutated = sealed.model_copy(update={"provenance": mutated_provenance})
+    assert compute_report_digest(mutated) != sealed.report_digest, (
+        "a changed extraction schema left the sealed report digest unmoved"
+    )
+
+
+def test_a_report_with_the_provenance_block_constructs_and_seals() -> None:
+    """The additive provenance field does not break the hand-built report constructors.
+
+    The two hand-built ``Provenance(...)`` helpers in the suite supply the new field, so an
+    otherwise-identical report still constructs and its digest recomputes (no silent drift).
+    """
+    report = _report([_report_case("A", "GREEN", ["GREEN"] * 3)])
+    sealed = report.model_copy(update={"report_digest": compute_report_digest(report)})
+
+    assert sealed.provenance.extraction_schema_hash == _PROVENANCE.extraction_schema_hash
+    assert compute_report_digest(sealed) == sealed.report_digest
