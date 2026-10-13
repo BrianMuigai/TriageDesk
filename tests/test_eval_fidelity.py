@@ -192,20 +192,33 @@ def test_the_described_serial_vitals_equal_the_scored_numeric_vitals() -> None:
 
 
 def test_e07_note_states_every_scored_vital_its_golden_case_declares() -> None:
-    """D11-14: the repaired E-07 note states the temperature its golden ``case`` declares.
+    """D11-14: the repaired E-07 note states every scored vital its golden cases declare.
 
     The fixture's free-text ``note`` and its golden ``case`` disagreed (the note omitted the
     temperature the case asserted), so a faithful extraction of the note could not produce the
-    golden case. The repair is a test-data-inconsistency fix ONLY: the golden ``case``, the
-    ``previous_case`` and ``expected: RECHECK`` are unchanged — the expectation never moved to
-    make a case pass, and nothing was tuned green.
+    golden case. The guard checks the WHOLE scored-vital set, not one vital: for every scored
+    numeric vital (derived from the substrate, never hand-listed) the value the golden ``case``
+    and the ``previous_case`` declare must appear in the note text, so a future note/golden
+    divergence on ANY vital fails here rather than passing on a partial check. The repair is a
+    test-data-inconsistency fix ONLY: the golden ``case``, the ``previous_case`` and
+    ``expected: RECHECK`` are unchanged — the expectation never moved to make a case pass, and
+    nothing was tuned green.
     """
     case = next(spec for spec in load_cases(CASES_DIR) if spec.id == "E-07")
-
-    assert "temperature" in case.note.lower(), "the repaired E-07 note states no temperature"
-    assert case.case.temperature_c is not None, "the E-07 golden case declares no temperature"
     assert case.expected == "RECHECK", "the E-07 expectation moved off RECHECK"
+    previous = case.previous_case
+    assert previous is not None, "E-07 declares no previous_case"
 
-    # The same consistency holds for the previous case (the serial comparison needs both).
-    assert case.previous_case is not None, "E-07 declares no previous_case"
-    assert case.previous_case.temperature_c is not None
+    fields = _scored_numeric_vital_fields()
+    assert fields, "no scored numeric vitals were derived (the guard would be vacuous)"
+    for field in fields:
+        for label, golden in (("case", case.case), ("previous_case", previous)):
+            value = getattr(golden, field)
+            assert value is not None, (
+                f"the E-07 golden {label} declares no {field} (a missing vital would route to "
+                "the recovery terminal)"
+            )
+            assert f"{value:g}" in case.note, (
+                f"the E-07 note does not state the {field} value the golden {label} declares "
+                f"({value:g})"
+            )
