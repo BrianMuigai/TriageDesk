@@ -55,16 +55,28 @@ $gate
   // possible; the deadline timer reveals the timeout panel WITHOUT submitting anything, so
   // a timeout defaults to no approve (D10-10). The bridge holds no server-side deadline:
   // a timeout is simply "no decision POST ever arrives".
+  //
+  // The SUBMITTER must stay enabled: a disabled submit button is not a "successful control",
+  // so disabling the clicked button inside its own `submit` handler drops its
+  // `name=decision value=approve|edit|dismiss` from the form data set and the decision never
+  // reaches the server. Disable only the SIBLINGS, and block a second decision with a flag.
   var gate = document.getElementById('approval-gate-form');
   if (gate) {
     var gateButtons = gate.querySelectorAll('button');
-    var disableGate = function () {
-      for (var i = 0; i < gateButtons.length; i++) { gateButtons[i].disabled = true; }
+    var disableGate = function (submitter) {
+      for (var i = 0; i < gateButtons.length; i++) {
+        if (gateButtons[i] !== submitter) { gateButtons[i].disabled = true; }
+      }
     };
-    gate.addEventListener('submit', disableGate);
+    var gateSubmitted = false;
+    gate.addEventListener('submit', function (event) {
+      if (gateSubmitted) { event.preventDefault(); return; }
+      gateSubmitted = true;
+      disableGate(event && event.submitter ? event.submitter : null);
+    });
     var gateDeadlineMs = 5 * 60 * 1000;
     window.setTimeout(function () {
-      disableGate();
+      disableGate(null);
       var panel = document.getElementById('gate-timeout');
       if (panel) { panel.hidden = false; }
     }, gateDeadlineMs);

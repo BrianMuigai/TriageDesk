@@ -1509,3 +1509,37 @@ def test_css_declares_every_substrate_colour_token() -> None:
     assert editable <= swatches, (
         f"the CSS swatches {sorted(swatches)} omit an editable colour {sorted(editable)}"
     )
+
+
+def test_the_gate_script_keeps_the_submitting_button_enabled(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """The gate's submit handler must NOT disable the button that submitted the decision.
+
+    A disabled submit button is not a "successful control", so disabling the SUBMITTER inside its
+    own ``submit`` handler drops its ``name=decision value=approve|edit|dismiss`` from the form data
+    set. The decision then never reaches the server — which refuses the POST with
+    ``unknown decision ''`` — and the nurse cannot approve, edit or dismiss at all, defeating the
+    whole approval gate (GATE-02). This was found by driving the real page in a browser: the
+    request-level tests POST directly, so they never exercise the client script.
+
+    The handler must disable only the SIBLINGS, and block a second decision with a flag instead.
+    """
+    script = (ASSET_DIR / "index.html").read_text(encoding="utf-8")
+    gate_script = script.split("var gate = document.getElementById('approval-gate-form');", 1)[1]
+    assert "event.submitter" in gate_script, (
+        "the gate submit handler does not identify the submitting button"
+    )
+    assert "gateButtons[i] !== submitter" in gate_script, (
+        "the gate submit handler disables the submitting button, which drops `name=decision` "
+        "from the form data set and makes the gate unusable"
+    )
+
+    # The three decision buttons keep their name/value pair — the payload the fix preserves.
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        body = _post(_base(server) + "/case", _form_from_case(COMPLETE_CASE))
+    gate = _section(body, "approval-gate")
+    for decision in ("approve", "edit", "dismiss"):
+        assert re.search(
+            rf'<button[^>]*name="decision"[^>]*value="{decision}"', gate
+        ), f"the gate has no named `decision` button for {decision!r}"
