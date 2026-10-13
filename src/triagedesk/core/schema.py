@@ -33,7 +33,15 @@ class CaseInput(BaseModel):
     scoring bands, which live only in ``data/sats_tews.yaml`` (CONVENTIONS §1).
     """
 
-    age_years: int | None = Field(default=None, ge=0, le=130)
+    age_years: int | None = Field(
+        default=None,
+        ge=0,
+        le=130,
+        description=(
+            "The patient's age in whole years, parsed from a stated age such as "
+            "'a 74 year old patient'."
+        ),
+    )
     # A months-expressed or ambiguous age is representable so the scorer can fail
     # closed (Roadmap SC2): only an unambiguous adult-year integer may be scored.
     age_months: int | None = Field(default=None, ge=0, le=1560)
