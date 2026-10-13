@@ -18,7 +18,7 @@ hard submission gap** (the demo video is recorded but **not uploaded**) and **on
 
 | Dimension | Status |
 | --- | --- |
-| Eligible / not disqualified | ✅ (one confirmation pending — G9) |
+| Eligible / not disqualified | ✅ (two confirmations pending — G8 timing, G9 eligibility) |
 | "What to build" (6 items) | ✅ **6/6** |
 | "What to submit" (5 items) | 🟡 **4/5** — video not uploaded |
 | Judging criteria (100 pts) | 🟡 **est. ~79–94** |
