@@ -25,6 +25,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
@@ -50,6 +51,7 @@ __all__ = [
     "assert_tool_allowlist",
     "build_graph",
     "checkpointed_graph",
+    "in_memory_checkpointer",
     "load_graph_tools",
     "open_checkpointer",
     "route_after_normalize",
@@ -337,6 +339,21 @@ async def open_checkpointer(db_path: str | Path) -> AsyncIterator[AsyncSqliteSav
     async with AsyncSqliteSaver.from_conn_string(str(db_path)) as saver:
         saver.serde = JsonPlusSerializer(allowed_msgpack_modules=_allowed_msgpack_modules())
         yield saver
+
+
+def in_memory_checkpointer() -> InMemorySaver:
+    """The in-memory flavour of the ONE saver factory, carrying the SAME allowlist (D-09, T-07-06).
+
+    The ephemeral counterpart to :func:`open_checkpointer`, sitting beside it so both flavours
+    of "a msgpack-allowlisted saver" have one home (DRY, SOLID: D). It registers the SAME
+    explicit state-type allowlist as the durable saver — never ``True`` — so an eval or demo
+    resume cannot trip the future strict-msgpack block and the in-memory saver's
+    deserialisation surface is exactly the durable saver's. An allowlist is deliberate: a
+    tampered checkpoint cannot deserialise an arbitrary type.
+    """
+    return InMemorySaver(
+        serde=JsonPlusSerializer(allowed_msgpack_modules=_allowed_msgpack_modules())
+    )
 
 
 @asynccontextmanager

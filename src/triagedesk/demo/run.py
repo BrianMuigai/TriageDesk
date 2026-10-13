@@ -27,10 +27,10 @@ from pydantic import BaseModel
 
 from triagedesk.durable import approval_decision, invoke_graph, run_to_gate
 from triagedesk.evals.case import CaseSpec, load_cases
-from triagedesk.evals.runner import _capture, _checkpointer
+from triagedesk.evals.runner import _capture
 from triagedesk.evals.tools import ToolMap, build_tools
 from triagedesk.evals.usage import UsageRecorder
-from triagedesk.graph.build import CHECKPOINTS_DB_PATH, build_graph
+from triagedesk.graph.build import CHECKPOINTS_DB_PATH, build_graph, in_memory_checkpointer
 from triagedesk.mcp import server as server_module
 from triagedesk.store import Store
 from triagedesk.store.memory import InMemoryStore
@@ -175,7 +175,9 @@ async def _run_beat(
 
     recorder = UsageRecorder()
     tools = build_tools(case, offline=offline, recorder=recorder)
-    graph = build_graph(_traced_tools(tools, _print_tool_call), checkpointer=_checkpointer())
+    graph = build_graph(
+        _traced_tools(tools, _print_tool_call), checkpointer=in_memory_checkpointer()
+    )
     config = {"configurable": {"thread_id": f"demo-{beat.name}-{index}"}}
     initial: dict[str, Any] = {"raw_note": case.note, "case": case.case}
     if case.previous_case is not None:
