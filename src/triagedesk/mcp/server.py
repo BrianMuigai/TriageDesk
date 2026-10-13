@@ -310,6 +310,7 @@ async def commit_priority(
     return CommitResult(
         committed=True,
         reason=f"{verb} case {row.case_id} at queue position {row.position} ({row.colour})",
+        position=row.position,
     )
 
 

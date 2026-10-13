@@ -746,13 +746,20 @@ def _decision_view(result: Mapping[str, Any], form: Mapping[str, str]) -> dict[s
     if decision == "dismiss":
         panel = _panel(_DISMISSED_COPY, "muted")
     elif commit is not None and getattr(commit, "committed", False):
+        # The position comes off the typed CommitResult channel — never parsed from
+        # the free-text reason (the module reads typed channels only). A CommitResult
+        # built without the field (older checkpoint state, the eval stub) falls back
+        # to the position-free copy.
+        position = getattr(commit, "position", None)
+        suffix = (
+            f"committed to the queue at position {position}."
+            if position is not None
+            else "committed to the queue."
+        )
         if decision == "edit":
-            copy = (
-                f"Edited to {form.get('colour', '')} by {name} "
-                f"({role}) — committed to the queue."
-            )
+            copy = f"Edited to {form.get('colour', '')} by {name} ({role}) — {suffix}"
         else:
-            copy = f"Approved by {name} ({role}) — committed to the queue."
+            copy = f"Approved by {name} ({role}) — {suffix}"
         panel = _panel(copy, "success")
     else:
         reason = getattr(commit, "reason", None) or _FAILURE_COPY

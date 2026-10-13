@@ -344,11 +344,17 @@ class CommitResult(BaseModel):
     written. ``committed`` is ``True`` once the idempotent queue write has run through
     the injectable store seam; a repeat commit of identical content also returns
     ``committed=True`` but inserts no second row (GATE-03).
+
+    ``position`` is the queue position the gated write assigned on a commit (``None``
+    when unknown or refused). It is a typed field so a reader never string-parses the
+    free-text ``reason``; it is additive because this is the one contract model that
+    does not declare ``extra="forbid"``.
     """
 
     committed: bool = False
     refused: bool = False
     reason: str | None = None
+    position: int | None = None
 
 
 class HandoverCard(BaseModel):
