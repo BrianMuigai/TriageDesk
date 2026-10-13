@@ -4,7 +4,7 @@ milestone: v1.1
 milestone_name: Score Uplift
 status: Awaiting next milestone
 stopped_at: Phase 12 complete — all phases complete
-last_updated: "2026-10-13T17:35:44.183Z"
+last_updated: "2026-10-13T18:24:11.664Z"
 last_activity: 2026-10-13
 last_activity_desc: "Completed quick task 261013-sbd: desk panel shows the queue position the gated commit assigned"
 current_phase: 12
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 Phase: Milestone v1.1 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-10-13 - Completed quick task 261013-sbd: desk panel shows the queue position the gated commit assigned
+Last activity: 2026-10-13 - Completed quick task 261013-taj: collapse the duplicated store-seam ceremony and give the tool map a CaseInput entry point
 
 ## Performance Metrics
 
@@ -167,9 +167,10 @@ None yet.
 
 ### Quick Tasks Completed
 
-| # | Description | Date | Commit | Directory |
-|---|-------------|------|--------|-----------|
-| 1 | desk panel shows the queue position the gated commit assigned | 2026-10-13 | ae611b4 | [261013-sbd-desk-panel-shows-the-queue-position-the-](./quick/261013-sbd-desk-panel-shows-the-queue-position-the/) |
+| # | Description | Date | Commit | Status | Directory |
+|---|-------------|------|--------|--------|-----------|
+| 1 | desk panel shows the queue position the gated commit assigned | 2026-10-13 | ae611b4 | complete | [261013-sbd-desk-panel-shows-the-queue-position-the-](./quick/261013-sbd-desk-panel-shows-the-queue-position-the/) |
+| 2 | collapse the duplicated store-seam ceremony and give the tool map a CaseInput entry point | 2026-10-13 | ab58bbd | Verified | [261013-taj-collapse-the-duplicated-store-seam-cerem](./quick/261013-taj-collapse-the-duplicated-store-seam-cerem/) |
 
 ## Deferred Verification
 
