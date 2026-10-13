@@ -272,19 +272,46 @@ class Report(BaseModel):
     report_digest: str = ""
 
 
-def _git_commit() -> str:
-    """Return the current git commit SHA, or ``"unknown"`` when git is unavailable."""
+def _git(args: list[str]) -> str | None:
+    """Run one ``git`` subcommand in the repository, returning its stdout (or ``None``).
+
+    The ONE git shell-out for provenance (DRY): a missing git binary, a non-repo tree or a
+    non-zero exit all resolve to ``None``, so the caller falls back rather than raising.
+    """
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", *args],
             capture_output=True,
             text=True,
             check=True,
             timeout=5,
         )
     except (OSError, subprocess.SubprocessError):
+        return None
+    return result.stdout
+
+
+def _git_commit() -> str:
+    """Return the current git commit SHA, marked ``-dirty`` on a non-clean tree.
+
+    ``git rev-parse HEAD`` alone cannot reproduce a run produced on a working tree that
+    carried uncommitted changes: the bare SHA names a commit whose content the run's build
+    did not necessarily match. ``git status --porcelain`` is therefore consulted, and a
+    non-empty result appends ``-dirty`` so a report never presents a bare SHA as
+    reproducible when the tree it ran from was not clean; the sealed
+    ``extraction_schema_hash`` names the exact contract the model was asked to fill
+    (D-08, T-11-03). Returns ``"unknown"`` when git is unavailable.
+    """
+    head = _git(["rev-parse", "HEAD"])
+    if head is None:
         return _UNKNOWN
-    return result.stdout.strip() or _UNKNOWN
+    commit = head.strip()
+    if not commit:
+        return _UNKNOWN
+    status = _git(["status", "--porcelain"])
+    if status is not None and status.strip():
+        return f"{commit}-dirty"
+    return commit
 
 
 def _ollama_version() -> str:

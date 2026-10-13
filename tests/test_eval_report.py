@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 from types import ModuleType
 
@@ -38,6 +39,7 @@ from triagedesk.evals.report import (
     ReportCase,
     RiskCoveragePoint,
     _digest_payload,
+    _git_commit,
     build_provenance,
     compute_report_digest,
 )
@@ -555,6 +557,29 @@ def test_provenance_seals_the_extraction_schema_hash() -> None:
     assert provenance.extraction_schema_hash == hash_tool_schema(
         ExtractionResult.model_json_schema()
     )
+
+
+def test_git_commit_marks_a_dirty_tree(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A run from a non-clean tree is sealed ``<sha>-dirty``, never a bare reproducible SHA.
+
+    ``_git_commit`` consults ``git status --porcelain`` so the recorded commit names a clean
+    tree only when there is one: an uncommitted change marks the SHA, so a stale commit can
+    never masquerade as the tree a run came from (the WR-02 provenance defect). The git
+    shell-out is stubbed, so the guard is hermetic and independent of the checkout's state.
+    """
+    import triagedesk.evals.report as report_module
+
+    responses = {"status": " M src/triagedesk/core/schema.py\n"}
+
+    def _fake_run(cmd: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        stdout = "abc123\n" if cmd[1] == "rev-parse" else responses["status"]
+        return subprocess.CompletedProcess(cmd, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(report_module.subprocess, "run", _fake_run)
+
+    assert _git_commit() == "abc123-dirty", "a dirty tree must be marked, not sealed bare"
+    responses["status"] = ""  # a clean tree records the bare commit
+    assert _git_commit() == "abc123"
 
 
 def test_report_digest_seals_the_extraction_schema_hash() -> None:

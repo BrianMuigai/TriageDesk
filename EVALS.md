@@ -44,7 +44,7 @@ results, wall-clock latency, token counts, and model/settings hash.
 | Calibration (small-sample) | offline ECE + risk–coverage over a declared split, with both sample sizes named | aggregate | ECE 0.205 · n_calibration=14 · n_held_out=2 |
 
 <!-- BEGIN GENERATED: source -->
-> **Measured source:** `evals/results/report.json` · mode `real` · `report_digest: e75b3b0c873a6239cdcdd6be59eb5bd7aaaad152b124954ec68e6d17ee410041` · 3 runs/case.
+> **Measured source:** `evals/results/report.json` · mode `real` · `report_digest: 12d6d1b909d33872989077befb4bf86c3a3062062a79d1827b89cc41ffc06a23` · 3 runs/case.
 <!-- END GENERATED: source -->
 
 ### 3.1 Report shape (cost & stability visible per case)
@@ -193,5 +193,16 @@ published SATS rules, not from clinician adjudication. This is an honest limitat
 
 ## 8. Reproducibility
 
-Each report records the model name + quantisation, Ollama version, prompt hashes, the SATS YAML file
-hashes, and the harness commit SHA, so any run can be reproduced or shown to have varied.
+Each report records the model name + quantisation, the Ollama version, the prompt hash, the SATS YAML
+hashes, the **extraction-schema hash** and the harness commit, so any run can be reproduced or shown to
+have varied. The extraction-schema hash (`provenance.extraction_schema_hash`) seals the exact contract
+the model was asked to fill — the `ExtractionResult` JSON schema `llm.client.extract` sends as BOTH the
+prompt text and the `format=` decode grammar — so it, not the bare commit, identifies the run when a
+change moved that input without moving `prompt_hash` (T-11-03).
+
+A run produced from a **non-clean working tree** is recorded with a `-dirty` suffix on the harness
+commit (e.g. `<sha>-dirty`): `git status --porcelain` is consulted at write time, so a bare SHA is never
+presented as one that reproduces a run it does not. The published report was produced this way — the
+extraction-contract change was still uncommitted at its recorded `HEAD` — so its provenance names the
+non-clean tree and the sealed extraction-schema hash that pins the contract; a reviewer reproduces the
+run by matching that hash (and the other sealed hashes), not by checking out the bare commit.
