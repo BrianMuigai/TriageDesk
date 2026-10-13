@@ -109,7 +109,17 @@ so the runbook cannot drift from what a presenter will actually run (T-05-06).
 
 ## Expected on-screen output per beat
 
-Every line below is real output from the shipped CLI (not a hand-written mock). Tool calls print as
+> **Known drift — refreshed in Phase 12 (DOCS-06).** The blocks below are the transcript recorded
+> against the **v1.0 freeze**; they **predate Phases 8/9/10**, so the shipped CLI has since diverged.
+> In the current build the `routine` (E-01) and `deterioration` (E-07) beats **defer** (no `commit`
+> line — the graph routes to the safe `escalate` terminal), and `escalation` (E-02) commits at **queue
+> position 1** because `routine` no longer commits. The owned server also exposes **seven** tools, not
+> the five the per-beat annotations name. A faithful re-transcription is Phase 12's DOCS-06 ("every
+> submission document refreshed to the v1.1 state"); until then this section is **not** a byte-exact
+> transcript of the shipped output.
+
+Every line below is the recorded v1.0 output (not a hand-written mock); see the drift note above for
+how the shipped CLI has since moved. Tool calls print as
 `[tool] <name> <inputs> -> <outputs>`; each beat closes with a `--- outcome ---` block carrying the
 **sourced priority** — colour, target, the matched discriminator ids, and the citation(s) behind the
 colour. Case ids are content-derived, so they are stable per case; queue positions accumulate across
