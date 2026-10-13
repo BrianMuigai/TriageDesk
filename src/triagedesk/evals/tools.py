@@ -7,6 +7,11 @@ copy (SOLID: L). Only the model is stubbed, and only in offline mode: ``normaliz
 returns the fixture's golden extraction with zero usage while every other tool — the
 deterministic matcher, scorer, recheck and the real gated commit — runs for real.
 
+:func:`build_tools` serves the harness (a ``CaseSpec``); :func:`offline_tools` is the
+harness-free entry point for a caller that already has a structured ``CaseInput`` and no
+fixture (the desk submission and the durable resume). Both delegate to the ONE private
+``_tool_map`` core, so the mapping is assembled in exactly one place (DRY).
+
 In real mode ``normalize_case`` drives the real owned server, whose module-level
 ``extract`` is wrapped (via :func:`recorded_extract_seam`) with the run's usage sink, so
 token cost is read from the one model response (D-08, Pitfall 16).
@@ -74,17 +79,25 @@ def _injected_normalize(
     return injected
 
 
-def build_tools(case: CaseSpec, *, offline: bool, recorder: UsageRecorder) -> dict[str, Any]:
-    """Build the harness tool mapping for one case (D-13).
+def _tool_map(
+    case: CaseInput,
+    *,
+    offline: bool,
+    inject: FaultInjection | None,
+    recorder: UsageRecorder,
+) -> dict[str, Any]:
+    """Build the injected tool mapping from a resolved ``CaseInput`` and fault — the ONE core.
 
-    Every tool is the real owned tool called in-process; only ``normalize_case`` is
-    stubbed in offline mode (returning the fixture's golden extraction with no model
-    call). The injected ``recorder`` is unused here directly — the caller patches the
-    server's ``extract`` with it via :func:`recorded_extract_seam` — but it is threaded
-    through so the mapping is built from the same per-run recorder the seam uses.
+    Both :func:`build_tools` (the harness path, ``CaseSpec``-shaped) and :func:`offline_tools`
+    (the harness-free path, ``CaseInput``-shaped) delegate here, so the seven-tool mapping is
+    assembled in exactly one place (DRY). Every tool is the real owned tool called in-process;
+    only ``normalize_case`` is stubbed in offline mode (returning *case*'s own extraction with
+    no model call). The injected ``recorder`` is unused here directly — the caller patches the
+    server's ``extract`` with it via :func:`recorded_extract_seam` — but it is threaded through
+    so the mapping is built from the same per-run recorder the seam uses.
 
-    When the case declares ``inject``, the ``normalize_case`` callable is wrapped with
-    the fault (T-04-09) so the graph's real bounded retry and deterministic fallback run.
+    When ``inject`` is declared, the ``normalize_case`` callable is wrapped with the fault
+    (T-04-09) so the graph's real bounded retry and deterministic fallback run.
     """
     del recorder  # the seam is applied by the caller; kept in the signature for symmetry
 
@@ -92,13 +105,13 @@ def build_tools(case: CaseSpec, *, offline: bool, recorder: UsageRecorder) -> di
         # The graph's own ``parse_tool_result`` is the ONE parser of a tool payload, so
         # this callable returns the server's result unchanged and lets the graph coerce it.
         if offline:
-            return ExtractionResult(case=case.case, matched_discriminator_ids=[])
+            return ExtractionResult(case=case, matched_discriminator_ids=[])
         return await server_module.normalize_case(str(inp["raw_note"]))
 
     normalize = (
         normalize_case
-        if case.inject is None
-        else _injected_normalize(normalize_case, case.inject)
+        if inject is None
+        else _injected_normalize(normalize_case, inject)
     )
 
     async def match_discriminators(inp: Mapping[str, Any]) -> Any:
@@ -142,4 +155,26 @@ def build_tools(case: CaseSpec, *, offline: bool, recorder: UsageRecorder) -> di
     }
 
 
-__all__ = ["ToolMap", "build_tools", "recorded_extract_seam"]
+def build_tools(case: CaseSpec, *, offline: bool, recorder: UsageRecorder) -> dict[str, Any]:
+    """Build the harness tool mapping for one case (D-13).
+
+    A one-line delegate to the shared :func:`_tool_map` core: it unpacks the harness
+    ``CaseSpec`` into its ``CaseInput`` and declared fault, so the harness path and the
+    harness-free :func:`offline_tools` path cannot drift (DRY).
+    """
+    return _tool_map(case.case, offline=offline, inject=case.inject, recorder=recorder)
+
+
+def offline_tools(case: CaseInput, recorder: UsageRecorder) -> dict[str, Any]:
+    """Build the offline tool mapping from a bare ``CaseInput`` — the harness-free entry point.
+
+    The entry point for a caller that has a structured case but no evaluation fixture (the desk
+    submission and the durable resume): it needs no ``CaseSpec`` and no declared terminal, so it
+    fabricates none. The mapping is the same seven real owned tools as :func:`build_tools` —
+    model stubbed offline with *case*'s own extraction and no injected fault — so the caller sees
+    the shipped gate, never a copy (SOLID: L).
+    """
+    return _tool_map(case, offline=True, inject=None, recorder=recorder)
+
+
+__all__ = ["ToolMap", "build_tools", "offline_tools", "recorded_extract_seam"]

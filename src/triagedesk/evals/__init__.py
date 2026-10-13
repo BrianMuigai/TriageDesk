@@ -20,7 +20,7 @@ from triagedesk.evals.report import (
     write_report,
 )
 from triagedesk.evals.runner import run_eval
-from triagedesk.evals.tools import ToolMap, build_tools, recorded_extract_seam
+from triagedesk.evals.tools import ToolMap, build_tools, offline_tools, recorded_extract_seam
 from triagedesk.evals.usage import UsageRecorder, recorded_extract
 
 __all__ = [
@@ -39,6 +39,7 @@ __all__ = [
     "compute_report_digest",
     "declared_outcomes",
     "load_cases",
+    "offline_tools",
     "recorded_extract",
     "recorded_extract_seam",
     "run_eval",

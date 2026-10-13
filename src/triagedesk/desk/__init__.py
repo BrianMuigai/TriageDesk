@@ -3,7 +3,7 @@
 The public seam is :func:`triagedesk.desk.server.serve` — the one-command local HTTP
 bridge the CLI's ``desk`` subcommand calls. The bridge renders the graph's own typed
 outputs and reuses the shipped seams (``durable.run_to_gate`` /
-``durable.approval_decision`` / ``durable.resume_thread``, ``evals.tools.build_tools``,
+``durable.approval_decision`` / ``durable.resume_thread``, ``evals.tools.offline_tools``,
 ``core.schema.CaseInput``) and re-implements none of them.
 """
 

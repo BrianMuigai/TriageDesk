@@ -32,27 +32,11 @@ from typing import Any
 from langgraph.types import Command
 
 from triagedesk.core.schema import CaseInput
-from triagedesk.evals.case import TERMINAL_OUTCOMES, CaseSpec
 from triagedesk.graph.build import checkpointed_graph
 from triagedesk.graph.nodes import ToolMap, case_id_for_note
 
 # The decisions the gate accepts (mirrors ``ApprovalToken.decision``).
 _DECISIONS = ("approve", "edit", "dismiss")
-
-# The placeholder case the resume tool mapping is built from. ``resume`` never runs a
-# pre-gate node (the checkpoint short-circuits them), so this case is never read — it is
-# present only to satisfy ``build_graph``'s allowlist assertion when the tool mapping is
-# assembled. Its ``expected`` is a declared harness terminal (never a SATS colour literal,
-# which must live only in ``data/*.yaml`` per CONVENTIONS §1).
-_RESUME_PLACEHOLDER = CaseSpec(
-    id="resume-placeholder",
-    description="Placeholder case for the resume tool mapping; never read on resume.",
-    note="",
-    case=CaseInput(),
-    expected=TERMINAL_OUTCOMES[0],
-    pass_criteria="never evaluated: the checkpoint short-circuits every pre-gate node",
-    source="src/triagedesk/durable.py",
-)
 
 
 class DurableError(RuntimeError):
@@ -226,17 +210,17 @@ async def resume_thread(
 ) -> Mapping[str, Any]:
     """Resume a durable thread from the CLI — the ONE place the resume tools are built.
 
-    The tool mapping is built in-process from the placeholder case (the owned tools are
-    called in-process, so no owned MCP server is launched and no model is needed); the
-    pre-gate nodes that would read the case are short-circuited by the checkpoint. The
-    store is NOT resolved or injected here: the gated commit and its audit interceptor
-    resolve it through the ONE existing seam (``mcp.server.resolve_store``), so there is
-    exactly one store-resolution path.
+    The tool mapping is built in-process from a bare ``CaseInput`` (``evals.tools.offline_tools``
+    — no harness fixture and no declared terminal); the owned tools are called in-process, so no
+    owned MCP server is launched and no model is needed, and the pre-gate nodes that would read
+    the case are short-circuited by the checkpoint. The store is NOT resolved or injected here:
+    the gated commit and its audit interceptor resolve it through the ONE existing seam
+    (``mcp.server.resolve_store``), so there is exactly one store-resolution path.
     """
-    from triagedesk.evals.tools import build_tools
+    from triagedesk.evals.tools import offline_tools
     from triagedesk.evals.usage import UsageRecorder
 
-    tools = build_tools(_RESUME_PLACEHOLDER, offline=True, recorder=UsageRecorder())
+    tools = offline_tools(CaseInput(), UsageRecorder())
     return await resume_paused(
         tools, thread_id=thread_id, decision=decision, db_path=db_path
     )

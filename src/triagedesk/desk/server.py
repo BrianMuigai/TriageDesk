@@ -53,8 +53,7 @@ from triagedesk.durable import (
     resume_thread,
     run_to_gate,
 )
-from triagedesk.evals.case import TERMINAL_OUTCOMES, CaseSpec
-from triagedesk.evals.tools import build_tools
+from triagedesk.evals.tools import offline_tools
 from triagedesk.evals.usage import UsageRecorder
 from triagedesk.graph.build import CHECKPOINTS_DB_PATH
 
@@ -194,19 +193,10 @@ def _tools_for(case: CaseInput) -> dict[str, Any]:
 
     The form already supplies a structured ``CaseInput``, so the surface is model-free: the
     offline mapping returns the case's own extraction while the matcher, scorer, retrieval,
-    confidence and the gated commit all run for real. The declared harness terminal keeps a
-    SATS colour literal out of code (CONVENTIONS §1) and is never read.
+    confidence and the gated commit all run for real. It needs no harness ``CaseSpec`` — the
+    harness-free ``evals.tools.offline_tools`` builds the mapping from the ``CaseInput`` alone.
     """
-    spec = CaseSpec(
-        id="desk",
-        description="desk submission",
-        note=case.complaint,
-        case=case,
-        expected=TERMINAL_OUTCOMES[0],
-        pass_criteria="never evaluated: the desk scores through the shipped graph",
-        source="src/triagedesk/desk/server.py",
-    )
-    return build_tools(spec, offline=True, recorder=UsageRecorder())
+    return offline_tools(case, UsageRecorder())
 
 
 async def submit_case(case: CaseInput, db_path: str | Path) -> PausedRun:
