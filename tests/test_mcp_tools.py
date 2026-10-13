@@ -144,9 +144,15 @@ async def test_commit_priority_commits_once_through_the_injected_store(injected_
         )
 
     # A valid token now performs the real idempotent write: it commits once, and a
-    # repeat of identical content inserts no second row (GATE-03, D-06).
-    assert CommitResult.model_validate_json(first.content[0].text).committed is True
-    assert CommitResult.model_validate_json(repeat.content[0].text).committed is True
+    # repeat of identical content inserts no second row (GATE-03, D-06). The typed
+    # position is set from the assigned row; a repeat of the SAME case keeps the SAME
+    # position (supersede-in-place).
+    first_result = CommitResult.model_validate_json(first.content[0].text)
+    repeat_result = CommitResult.model_validate_json(repeat.content[0].text)
+    assert first_result.committed is True
+    assert repeat_result.committed is True
+    assert first_result.position == 1
+    assert repeat_result.position == first_result.position
     assert len(injected_store.rows) == 1
 
 

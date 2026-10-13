@@ -50,6 +50,7 @@ from triagedesk.core.rules import get_tews
 from triagedesk.core.schema import (
     ApprovalToken,
     CaseInput,
+    CommitResult,
     ConfidenceResult,
     Escalation,
     EvidenceResult,
@@ -1090,6 +1091,37 @@ def test_dismiss_commits_nothing(tmp_path: Path, injected_store: Any) -> None:
 
     rendered = desk_server.render_state(result=result, form_values={"decision": "dismiss"})
     assert "Dismissed — nothing has been committed." in rendered
+
+
+def test_committed_panel_names_the_queue_position_when_present() -> None:
+    """The committed copy names the position the typed ``CommitResult`` carries.
+
+    Hermetic — the position is supplied on a hand-built ``CommitResult`` so the render
+    does not depend on the injected store's numbering.
+    """
+    result = {"commit_result": CommitResult(committed=True, position=3, reason="accepted")}
+    rendered = desk_server.render_state(
+        result=result,
+        form_values={"decision": "approve", "name": "Nurse Demo", "role": "triage nurse"},
+    )
+    assert (
+        "Approved by Nurse Demo (triage nurse) — committed to the queue at position 3."
+        in rendered
+    )
+
+
+def test_committed_panel_falls_back_to_the_position_free_copy_when_absent() -> None:
+    """A position-less ``CommitResult`` renders today's exact copy.
+
+    The fallback the eval stub and any older checkpoint state rely on — no crash and
+    no behaviour change when the commit carried no position.
+    """
+    result = {"commit_result": CommitResult(committed=True, reason="accepted")}
+    rendered = desk_server.render_state(
+        result=result,
+        form_values={"decision": "approve", "name": "Nurse Demo", "role": "triage nurse"},
+    )
+    assert "Approved by Nurse Demo (triage nurse) — committed to the queue." in rendered
 
 
 def test_a_failure_is_never_an_approve(

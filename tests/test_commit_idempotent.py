@@ -216,6 +216,46 @@ async def test_commit_priority_edit_commits_the_tokens_final_colour(injected_sto
     assert injected_store.rows[0].colour == "GREEN"
 
 
+async def test_an_edit_supersedes_the_same_case_keeping_the_same_position(
+    injected_store,
+) -> None:
+    """An approve then an edit of the SAME case keep the SAME position, one row (D6-06).
+
+    The idempotency key covers the immutable case content, so an approve and an edit of
+    the same case (same ``case_id``, identical ``case``) re-derive the SAME key even
+    though the token's ``final_colour`` differs: the second write supersedes the row in
+    place. Both ``CommitResult``s therefore carry the SAME typed ``position`` while the
+    store holds exactly one row. Assert on the typed field only — never on the reason.
+    """
+    async with Client(server_module.server) as client:
+        approved = await client.call_tool(
+            "commit_priority",
+            {
+                "case_id": "c-1",
+                "colour": "RED",
+                "case": _CASE,
+                "approval_token": _token("approve", "RED"),
+            },
+        )
+        edited = await client.call_tool(
+            "commit_priority",
+            {
+                "case_id": "c-1",
+                "colour": "RED",
+                "case": _CASE,
+                "approval_token": _token("edit", "GREEN"),
+            },
+        )
+
+    approve_result = CommitResult.model_validate_json(approved.content[0].text)
+    edit_result = CommitResult.model_validate_json(edited.content[0].text)
+    assert approve_result.committed is True
+    assert edit_result.committed is True
+    assert approve_result.position == 1
+    assert edit_result.position == approve_result.position
+    assert len(injected_store.rows) == 1
+
+
 async def test_commit_priority_uses_the_injected_store_seam(memory_store) -> None:
     """The commit path resolves its store through the injectable seam, not a concrete import.
 
