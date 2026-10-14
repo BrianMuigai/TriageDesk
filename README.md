@@ -39,6 +39,20 @@ the nurse to look twice until she physically reaches that card.
 - **Seconds** — what the agent should take to turn vitals + complaint into a *cited* priority level.
 - **Nurse decides** — the agent stops here and hands over a sourced priority, not a diagnosis.
 
+## Target users
+
+TriageDesk serves the front line of a busy public-hospital OPD:
+
+- **Triage nurse (primary user)** — enters vitals and a presenting complaint, receives a sourced
+  priority, and confirms or overrides it.
+- **Named clinician / SHCP (approver)** — the named senior professional whose approval releases a case
+  card to the queue.
+- **Patient (beneficiary)** — receives faster, better-sequenced care, and is never acted on by the
+  agent alone.
+
+Setting: a district or regional public-hospital OPD — one or two nurses, paper case cards, and basic
+equipment (a blood-pressure cuff, a thermometer, a pulse oximeter). See [`docs/PROJECT.md`](docs/PROJECT.md) §3.
+
 ## The one non-negotiable rule
 
 > TriageDesk **scores or sequences** the queue. It **never diagnoses**, **never prescribes**, and
@@ -141,6 +155,94 @@ Open **<http://127.0.0.1:8765>** in a browser and stop the server with **Ctrl-C*
 loopback only and makes no external request. The recorded walkthrough is
 [`docs/assets/desk-demo.mp4`](docs/assets/desk-demo.mp4); the nurse-facing quickstart is
 [`docs/DESK.md`](docs/DESK.md).
+
+## Architecture
+
+A **deterministic SATS scorer** inside an **explicit LangGraph plan** on a **local open-weights
+model**, gated by **human approval before anything reaches a queue**. The LLM handles language; **no
+number comes from the model**, so a priority is defensible under audit. The full shape, agent graph,
+MCP servers and data flow are in [`ARCHITECTURE.md`](ARCHITECTURE.md); the diagram is
+[`docs/assets/architecture.pdf`](docs/assets/architecture.pdf).
+
+## Agent architecture
+
+An explicit LangGraph plan — `ingest → normalize → retrieve → score → ground → verify → recheck →
+assess → approval_gate → commit → handover`, with `request_missing_info` and `escalate` terminals. The
+model is used only to structure language; the colour is computed deterministically from `data/*.yaml`.
+Node table and edges: [`ARCHITECTURE.md`](ARCHITECTURE.md) §3.
+
+## MCP implementation
+
+TriageDesk implements MCP on **both sides**: it authors one server and consumes another, reached
+through a single client adapter (`langchain.mcp`) over **stdio**. The graph depends on the **tool
+interface**, not a concrete adapter (SOLID: dependency inversion), so the borrowed server can be
+swapped in one module. Rationale: [`docs/DECISIONS.md`](docs/DECISIONS.md) D5, D13.
+
+## MCP tools & servers
+
+**Owned `triage` server — 7 tools.** Read-only: `normalize_case`, `match_discriminators`,
+`retrieve_evidence`, `assess_confidence`. Acting: `score_priority`, `raise_recheck_flag`.
+Acting and gated: `commit_priority`. Three of the seven act, and **only `commit_priority` mutates the
+queue** — it refuses to run without a valid approval token.
+
+**Borrowed server.** A maintained SQLite MCP server (`mcp-sqlite@1.0.9`) for persistence — *"persistence,
+schema and query safety are solved; a hand-rolled DB adds zero triage value"* — its read paths are
+exercised behind the unchanged `Store` protocol. Full tool contracts: [`ARCHITECTURE.md`](ARCHITECTURE.md) §4.
+
+## Human-in-the-loop workflow
+
+Every irreversible action is gated. A LangGraph `interrupt()` pauses at the **approval gate** and
+presents the suggested priority with its citations; a **named clinician approves, edits, or dismisses**.
+An edit supersedes the queue row in place; a dismiss commits nothing. `commit_priority` refuses to run
+without a well-formed, named token, and a deterioration re-check raises a **second look** without
+reordering the queue. See [`ARCHITECTURE.md`](ARCHITECTURE.md) §5 and the desk surface in
+[`docs/DESK.md`](docs/DESK.md).
+
+## Technology stack
+
+| Layer | Choice |
+| --- | --- |
+| Runtime | Python 3.12, managed by `uv` (committed `uv.lock`) |
+| Orchestration | **LangGraph** (explicit graph; `interrupt()` gate) |
+| MCP | Owned server on the **MCP SDK v2**; borrowed **`mcp-sqlite@1.0.9`** |
+| MCP client | `langchain.mcp` adapter (stdio) |
+| Model | **Qwen2.5 1.5B** via **Ollama** (open weights, offline); `qwen3.5:4b` fallback |
+| Schemas | **Pydantic** (one schema module) |
+| Storage | SQLite (domain + audit) and `checkpoints.db` (runtime state) |
+| Quality | `pytest`, `ruff`, `mypy` |
+
+Rationale for every choice: [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+## Limitations
+
+Honest, measured limitations — not aspirational claims:
+
+- **No triage nurse/clinician review obtained.** The fit-to-desk claim is scoped to what is built and
+  measured; expected colours derive from the published SATS rules ([`EVALS.md`](EVALS.md) §7).
+- **Deferral over-covers benign complaints.** When a complaint matches no discriminator the case defers
+  rather than scoring on vitals alone; the measured deferral rate is published in [`EVALS.md`](EVALS.md) §3.
+- **Extraction latency is not "seconds".** The deterministic score is instant; the local model's
+  extraction dominates (latency in [`EVALS.md`](EVALS.md) §3).
+- **The desk surface is a prototype** — loopback, single-machine, English-only, with no hospital-system
+  integration ([`docs/DESK.md`](docs/DESK.md)).
+- **Approver identity is recorded, not authenticated** ([`SECURITY.md`](SECURITY.md) §6).
+- **English-only and synthetic-data-only** by design.
+- Two cases remain recorded, unfixed evaluation failures ([`EVALS.md`](EVALS.md) §6).
+
+The full ranked gap analysis is [`STATUS.md`](STATUS.md).
+
+## Future improvements
+
+From [`STATUS.md`](STATUS.md) §7:
+
+- **Calibrated confidence** — a true selective-prediction probability beyond today's deterministic
+  coverage signal.
+- **Model routing / caching / budgets** to attack the extraction latency.
+- **Online evaluation + drift monitoring.**
+- **Multimodal intake** (voice + cuff/chart photo) — the real desk UX.
+- **Vitals-entry ergonomics** (numeric keypad, units, missing-vital prompting).
+- **Approver authentication** (identity is recorded today, not authenticated).
+- **MCP sampling / elicitation** — the current spec's agent↔server negotiation.
 
 ## Repository map
 
