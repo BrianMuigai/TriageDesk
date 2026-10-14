@@ -4,9 +4,9 @@ milestone: v1.1
 milestone_name: Score Uplift
 status: Awaiting next milestone
 stopped_at: Phase 12 complete — all phases complete
-last_updated: "2026-10-14T04:37:16.071Z"
-last_activity: 2026-10-13
-last_activity_desc: "Completed quick task 261013-wjd: give the outcome projection and the in-memory checkpointer one public home instead of private cross-module imports"
+last_updated: "2026-10-14T05:27:42.426Z"
+last_activity: 2026-10-14
+last_activity_desc: "Completed quick task 261014-ad2: refresh STATUS.md with the post-v1.1 desk hardening, the queue-position payoff and the two recorded walkthroughs"
 current_phase: 12
 progress:
   total_phases: 7
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 Phase: Milestone v1.1 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-10-14 - Completed quick task 261014-ad2: refresh STATUS.md with the post-v1.1 desk hardening, the queue-position payoff and the two recorded walkthroughs
+Last activity: 2026-10-14 - Completed quick task 261014-asx: overhaul STATUS.md into a current-state gap analysis
 
 ## Performance Metrics
 
@@ -174,6 +174,7 @@ None yet.
 | 3 | split the desk server module by SRP and document how to run the demos in the README | 2026-10-13 | 39e9cc8 | Verified | [261013-tqi-split-the-desk-server-module-by-srp-and-](./quick/261013-tqi-split-the-desk-server-module-by-srp-and-/) |
 | 4 | give the outcome projection and the in-memory checkpointer one public home instead of private cross-module imports | 2026-10-13 | c15b500 | Verified | [261013-wjd-give-the-outcome-projection-and-the-in-m](./quick/261013-wjd-give-the-outcome-projection-and-the-in-m/) |
 | 5 | refresh STATUS.md with the post-v1.1 desk hardening, the queue-position payoff and the two recorded walkthroughs | 2026-10-14 | 0991141 | complete | [261014-ad2-refresh-status-md-with-the-post-v1-1-des](./quick/261014-ad2-refresh-status-md-with-the-post-v1-1-des/) |
+| 6 | overhaul STATUS.md into a current-state gap analysis | 2026-10-14 | a7eba9e | Verified | [261014-asx-overhaul-status-md-into-a-current-state-](./quick/261014-asx-overhaul-status-md-into-a-current-state-/) |
 
 ## Deferred Verification
 
