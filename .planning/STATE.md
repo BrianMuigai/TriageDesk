@@ -4,9 +4,9 @@ milestone: v1.1
 milestone_name: Score Uplift
 status: Awaiting next milestone
 stopped_at: Phase 12 complete — all phases complete
-last_updated: "2026-10-14T05:27:42.426Z"
+last_updated: "2026-10-14T09:55:00.000Z"
 last_activity: 2026-10-14
-last_activity_desc: "Completed quick task 261014-ad2: refresh STATUS.md with the post-v1.1 desk hardening, the queue-position payoff and the two recorded walkthroughs"
+last_activity_desc: "Completed quick task 261014-f37: recorded ONE reproducible <3 min submission video with the tool calls on screen (G5 closed)"
 current_phase: 12
 progress:
   total_phases: 7
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 Phase: Milestone v1.1 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-10-14 - Completed quick task 261014-asx: overhaul STATUS.md into a current-state gap analysis
+Last activity: 2026-10-14 - Completed quick task 261014-f37: recorded ONE reproducible <3 min submission video with the tool calls on screen (G5 closed)
 
 ## Performance Metrics
 
@@ -175,6 +175,7 @@ None yet.
 | 4 | give the outcome projection and the in-memory checkpointer one public home instead of private cross-module imports | 2026-10-13 | c15b500 | Verified | [261013-wjd-give-the-outcome-projection-and-the-in-m](./quick/261013-wjd-give-the-outcome-projection-and-the-in-m/) |
 | 5 | refresh STATUS.md with the post-v1.1 desk hardening, the queue-position payoff and the two recorded walkthroughs | 2026-10-14 | 0991141 | complete | [261014-ad2-refresh-status-md-with-the-post-v1-1-des](./quick/261014-ad2-refresh-status-md-with-the-post-v1-1-des/) |
 | 6 | overhaul STATUS.md into a current-state gap analysis | 2026-10-14 | a7eba9e | Verified | [261014-asx-overhaul-status-md-into-a-current-state-](./quick/261014-asx-overhaul-status-md-into-a-current-state-/) |
+| 7 | record ONE reproducible <3 min submission video with the tool calls on screen (G5) | 2026-10-14 | 88b02ab | complete | [261014-f37-single-tool-call-demo-video](./quick/261014-f37-single-tool-call-demo-video/) |
 
 ## Deferred Verification
 
@@ -184,9 +185,10 @@ None yet.
 
 Two human SUBMISSION actions remain for Phase 12 (the phase itself is verified `passed`, 13/13):
 
-1. **Record + publicly upload the demo video** — the one submission blocker (`STATUS` G1/G9). The
-   2–3 min script + narration is shipped in `docs/DEMO.md`; the existing local tape is 32.88 s
-   (flagged thin, G5).
+1. **Publicly upload the demo video** — the one submission blocker (`STATUS` G1/G9). The video is
+   now recorded (`docs/assets/triagedesk-demo.mp4`, 2:28 — ONE complete candidate with the tool calls
+   on screen, the measured eval and the declared failure; G5 closed, reproducible via
+   `docs/render-demo.sh`); only the public upload to YouTube/Vimeo remains.
 
 2. **Obtain a triage nurse/clinician review** (FIT-01) — the sanctioned fallback is shipped (an
    honest re-declaration with a marked, empty, attributed slot in `README.md`/`EVALS.md` §7).
