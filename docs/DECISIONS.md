@@ -217,7 +217,7 @@ fail-closed leading-keyword statement guard (`is_read_only_statement`) sit in th
 reached and the mutating record tools (`create_record`/`update_records`/`delete_records`) are **unnameable**.
 `write=True` is reserved for the schema bootstrap and the gated commit, which stays the only mutation route.
 **Why:** MCP-01 is an **integration** claim — the borrowed read tools must be genuinely *used*, not merely
-declared (the Phase-1 STATUS G7 gap). Read-only by construction beats read-only by convention (the Phase-7
+declared (the Phase-1 borrowed-read-path gap). Read-only by construction beats read-only by convention (the Phase-7
 replay precedent), and the `Store` protocol shape must not change, so the graph keeps depending on the
 interface, not the borrowed implementation (SOLID: D). The guard is a second, independent barrier beside the
 allowlist (D9-11, D9-12, D9-13).

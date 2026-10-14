@@ -65,12 +65,12 @@ risks** — items we cannot yet close, tracked honestly.
 | --- | --- | --- | --- | --- |
 | SB-1 | **Public code repository** | GitHub public repo — `github.com/BrianMuigai/TriageDesk` | ROADMAP.md | ✅ |
 | SB-2 | **OSI-approved licence** | Apache-2.0 | LICENSE | ✅ |
-| SB-3 | **README** that gets a stranger running in one command | `uv run triagedesk demo`; `uv run` auto-syncs from the committed `uv.lock`, so there is no separate install step | ../README.md | ✅ one command — G3 resolved |
+| SB-3 | **README** that gets a stranger running in one command | `uv run triagedesk demo`; `uv run` auto-syncs from the committed `uv.lock`, so there is no separate install step | ../README.md | ✅ one command |
 | SB-4 | **Demo video under 3 minutes**, **uploaded to YouTube or Vimeo and publicly visible** | Recorded (`docs/assets/triagedesk-demo.mp4`, 33 s) — **not yet uploaded** | docs/DEMO.md | ⛔ the one submission blocker — STATUS G1 |
 | SB-5 | **Unedited agent run, tool calls on screen** — **not slides** | Real unedited terminal run of `triagedesk demo --online`, incl. a failure | docs/assets/triagedesk-demo.mp4 | ✅ |
 | SB-6 | **~300-word text description**: what it does, sub-theme, facility & workflow | DESCRIPTION.md — within ±10% of 300 (guarded by `tests/test_docs_final.py`) | DESCRIPTION.md | ✅ |
 | SB-7 | **ARCHITECTURE.md — one page**: agent shape, MCP servers built vs borrowed, why | ARCHITECTURE.md (one page) | ../ARCHITECTURE.md | ✅ |
-| SB-8 | **EVALS.md**: 8+ test tasks with pass/fail, plus one failure not fixed + what you'd try next | 16 cases, measured; E-09 declared | ../EVALS.md | ✅ (counts reconciled — G4/STATUS) |
+| SB-8 | **EVALS.md**: 8+ test tasks with pass/fail, plus one failure not fixed + what you'd try next | 16 cases, measured; E-09 declared | ../EVALS.md | ✅ (counts reconciled) |
 | SB-9 | Repo that **runs** (not a repo that does not run) | One-command run + synthetic fixture + CI smoke test | ROADMAP.md | ✅ |
 
 ## 5. Data conduct
@@ -115,7 +115,7 @@ Not required by the brief, tracked because the agent touches a clinical queue. F
 | --- | --- | --- | --- | --- |
 | SW-1 | **Untrusted input treated as data** (prompt-injection resistance) | Complaint parsed to typed fields; deterministic scorer; citation invariant; no source = rejected | ../SECURITY.md §4, DECISIONS.md D15, EVALS E-13 | ✅ (E-13/E-14 exercised) |
 | SW-2 | **Least privilege** | Tool allowlist; no network/credentials; the gated write is the only mutation | ../SECURITY.md §5 | ✅ |
-| SW-3 | **Idempotent irreversible writes** | `commit_priority` keyed by `case_id` + content hash | ../SECURITY.md §7, DECISIONS.md D16 | ✅ (key breadth — STATUS G4/integration) |
+| SW-3 | **Idempotent irreversible writes** | `commit_priority` keyed by `case_id` + content hash | ../SECURITY.md §7, DECISIONS.md D16 | ✅ (key breadth — integration-verified) |
 | SW-4 | **Approver identity + role recorded** | `approved_by`, `role`, `approved_at`, `decision`; authentication is a declared production requirement | ../SECURITY.md §6 | 🟡 authn deferred — G-8 |
 | SW-5 | **Version pinning & hashing** | Prompts, model version, scale data, tool schemas pinned + hashed; audit names versions | ../SECURITY.md §8, DECISIONS.md D17 | ✅ |
 | SW-6 | **Documented threat model** | T-1…T-10 mapped to controls | ../SECURITY.md §3 | ✅ |
@@ -124,14 +124,14 @@ Not required by the brief, tracked because the agent touches a clinical queue. F
 
 | ID | Requirement | How we prepare | Artifact | Status |
 | --- | --- | --- | --- | --- |
-| ST-1 | 10-min code walkthrough + a **new requirement added live** while judges watch | Keep SATS rules in **YAML data files**, so adding a rule/level is a one-line edit; keep graph nodes small and named we can explain line-by-line | [`REVIEW.md`](REVIEW.md) (the guarded runbook), ../ARCHITECTURE.md §8, DECISIONS.md D14 | ✅ rehearsed — STATUS G6 resolved |
+| ST-1 | 10-min code walkthrough + a **new requirement added live** while judges watch | Keep SATS rules in **YAML data files**, so adding a rule/level is a one-line edit; keep graph nodes small and named we can explain line-by-line | [`REVIEW.md`](REVIEW.md) (the guarded runbook), ../ARCHITECTURE.md §8, DECISIONS.md D14 | ✅ rehearsed |
 
 ## 10. Traceability matrix (requirement → artifact)
 
 | Artifact | Requirements covered |
 | --- | --- |
 | `../README.md` | SB-3, JC-2 |
-| `../STATUS.md` | honest gap analysis (G1–G9, UX U1–U7, SOTA gaps) |
+| `../STATUS.md` | honest gap analysis (open gaps G1/G2/G5/G8/G9, UX U1–U5, SOTA gaps) |
 | `PROJECT.md` | EL-2, EL-4, SN-1…6, BW-6, DC-2, DC-3, JC-3 |
 | `REQUIREMENTS.md` | all (index) |
 | `../ARCHITECTURE.md` | BW-1, BW-2, BW-3, BW-6, BW-8, BW-9, BW-10, SN-3…6, JC-1, JC-5, ST-1 |
