@@ -8,18 +8,6 @@
 > [`ARCHITECTURE.md`](ARCHITECTURE.md) for the agent shape; this file links them rather than
 > restating their figures.
 
-> **Since the v1.1 close (2026-10-14) — evidence and engineering hygiene, no estimate moved:** the gated
-> queue write is now visible — the post-decision panel names the queue position it assigned, and the
-> captioned 2:55 desk walkthrough ([`docs/assets/desk-demo.mp4`](docs/assets/desk-demo.mp4)) shows the two
-> approvals landing at positions **1** and **2**, every refusal after them writing nothing — joining the
-> 33 s terminal candidate. The desk `server.py` was SRP-split (**1169 → 375 lines** across nine
-> single-purpose modules) and the README gained a `## Running the demos` section; the store-seam ceremony
-> collapsed to one context manager, one `offline_tools(CaseInput)` entry point replaced two fabricated
-> harness cases, and the in-memory checkpointer and the outcome projection each got one public home (DRY).
-> The suite is **`463 passed`**. This is not score: the desk is still a single-machine loopback prototype,
-> the model-extraction latency is unchanged ([`EVALS.md`](EVALS.md) §3), and both human steps — the video
-> upload and the clinician review — are untouched.
-
 ---
 
 ## 0. Verdict
@@ -53,22 +41,22 @@ hard submission gap** (the demo video is recorded but **not uploaded**) and **on
 
 | Requirement | Status |
 | --- | --- |
-| Public repo + OSI licence + README one command | ✅ public, Apache-2.0 — one command (`uv run triagedesk demo`); G3 resolved |
-| Demo video <3 min, **uploaded to YouTube/Vimeo, publicly visible** | ❌ two recordings exist — the 33 s terminal submission candidate (`docs/assets/triagedesk-demo.mp4`) and a companion captioned 2:55 desk walkthrough (`docs/assets/desk-demo.mp4`) — but **NEITHER is uploaded** (G1) |
+| Public repo + OSI licence + README one command | ✅ public, Apache-2.0 — one command (`uv run triagedesk demo`) |
+| Demo video <3 min, **uploaded to YouTube/Vimeo, publicly visible** | ❌ the brief wants ONE video under 3 min *with the tool calls on screen*; the 33 s terminal run (`docs/assets/triagedesk-demo.mp4`) has the tool calls but is thin, and the 2:55 captioned desk walkthrough (`docs/assets/desk-demo.mp4`) has the length and narration but **no tool calls** — so neither is a complete candidate, and **neither is uploaded** (G1) |
 | ~300-word description | ✅ `DESCRIPTION.md` — within ±10% of 300, guarded by `tests/test_docs_final.py` |
 | ARCHITECTURE.md — one page | ✅ one page (see [`ARCHITECTURE.md`](ARCHITECTURE.md)) |
-| EVALS.md — 8+ tasks + one unfixed failure | ✅ 16 cases; E-09 declared (G4) |
+| EVALS.md — 8+ tasks + one unfixed failure | ✅ 16 cases; E-09 declared |
 
 ## 3. Judging criteria — honest self-score
 
 | Criterion | Pts | Est. | Why not full |
 | --- | --- | --- | --- |
-| Agentic depth & MCP craft | 30 | **27–30** | Strong. Borrowed-server read paths now exercised (G7 resolved) |
-| Open-source rigour | 20 | **18–20** | Honest README; one-command quickstart (G3 resolved) |
+| Agentic depth & MCP craft | 30 | **27–30** | Strong. Borrowed-server read paths now exercised |
+| Open-source rigour | 20 | **18–20** | Honest README; one-command quickstart; the desk module is SRP-split and the store seam de-duplicated |
 | **Fit to the triage desk** | 20 | **9–14** | **No clinician interview** (G2) + a still-single-machine prototype desk surface (U1) + unchanged model-extraction latency ([`EVALS.md`](EVALS.md) §3) (U3). New UX evidence now exists — the captioned desk walkthrough (`docs/assets/desk-demo.mp4`) and the queue-position-on-commit payoff (§6) — but the range does not move |
-| Evaluation & reliability | 15 | **13–15** | Honest & measured; 2 recorded gate failures + 1 declared deferral + 3 coverage deferrals (G4) |
+| Evaluation & reliability | 15 | **13–15** | Honest & measured; 2 recorded gate failures + 1 declared deferral + 3 coverage deferrals |
 | Defensibility | 10 | **9–10** | Deterministic, cited, hash-chained audit, cost/run — strong |
-| Demo | 5 | **3–5** | Recorded, failure shown — but 33 s and not hosted (G1/G5); a companion 2:55 captioned desk walkthrough (`docs/assets/desk-demo.mp4`) now exists while the submission candidate stays 33 s and unhosted |
+| Demo | 5 | **3–5** | Recorded, failure shown — but 33 s and not hosted (G1/G5). Neither recording is a complete candidate: the 33 s terminal run (`docs/assets/triagedesk-demo.mp4`) has the tool calls but is thin, while the 2:55 captioned desk walkthrough (`docs/assets/desk-demo.mp4`) has the length and narration but **no tool calls** |
 
 ## 4. Instant disqualifiers — none ✅
 
@@ -84,26 +72,14 @@ every priority cited · synthetic only · repo runs · results are real · green
    paste the link. *(Human step.)*
 2. **G2 — No clinician interview.** "Fit to triage desk" explicitly asks *"did you talk to one?"* We
    declared the gap honestly but lose points. Fix: one real triage-nurse/clinician review + a quote.
-3. **G3 — resolved.** The README now shows the literal one-liner `uv run triagedesk demo` (`uv`
-   auto-syncs from the committed lock); the two-step install is gone and a test guards it.
-4. **G4 — Eval optics.** The honest misses stay visible and the counts are reconciled: `EVALS.md`
-   §4 lists **16 cases** and §3's figures are emitted from the same `report.json`. E-09 is the one
-   declared failure (a coverage deferral, not a delivered under-triage); E-11 and E-13 are recorded
-   gate failures and E-01/E-08/E-14 are coverage deferrals.
-5. **G5 — Demo length.** 33 s is under 3 min but thin against "three clear minutes showing the agent
-   working." A companion captioned 2:55 desk walkthrough (`docs/assets/desk-demo.mp4`) now exists, but
-   the submission candidate is still 33 s — **G5 is not closed.**
-6. **G6 — resolved (Phase 12).** "A new requirement added live while we watch." The guarded
-   [`docs/REVIEW.md`](docs/REVIEW.md) runbook rehearses the data-only extension and the 10-min code
-   walkthrough — its `uv run triagedesk …` commands are exercised by `tests/test_review_runbook.py`,
-   and the durable dismissal is driven end-to-end (pause → resume). What remains **human** is
-   performing it live on the day.
-7. **G7 — resolved (Phase 9).** The borrowed server's read paths (`db_info`, `list_tables`,
-   `get_table_schema`, `read_records`) are now exercised behind the unchanged `Store` protocol
-   (MCP-01); a mutation on the read path fails closed before reaching the server.
-8. **G8 — Submission-period timing.** Page says "Opens TBC, closes TBC"; confirm the window was open on
+3. **G5 — Demo length and content.** The brief wants ONE video under 3 min *with the tool calls on
+   screen*, and neither recording is a complete candidate. The 33 s terminal run
+   (`docs/assets/triagedesk-demo.mp4`) has the tool calls but is thin; the 2:55 captioned desk
+   walkthrough (`docs/assets/desk-demo.mp4`) has the length and narration but **no tool calls**. Neither
+   closes the requirement — **G5 is not closed.**
+4. **G8 — Submission-period timing.** Page says "Opens TBC, closes TBC"; confirm the window was open on
    2026-10-09.
-9. **G9 — Eligibility to confirm.** "Resident anywhere in Africa," 18+, solo — confirm at application.
+5. **G9 — Eligibility to confirm.** "Resident anywhere in Africa," 18+, solo — confirm at application.
 
 ---
 
@@ -120,7 +96,7 @@ schedule includes "UX refinement."
 | Triage nurse | a **loopback desk surface** (`uv run triagedesk desk`) + the CLI | a real browser surface over the shipped graph — still single-machine and English-only |
 | Clinician approver | a real **approve / edit / dismiss** gate over `interrupt()`/resume | the interaction exists; approver *authentication* stays a declared gap (G-8) |
 
-### UX gaps (ranked) — re-scoped after Phase 10
+### UX gaps (ranked)
 
 - **U1 — The desk surface is a prototype, not a deployed tool.** Phase 10 ships a loopback browser
   surface ([`docs/DESK.md`](docs/DESK.md)) over the shipped graph; it is single-machine, English-only,
@@ -180,11 +156,6 @@ state-of-the-art *general* agent**. The distance to "cutting edge" is almost ent
 
 ### Genuine gaps worth closing (safe, and they raise "agentic depth" — 30 pts)
 
-**Landed in v1.1 (Phases 6–10):** retrieval-grounded knowledge over the SATS KB (deterministic
-lexical, no embeddings — Phase 9); a coverage/deferral signal (Phase 8); durable `checkpoints.db`
-execution (Phase 6); span tracing + read-only replay (Phase 7); and the loopback desk surface
-(Phase 10).
-
 **Still open:**
 1. **Calibrated confidence + abstention** (selective prediction) — the coverage signal is
    deterministic, not a calibrated probability.
@@ -209,25 +180,14 @@ it is the discipline the brief rewards ("three tools that work beat nine that ha
 
 **High-value (score movers):**
 - **One clinician review** + a one-line quote in README/EVALS (G2) — the biggest available points.
-- **Live review rehearsed** — the guarded `docs/REVIEW.md` runbook, incl. the data-only
-  "add a discriminator to `data/sats_discriminators.yaml` live and re-score" beat (G6 resolved).
-- **E-07 and E-04 fixed** (Phase 11); the measured eval was re-run; E-09 stays declared (G4).
-- **README one command — done**; the EVALS numbers are reconciled (G3/G4).
+- **Rehearse the live review AND perform it on the day** — the guarded `docs/REVIEW.md` runbook, incl.
+  the data-only "add a discriminator to `data/sats_discriminators.yaml` live and re-score" beat.
+- **A single <3 min video that carries the tool calls** (G5) — scripted in `docs/DEMO.md`.
 
-**UX (done in Phases 8–12):**
-- Human-readable **priority card** (not JSON) — the desk surface renders it.
-- A visible **"no match — nurse to confirm"** deferral banner — shipped (U4).
-- The gate as a **real approve/edit/dismiss prompt** over `interrupt()`/resume — shipped (U2).
-- Show the **fast deterministic path**; state the model latency honestly (U3) — in `docs/DEMO.md`.
-- A one-screen **desk quickstart** — `docs/DESK.md`.
-
-**UX (remaining):** vitals-entry ergonomics (numeric keypad, units, defaults), environment/accessibility
-(U5), and approver authentication (G-8).
+**UX (remaining):** vitals-entry ergonomics (U4: numeric keypad, units, defaults),
+environment/accessibility (U5), and approver authentication (G-8).
 
 **Polish:**
-- Extend the demo to ~2–3 min with the eval run + on-screen narration (G5) — scripted in `docs/DEMO.md`.
-  Partially done: a captioned 2:55 desk walkthrough (`docs/assets/desk-demo.mp4`) now exists, while the
-  submission candidate is still 33 s — G5 is not closed.
 - Optionally add a **frontier-model comparison on synthetic data** (the brief invites it).
 
 ---
