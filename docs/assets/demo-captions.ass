@@ -1,0 +1,22 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1946
+PlayResY: 1240
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: TV.709
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Caption,DejaVu Sans,34,&H00FFFFFF,&H00FFFFFF,&H00101010,&H80000000,0,0,0,0,100,100,0,0,1,2,0,2,70,70,40,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.30,0:00:07.28,Caption,,0,0,0,,A busy OPD desk: 60-90 minute waits. An unsourced colour is dangerous, so every priority is cited and nothing is queued without a nurse.
+Dialogue: 0,0:00:07.28,0:00:33.97,Caption,,0,0,0,,Routine case gives GREEN. The complaint matches no discriminator, so the agent DEFERS - nothing reaches the queue.
+Dialogue: 0,0:00:33.97,0:01:01.02,Caption,,0,0,0,,Escalated vitals give ORANGE. Only a named nurse's approval commits it - at queue position 1.
+Dialogue: 0,0:01:01.02,0:01:25.95,Caption,,0,0,0,,Serial vitals worsen, so the agent raises a second-look recheck flag. The case defers rather than commit a stale colour.
+Dialogue: 0,0:01:25.95,0:01:49.24,Caption,,0,0,0,,The approval gate REFUSES to commit without the named nurse. No queue row is written.
+Dialogue: 0,0:01:49.24,0:02:02.47,Caption,,0,0,0,,The committed, measured evaluation: 16 cases x 3 runs; safety invariants 4/4 - generated from the report.
+Dialogue: 0,0:02:02.47,0:02:21.20,Caption,,0,0,0,,And the declared failure we did NOT hide: E-09 - declared ORANGE, measured GREEN (shown mismatch).
+Dialogue: 0,0:02:21.20,0:02:27.70,Caption,,0,0,0,,Open source, offline, synthetic. Every priority cited; every commit gated. TriageDesk.

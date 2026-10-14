@@ -42,7 +42,7 @@ hard submission gap** (the demo video is recorded but **not uploaded**) and **on
 | Requirement | Status |
 | --- | --- |
 | Public repo + OSI licence + README one command | ✅ public, Apache-2.0 — one command (`uv run triagedesk demo`) |
-| Demo video <3 min, **uploaded to YouTube/Vimeo, publicly visible** | ❌ the brief wants ONE video under 3 min *with the tool calls on screen*; the 33 s terminal run (`docs/assets/triagedesk-demo.mp4`) has the tool calls but is thin, and the 2:55 captioned desk walkthrough (`docs/assets/desk-demo.mp4`) has the length and narration but **no tool calls** — so neither is a complete candidate, and **neither is uploaded** (G1) |
+| Demo video <3 min, **uploaded to YouTube/Vimeo, publicly visible** | 🟡 one complete candidate now exists — `docs/assets/triagedesk-demo.mp4` (2:28) shows the seven owned tool calls on screen, the measured evaluation and the declared E-09 failure, with on-screen narration — but it is **not yet uploaded** (G1) |
 | ~300-word description | ✅ `DESCRIPTION.md` — within ±10% of 300, guarded by `tests/test_docs_final.py` |
 | ARCHITECTURE.md — one page | ✅ one page (see [`ARCHITECTURE.md`](ARCHITECTURE.md)) |
 | EVALS.md — 8+ tasks + one unfixed failure | ✅ 16 cases; E-09 declared |
@@ -56,7 +56,7 @@ hard submission gap** (the demo video is recorded but **not uploaded**) and **on
 | **Fit to the triage desk** | 20 | **9–14** | **No clinician interview** (G2) + a still-single-machine prototype desk surface (U1) + unchanged model-extraction latency ([`EVALS.md`](EVALS.md) §3) (U3). New UX evidence now exists — the captioned desk walkthrough (`docs/assets/desk-demo.mp4`) and the queue-position-on-commit payoff (§6) — but the range does not move |
 | Evaluation & reliability | 15 | **13–15** | Honest & measured; 2 recorded gate failures + 1 declared deferral + 3 coverage deferrals |
 | Defensibility | 10 | **9–10** | Deterministic, cited, hash-chained audit, cost/run — strong |
-| Demo | 5 | **3–5** | Recorded, failure shown — but 33 s and not hosted (G1/G5). Neither recording is a complete candidate: the 33 s terminal run (`docs/assets/triagedesk-demo.mp4`) has the tool calls but is thin, while the 2:55 captioned desk walkthrough (`docs/assets/desk-demo.mp4`) has the length and narration but **no tool calls** |
+| Demo | 5 | **4–5** | One complete candidate: a 2:28 tool-call-on-screen recording with narration, the measured eval and the declared failure (`docs/assets/triagedesk-demo.mp4`). Docked only for the **unhosted** video (G1) |
 
 ## 4. Instant disqualifiers — none ✅
 
@@ -68,15 +68,15 @@ every priority cited · synthetic only · repo runs · results are real · green
 ## 5. Gaps & misses (ranked)
 
 1. **G1 — Demo video not uploaded.** The brief requires it *hosted and public*. **The only true
-   submission blocker.** Fix: upload `docs/assets/triagedesk-demo.mp4` to YouTube/Vimeo (Public) and
-   paste the link. *(Human step.)*
+   submission blocker.** Fix: upload `docs/assets/triagedesk-demo.mp4` (2:28) to YouTube/Vimeo (Public)
+   and paste the link. *(Human step.)*
 2. **G2 — No clinician interview.** "Fit to triage desk" explicitly asks *"did you talk to one?"* We
    declared the gap honestly but lose points. Fix: one real triage-nurse/clinician review + a quote.
-3. **G5 — Demo length and content.** The brief wants ONE video under 3 min *with the tool calls on
-   screen*, and neither recording is a complete candidate. The 33 s terminal run
-   (`docs/assets/triagedesk-demo.mp4`) has the tool calls but is thin; the 2:55 captioned desk
-   walkthrough (`docs/assets/desk-demo.mp4`) has the length and narration but **no tool calls**. Neither
-   closes the requirement — **G5 is not closed.**
+3. **G5 — Demo length and content.** **Closed.** `docs/assets/triagedesk-demo.mp4` is a single 2:28
+   screen recording that carries the seven owned tool calls on screen, the committed measured
+   evaluation, and the declared E-09 failure, with on-screen narration — one complete candidate under
+   the 3-minute limit. The captioned desk walkthrough (`docs/assets/desk-demo.mp4`) remains a
+   supplementary artefact. Reproducible via `docs/render-demo.sh`.
 4. **G8 — Submission-period timing.** Page says "Opens TBC, closes TBC"; confirm the window was open on
    2026-10-09.
 5. **G9 — Eligibility to confirm.** "Resident anywhere in Africa," 18+, solo — confirm at application.
@@ -199,9 +199,9 @@ environment/accessibility (U5), and approver authentication (G-8).
   (Phases 6–12) adds durable execution, tracing/replay, retrieval grounding, deferral, and the desk
   surface; the post-v1.1 desk hardening adds the SRP split (`server.py` 1169 → 375 lines across nine
   modules) and the queue-position panel (the gated write is now visible on commit).
-- **Submission: one step short.** Two recordings exist — the 33 s terminal candidate
-  (`docs/assets/triagedesk-demo.mp4`) and the captioned 2:55 desk walkthrough (`docs/assets/desk-demo.mp4`)
-  — but upload the video: neither is hosted.
+- **Submission: one step short.** A single complete candidate now exists —
+  `docs/assets/triagedesk-demo.mp4` (2:28: tool calls on screen, narration, the measured eval and the
+  declared failure) — but it is **not hosted**: upload it (G1).
 - **Score ceiling:** capped mainly by **fit-to-desk (no clinician review; desk surface still a
   prototype)** and **demo (short + unhosted)** — both improvable before 2026-10-15.
 - **State of the art:** already ahead of most on **trust, auditability, and honesty**; the v1.1 line

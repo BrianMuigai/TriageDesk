@@ -1,14 +1,15 @@
 # DEMO — TriageDesk submission video runbook
 
-> **The recording is a HUMAN action.** The 2–3 minute video is an **unedited screen recording**
-> (`2–3 min`) — **tool calls on screen, no slides** — uploaded publicly to YouTube or Vimeo. This
-> document is the runbook a person follows to record it; the agent does **not** record the video.
+> **One unedited screen recording, tool calls on screen, no slides.** The submission video is a real
+> screen recording of the shipped CLI — every line is what `uv run triagedesk demo` prints. It is
+> **2:28** (`docs/assets/triagedesk-demo.mp4`): the seven owned tool calls across the five beats, the
+> measured evaluation, and the declared E-09 failure. It is reproducible from the repository (see
+> *Rendering the video* below).
 >
-> **`human_needed` — the public upload.** The recording **and** the public upload are **HUMAN** actions.
-> The upload is the **one submission blocker** (`STATUS.md` G1, `docs/REQUIREMENTS.md` G-9); this runbook
-> prepares the script and never claims a video is recorded or hosted. A local recording exists
-> (`docs/assets/triagedesk-demo.mp4`) but is **not yet uploaded**; paste the public URL into the
-> submission form once it is.
+> **`human_needed` — the public upload.** Recording is now scripted and reproducible; the **public
+> upload** to YouTube or Vimeo is the remaining **HUMAN** action and the **one submission blocker**
+> (`STATUS.md` G1, `docs/REQUIREMENTS.md` G-9). This runbook documents the script and never claims a
+> video is hosted. Paste the public URL into the submission form once it is.
 >
 > **Record against the v1.1 state (this commit), not the frozen `v1.0-submission` tag.** The
 > Durable-mode and desk sections below document v1.1-only behaviour — `--durable`/`resume`/`replay`,
@@ -68,6 +69,26 @@ uv run triagedesk demo --beat failure
 The `failure` beat prints `DECLARED: ORANGE` / `MEASURED: GREEN (SHOWN MISMATCH)` on screen — the
 declared-versus-measured mismatch, shown rather than hidden. Narrate it plainly: the committed projection
 **is** the measured artefact, and the real ~10-minute run is **not** streamed.
+
+## Rendering the video (reproducible)
+
+The submission video is rendered from the shipped CLI by one script — no slides, no hand-edited output:
+
+```bash
+# record (real pty -> asciicast) -> agg (-> mp4) -> ffmpeg (caption band) -> duration guard
+bash docs/render-demo.sh
+```
+
+- [`scripts/record_demo.py`](../scripts/record_demo.py) drives a real `bash` over a pty, types each
+  `--beat` command, and captures the real output with real timings. It writes the asciicast **and** the
+  caption track, deriving each narration line's timing from where that beat's output actually appears.
+  The beat **names** come from the ONE manifest, `demo/storyboard.yaml`, so the video cannot name a beat
+  the CLI does not expose.
+- `agg` renders the cast to mp4; `ffmpeg` pads a caption band and burns `docs/assets/demo-captions.ass`.
+- The script fails if the result is **≥ 3 min**.
+
+It needs `agg` on `PATH` (`cargo install --git https://github.com/asciinema/agg`) plus `ffmpeg` and the
+project's own `uv`. The narration lives in exactly one place — the caption track the recorder writes.
 
 ## Durable mode (two-command durability story)
 
@@ -242,11 +263,9 @@ does not hide the miss.
 
 `docs/assets/desk-demo.mp4` is a **silent browser screen recording of the local desk surface** (the v1.1
 `desk` bridge — not the terminal). It is **supplementary**: it shows the desk UX end to end (happy path
-+ edge cases) so a reviewer can see the surface without running it. It is **not** the narrated 2–3
-minute submission video — that remains the terminal recording above
-(`docs/assets/triagedesk-demo.mp4`), which carries the measured eval and the declared failure. The "the
-agent does not record the video" rule at the top of this document applies to *that* video; this capture
-is a separate, clearly-labelled artefact.
++ edge cases) so a reviewer can see the surface without running it. It is **not** the submission video —
+that is the terminal recording above (`docs/assets/triagedesk-demo.mp4`), which carries the tool calls,
+the measured eval and the declared failure. This capture is a separate, clearly-labelled artefact.
 
 Run the surface it records (offline, local, CPU-only — no egress):
 
@@ -297,7 +316,7 @@ The video must be as honest as the docs. Point the close at what the repository 
 - Clinician validation remains a **declared gap** (`EVALS.md` §7): the expected colours come from the
   published SATS rules, not clinician adjudication. **No** triage nurse/clinician review was obtained as
   of 2026-10-13.
-- The video is recorded but **not yet uploaded** — the one submission blocker (see the `human_needed`
-  note above).
+- The video is recorded (`docs/assets/triagedesk-demo.mp4`, 2:28) but **not yet uploaded** — the one
+  submission blocker (see the `human_needed` note above).
 
 Record the close over the running terminal, not over slides: open source, offline, synthetic.

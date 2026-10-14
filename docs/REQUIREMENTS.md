@@ -66,8 +66,8 @@ risks** — items we cannot yet close, tracked honestly.
 | SB-1 | **Public code repository** | GitHub public repo — `github.com/BrianMuigai/TriageDesk` | ROADMAP.md | ✅ |
 | SB-2 | **OSI-approved licence** | Apache-2.0 | LICENSE | ✅ |
 | SB-3 | **README** that gets a stranger running in one command | `uv run triagedesk demo`; `uv run` auto-syncs from the committed `uv.lock`, so there is no separate install step | ../README.md | ✅ one command |
-| SB-4 | **Demo video under 3 minutes**, **uploaded to YouTube or Vimeo and publicly visible** | Recorded (`docs/assets/triagedesk-demo.mp4`, 33 s) — **not yet uploaded** | docs/DEMO.md | ⛔ the one submission blocker — STATUS G1 |
-| SB-5 | **Unedited agent run, tool calls on screen** — **not slides** | Real unedited terminal run of `triagedesk demo --online`, incl. a failure | docs/assets/triagedesk-demo.mp4 | ✅ |
+| SB-4 | **Demo video under 3 minutes**, **uploaded to YouTube or Vimeo and publicly visible** | Recorded (`docs/assets/triagedesk-demo.mp4`, 2:28 — one complete candidate with the tool calls on screen) — **not yet uploaded** | docs/DEMO.md | ⛔ the one submission blocker — STATUS G1 |
+| SB-5 | **Unedited agent run, tool calls on screen** — **not slides** | Real unedited terminal screen recording of `triagedesk demo` (offline), the seven owned tool calls on screen, incl. the declared E-09 failure | docs/assets/triagedesk-demo.mp4 | ✅ |
 | SB-6 | **~300-word text description**: what it does, sub-theme, facility & workflow | DESCRIPTION.md — within ±10% of 300 (guarded by `tests/test_docs_final.py`) | DESCRIPTION.md | ✅ |
 | SB-7 | **ARCHITECTURE.md — one page**: agent shape, MCP servers built vs borrowed, why | ARCHITECTURE.md (one page) | ../ARCHITECTURE.md | ✅ |
 | SB-8 | **EVALS.md**: 8+ test tasks with pass/fail, plus one failure not fixed + what you'd try next | 16 cases, measured; E-09 declared | ../EVALS.md | ✅ (counts reconciled) |
@@ -91,7 +91,7 @@ risks** — items we cannot yet close, tracked honestly.
 | JC-3 | Fit to triage desk (**20**) | Named nurse does a real thing faster, at the desk, under queue pressure; *did you talk to one?* | Models the real five-step SATS desk process with an assumption-labelled throughput model; a loopback desk surface now ships ([`DEMO.md`](DEMO.md), [`DESK.md`](DESK.md)), while **no clinician interview available** remains a declared gap | PROJECT.md §3, §3.1; EVALS §7; STATUS §6 |
 | JC-4 | Evaluation & reliability (**15**) | Honest test set, not curated to pass; run-to-run variation measured or hidden | 16 cases incl. a declared failure; 3 runs/case; variation + latency + cost reported | ../EVALS.md |
 | JC-5 | Defensibility (**10**) | Priority survives a clinical-audit question; sourced, readable log; known cost per run | Deterministic SATS scorer + exact citations + hash-chained audit log + measured cost/run (tokens + wall-clock) | ../ARCHITECTURE.md §3, §6; ../EVALS.md §3.1 |
-| JC-6 | Demo (**5**) | Three clear minutes, including where it fails | Recorded run with a failure segment (33 s) | docs/DEMO.md |
+| JC-6 | Demo (**5**) | Three clear minutes, including where it fails | One 2:28 recording: tool calls on screen, the measured eval + the declared failure | docs/DEMO.md |
 
 ## 7. Instant disqualifiers — avoidance
 
@@ -156,7 +156,7 @@ Not required by the brief, tracked because the agent touches a clinical queue. F
 | G-6 | Deadline (2026-10-15) | EL-6 | Frozen + tagged; **no post-deadline commits** | ⏳ active |
 | G-7 | Paediatric triage out of scope | Clinical completeness | **Resolved:** safe abstention + escalation (E-06); never mis-scores a child | ✅ resolved |
 | G-8 | **Approver authentication deferred** (identity recorded only) | T-8 | Declared production requirement (`../SECURITY.md` §6) | **OPEN** (declared) |
-| G-9 | **Demo video not uploaded** (SB-4) | The one submission blocker | Upload `docs/assets/triagedesk-demo.mp4` to YouTube/Vimeo (Public) | **OPEN** — human |
+| G-9 | **Demo video not uploaded** (SB-4) | The one submission blocker | Upload `docs/assets/triagedesk-demo.mp4` (2:28) to YouTube/Vimeo (Public) | **OPEN** — human |
 | G-10 | **README "one command" is two** (SB-3) | Open-source rigour | **Resolved:** `uv run triagedesk demo` is the literal one-liner (`uv run` auto-syncs); a test guards it (D11-09) | ✅ resolved |
 | G-11 | **Residual desk-UX gaps** (JC-3, JC-6) | Fit-to-desk + demo | Desk surface + real approve/edit/dismiss gate shipped (Phase 10, [`DESK.md`](DESK.md)); remaining: vitals-entry ergonomics, environment/accessibility, approver authn (STATUS §6) | 🟡 **partial** |
 

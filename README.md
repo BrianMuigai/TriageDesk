@@ -69,7 +69,7 @@ v1.0 behaviour.
 | Security & hardening | ✅ Documented → [`SECURITY.md`](SECURITY.md) |
 | MCP server / agent / evals | ✅ Built & tested → [`tests/`](tests) |
 | Evaluation (measured) | ✅ Run → [`EVALS.md`](EVALS.md) |
-| Demo video | 🎬 Human-recorded → [`docs/DEMO.md`](docs/DEMO.md) |
+| Demo video | 🎬 Recorded (2:28) — awaiting public upload → [`docs/DEMO.md`](docs/DEMO.md) |
 | Status & gap analysis | 🟡 Honest self-assessment → [`STATUS.md`](STATUS.md) |
 
 **What is unfinished.** The measured run records honest misses, not a green sweep: the declared failure
@@ -78,7 +78,8 @@ hidden, and the other misses are recorded in
 [`EVALS.md`](EVALS.md) §4–§6. **No** triage nurse/clinician review was obtained as of 2026-10-13, so the
 fit-to-desk claim is scoped to what was built and measured; if a review is arranged, an attributed quote
 (name/role/date, with consent) will be added to [`EVALS.md`](EVALS.md) §7 — nothing is claimed until it
-is. The demo video is **recorded but not yet uploaded** — the one submission blocker
+is. The demo video is **recorded** (`docs/assets/triagedesk-demo.mp4`, a 2:28 screen recording of the
+shipped CLI with the tool calls on screen) but **not yet uploaded** — the one submission blocker
 ([`docs/DEMO.md`](docs/DEMO.md)). [`EVALS.md`](EVALS.md) is the single source for every number. A full
 honest gap analysis — the video upload, UX considerations, and state-of-the-art gaps — is in
 [`STATUS.md`](STATUS.md).
@@ -166,7 +167,7 @@ triagedesk/
 │   ├── DEMO.md            demo runbook
 │   ├── DESK.md            loopback desk-surface quickstart
 │   ├── REVIEW.md          live-review (Stage 2) rehearsal runbook
-│   └── assets/            architecture diagram, demo tape + video
+│   └── assets/            architecture diagram, demo video + render script
 ├── data/                  SATS rules (the single source of thresholds)
 ├── evals/                 case fixtures + the measured report.json
 ├── src/triagedesk/        core · graph · mcp · store · llm · evals · demo
