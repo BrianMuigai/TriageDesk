@@ -14,6 +14,10 @@
 # broad enough to cover the complaint phrasing in the Phase-4 eval cases, but
 # "feeling unwell" is intentionally absent: E-09 is the declared coverage-gap
 # failure and must NOT be tuned green (EVALS §6, Pitfall 11).
+#
+# Lay/OPD phrasing (nurse stress test S2-1) extends EXISTING discriminators only.
+# A phrase with no declared discriminator (fever, cough, headache, …) stays
+# unmatched — never invent a category to make a complaint match.
 version: 1
 citation: "SATS Training Manual 2012 (EMSSA), adult clinical discriminators"
 
@@ -65,15 +69,15 @@ discriminators:
   - id: high_energy_transfer
     category: very_urgent
     label: "High-energy transfer (severe mechanism)"
-    aliases: ["high energy transfer", "high-energy transfer", "severe mechanism", "high speed collision", "fall from height", "major trauma mechanism", "motor vehicle accident"]
+    aliases: ["high energy transfer", "high-energy transfer", "severe mechanism", "high speed collision", "fall from height", "major trauma mechanism", "motor vehicle accident", "car crash", "car accident", "road traffic accident", "rta", "motorbike accident", "motor vehicle crash"]
   - id: acute_shortness_of_breath
     category: very_urgent
     label: "Acute shortness of breath"
-    aliases: ["shortness of breath", "short of breath", "sob", "breathless", "cannot breathe", "can't breathe", "difficulty breathing", "fast breathing", "rapid breathing", "laboured breathing"]
+    aliases: ["shortness of breath", "short of breath", "sob", "breathless", "cannot breathe", "can't breathe", "difficulty breathing", "fast breathing", "rapid breathing", "laboured breathing", "catch my breath", "catch his breath", "catch her breath", "hard to breathe", "struggling to breathe", "trouble breathing"]
   - id: reduced_level_of_consciousness
     category: very_urgent
     label: "Reduced level of consciousness / confused"
-    aliases: ["reduced level of consciousness", "reduced consciousness", "altered level of consciousness", "decreased consciousness", "drowsy", "not alert", "loc reduced", "not fully conscious"]
+    aliases: ["reduced level of consciousness", "reduced consciousness", "altered level of consciousness", "decreased consciousness", "drowsy", "not alert", "loc reduced", "not fully conscious", "passed out", "fainted", "blacked out"]
   - id: coughing_blood
     category: very_urgent
     label: "Coughing blood"
@@ -81,7 +85,7 @@ discriminators:
   - id: chest_pain
     category: very_urgent
     label: "Chest pain"
-    aliases: ["chest pain", "pain in chest", "chest tightness", "chest pressure", "central chest pain", "crushing chest pain"]
+    aliases: ["chest pain", "pain in chest", "chest tightness", "chest pressure", "central chest pain", "crushing chest pain", "tight chest", "chest feels tight", "heavy chest", "heart attack"]
   - id: stabbed_neck
     category: very_urgent
     label: "Stabbed neck"
@@ -187,7 +191,7 @@ discriminators:
   - id: closed_fracture
     category: urgent
     label: "Closed fracture"
-    aliases: ["closed fracture", "simple fracture"]
+    aliases: ["closed fracture", "simple fracture", "broken arm", "broken leg", "broken wrist", "broken ankle", "broken bone", "fractured arm", "fractured leg", "fractured wrist", "fractured ankle"]
   - id: other_burns
     category: urgent
     label: "Other burns"
@@ -195,7 +199,7 @@ discriminators:
   - id: abdominal_pain
     category: urgent
     label: "Abdominal pain"
-    aliases: ["abdominal pain", "stomach pain", "tummy pain", "belly pain", "abdo pain", "pain in abdomen"]
+    aliases: ["abdominal pain", "stomach pain", "tummy pain", "belly pain", "abdo pain", "pain in abdomen", "stomach ache", "tummy ache"]
   - id: diabetic_hyperglycaemia_no_ketonuria
     category: urgent
     label: "Diabetic glucose > 17 without ketonuria"
