@@ -104,6 +104,7 @@ async def test_commit_priority_refuses_without_a_token() -> None:
     parsed = CommitResult.model_validate_json(call.content[0].text)
     assert parsed.refused is True
     assert parsed.committed is False
+    assert parsed.colour is None
 
 
 async def test_commit_priority_refuses_a_malformed_token() -> None:

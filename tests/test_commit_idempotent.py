@@ -211,7 +211,9 @@ async def test_commit_priority_edit_commits_the_tokens_final_colour(injected_sto
             {"case_id": "c-2", "colour": "RED", "case": _CASE, "approval_token": token},
         )
 
-    assert CommitResult.model_validate_json(call.content[0].text).committed is True
+    parsed = CommitResult.model_validate_json(call.content[0].text)
+    assert parsed.committed is True
+    assert parsed.colour == "GREEN"
     assert len(injected_store.rows) == 1
     assert injected_store.rows[0].colour == "GREEN"
 
@@ -253,6 +255,9 @@ async def test_an_edit_supersedes_the_same_case_keeping_the_same_position(
     assert edit_result.committed is True
     assert approve_result.position == 1
     assert edit_result.position == approve_result.position
+    # The two decisions report the colour each actually committed for the same case.
+    assert approve_result.colour == "RED"
+    assert edit_result.colour == "GREEN"
     assert len(injected_store.rows) == 1
 
 

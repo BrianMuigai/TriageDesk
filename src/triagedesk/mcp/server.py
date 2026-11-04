@@ -29,6 +29,7 @@ from mcp.server import MCPServer
 from pydantic import BaseModel, ValidationError
 
 from triagedesk.core import confidence, matcher, recheck, retrieval, scorer
+from triagedesk.core.approval import committed_colour
 from triagedesk.core.schema import (
     ApprovalToken,
     CaseInput,
@@ -318,7 +319,8 @@ async def commit_priority(
     row is superseded in place rather than duplicated (D6-04, D6-06). The committed
     colour is the clinician's ``final_colour`` for an ``edit`` and the scored ``colour``
     for an ``approve`` (D-05). The typed ``case`` is validated by the ONE schema module
-    (T-06-02); no dict passthrough enters the key.
+    (T-06-02); no dict passthrough enters the key. The returned ``colour`` field reports the
+    colour the queue row actually holds, so a reader never re-derives it.
     """
     if approval_token is None:
         return CommitResult(refused=True, reason="no approval token supplied; refusing to commit")
@@ -331,12 +333,11 @@ async def commit_priority(
             refused=True, reason="clinician dismissed the priority; refusing to commit"
         )
 
-    committed_colour = token.final_colour if token.decision == "edit" else colour
     store = await resolve_store()
     row, created = await commit_to_queue(
         store,
         case_id=case_id,
-        colour=committed_colour,
+        colour=committed_colour(token, colour),
         content=case,
     )
     verb = "committed" if created else "already committed"
@@ -344,6 +345,7 @@ async def commit_priority(
         committed=True,
         reason=f"{verb} case {row.case_id} at queue position {row.position} ({row.colour})",
         position=row.position,
+        colour=row.colour,
     )
 
 
