@@ -97,7 +97,8 @@ the queue without her approval.** If everything else fails, this must work.
 | `uv` | Project lifecycle | `uv init --python 3.12` → `uv python pin 3.12` → `uv add …` → `uv lock` → `uv run`. Upgrade the host's 0.5.26 first. |
 | Ollama CLI | Model pull/run | `ollama pull qwen2.5:1.5b` (and optionally `qwen2.5:3b`). |
 | `npx` (Node 22 present) | Launch the borrowed SQLite MCP server | `npx -y mcp-sqlite <db>` — **pin the package version**, do not rely on `latest`. |
-| MCP Inspector | Debug the owned server | `uv run mcp dev server.py` (the CLI needs `npx` on PATH). |
+| MCP Inspector | Debug the owned server | `uv run mcp dev -e . src/triagedesk/mcp/server.py` (the CLI needs `npx` on PATH). |
+| MCP installer | Write a harness's MCP config (OpenCode, Claude, Cursor, VS Code, Codex, Gemini, Zed, Windsurf) | `uv run python scripts/install_mcp.py --list`, then `--harness <key> [--write]` — see `docs/MCP.md`. |
 
 ## Installation
 

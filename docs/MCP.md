@@ -1,0 +1,284 @@
+# MCP — install & use
+
+> **Every step below is runnable.** The owned server is one stdio process; this runbook is how to
+> start it, how to install it into a harness, and how to call each tool. The commands and blocks are
+> checked by [`tests/test_mcp_runbook.py`](../tests/test_mcp_runbook.py), and each harness block
+> follows the shape [`scripts/install_mcp.py`](../scripts/install_mcp.py) writes — the doc links to
+> the generator instead of restating nine near-identical configs (DRY).
+
+## 1. What gets installed
+
+TriageDesk runs **two** MCP servers, and only one of them is installed into a harness:
+
+| Server | Role | How it starts |
+| --- | --- | --- |
+| `triagedesk-triage` (**owned**, SDK v2, 7 tools) | scoring, matching, retrieval, recheck, gated commit | you install it — this page |
+| `mcp-sqlite@1.0.9` (**borrowed**) | storage: queue rows + the hash-chained audit | launched by the owned server's audit path, on demand |
+
+Tool contracts and the seven-tool table live in [`ARCHITECTURE.md`](../ARCHITECTURE.md) §4; this page
+does not restate them. **Prerequisites:**
+
+```bash
+uv --version          # the lock is synced by `uv run`; no separate install step
+npx --version         # the borrowed server, fetched once on the first tool call
+ollama pull qwen2.5:1.5b   # ONLY needed for normalize_case
+```
+
+No model and no network are needed for the other six tools.
+
+## 2. Start it without a harness
+
+```bash
+# Speak stdio directly (Ctrl-C / EOF to stop). This is the process a harness launches.
+uv run python -m triagedesk.mcp.server
+
+# Same server through the SDK's runner, and the Inspector for interactive debugging.
+uv run mcp run src/triagedesk/mcp/server.py
+uv run mcp dev -e . src/triagedesk/mcp/server.py
+```
+
+`-e .` is required for the Inspector: it builds an isolated environment, and the server resolves
+`data/*.yaml` from its own source location (`core/rules.py` → `parents[3]`), so a non-editable
+install loses the SATS substrate.
+
+## 3. Install into a harness
+
+One command installs, or prints, the config your harness expects:
+
+```bash
+uv run python scripts/install_mcp.py --list                    # every harness + its config path
+uv run python scripts/install_mcp.py --harness opencode        # print the block (default)
+uv run python scripts/install_mcp.py --harness cursor --write   # merge it into the config file
+```
+
+`--write` merges a JSON config without touching any other key, and is idempotent. A differing
+existing `triagedesk` entry is never replaced silently (`--force` does that). The Codex `config.toml`
+is only ever **appended** when its table is absent. Without `--write`, every harness is print-only.
+
+| Harness | `--harness` | Config file | Scope |
+| --- | --- | --- | --- |
+| OpenCode | `--harness opencode` | `opencode.json` / `~/.config/opencode/opencode.json` | project, user |
+| Claude Desktop | `--harness claude-desktop` | `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS), `~/.config/Claude/…` (Linux), `%APPDATA%\Claude\…` (Windows) | user |
+| Claude Code | `--harness claude-code` | `.mcp.json` / `~/.claude.json` | project, user |
+| Cursor | `--harness cursor` | `.cursor/mcp.json` / `~/.cursor/mcp.json` | project, user |
+| VS Code (Copilot) | `--harness vscode` | `.vscode/mcp.json` (portable `.mcp.json` also works) | project |
+| Codex CLI / ChatGPT desktop | `--harness codex` | `.codex/config.toml` / `~/.codex/config.toml` | project, user |
+| Gemini CLI | `--harness gemini` | `.gemini/settings.json` / `~/.gemini/settings.json` | project, user |
+| Zed | `--harness zed` | `~/.config/zed/settings.json` | user |
+| Windsurf / Devin Desktop | `--harness windsurf` | `.devin/mcp_config.json` / `~/.config/devin/mcp_config.json` | project, user |
+
+Where `REPO` below is **the absolute path to this checkout** (`--print` fills it in for you). Replace
+it with a harness variable — `${workspaceFolder}` (Cursor), `${CLAUDE_PROJECT_DIR}` (Claude Code) —
+if you commit the file. OpenCode needs none of that: `"cwd": "."` resolves from the workspace root,
+which is the form this repository ships in `opencode.json`.
+
+**OpenCode** — local servers take one argv array, a `cwd`, and a timeout:
+
+```json
+{
+  "mcp": {
+    "triagedesk": {
+      "type": "local",
+      "command": ["uv", "run", "--frozen", "python", "-m", "triagedesk.mcp.server"],
+      "cwd": ".",
+      "enabled": true,
+      "timeout": 120000
+    }
+  }
+}
+```
+
+**Claude Code** — also installable with the CLI:
+`claude mcp add --transport stdio triagedesk -- uv run --frozen --project REPO python -m triagedesk.mcp.server`
+(the script prints this exact line):
+
+```json
+{
+  "mcpServers": {
+    "triagedesk": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--frozen", "--project", "REPO", "python", "-m", "triagedesk.mcp.server"],
+      "timeout": 120000
+    }
+  }
+}
+```
+
+**Claude Desktop, Cursor, Windsurf/Devin and Gemini CLI** all use this `mcpServers` shape: Cursor
+requires `"type": "stdio"`, Gemini CLI adds `"cwd"` and `"timeout"`, Claude Desktop takes neither.
+**VS Code** uses `servers` instead of `mcpServers`; **Zed** uses `context_servers` with a flat
+`command`/`args`/`env`. **Codex** is TOML:
+
+```toml
+[mcp_servers.triagedesk]
+command = "uv"
+args = ["run", "--frozen", "--project", "REPO", "python", "-m", "triagedesk.mcp.server"]
+cwd = "REPO"
+tool_timeout_sec = 120
+startup_timeout_sec = 30
+```
+
+The timeout matters: a harness's default is often 30 s, and `normalize_case` drives the local model
+on CPU.
+
+## 4. Verify the connection
+
+Restart the harness, then check that the seven tools are listed (`/mcp` in most CLIs) and call one
+low-risk tool by name:
+
+```bash
+# from a shell, before blaming the harness
+uv run python -m triagedesk.mcp.server </dev/null && echo "server starts and exits cleanly"
+```
+
+> "Use the triagedesk MCP server's `match_discriminators` on 'chest pain and shortness of breath'."
+
+A working install returns `acute_shortness_of_breath` and `chest_pain`. The first call also fetches
+`mcp-sqlite@1.0.9` and creates `triage.db` — that is the audit path, not an error.
+
+## 5. Use: the seven tools
+
+### `normalize_case`
+
+A note → the typed case schema (needs Ollama). Unknown discriminator ids are dropped, never guessed:
+
+```json
+{"raw_note": "RR 24, HR 118, BP 108/70, temp 38.9, alert, coughing and fast breathing"}
+```
+
+Returns `{"case": {…}, "matched_discriminator_ids": [], "no_discriminator_matched": true}`; a recorded
+real response is in [`evidence/mcp-spike.json`](../evidence/mcp-spike.json).
+
+### `score_priority`
+
+The deterministic path — no model. Missing age makes it fail closed:
+
+```json
+{"case": {"age_years": 34, "respiratory_rate": 24, "heart_rate": 118,
+          "systolic_bp": 108, "temperature_c": 38.9, "avpu": "alert"},
+ "matched_discriminator_ids": ["acute_shortness_of_breath"]}
+```
+
+```json
+{"colour": "ORANGE", "tews": 6, "target": "< 10 min", "destination": "Majors",
+ "triggered_rules": [{"rule_id": "respiratory_rate", "detail": "respiratory_rate=24 -> 2 points",
+                      "points": 2, "citation": "SATS Training Manual 2012 (EMSSA), adult TEWS — respiratory_rate band"}, "…"],
+ "citations": ["…one per triggered rule…"], "missing_vitals": ["mobility", "trauma"],
+ "out_of_scope": false, "abstained": false, "reason": null}
+```
+
+Omit `age_years` and it returns `{"colour": null, "abstained": true, "reason": "age is missing; …"}` —
+a refusal, not a guess.
+
+### `assess_confidence`
+
+```json
+{"matched_ids": ["acute_shortness_of_breath"], "no_match": false, "priority": <PriorityResult>}
+```
+
+Returns `deferral`, a closed-set `level`, and per-component evidence. There is no percentage and no
+score field, by design.
+
+### `match_discriminators`
+
+```json
+{"complaint": "chest pain and shortness of breath"}
+```
+
+```json
+{"matched_ids": ["acute_shortness_of_breath", "chest_pain"], "no_match": false, "warning": null}
+```
+
+### `retrieve_evidence`
+
+```json
+{"complaint": "chest pain"}
+```
+
+Returns ranked, attributed `passages` (`discriminator_id`, `label`, `citation`, `score`, `rank`) or
+`no_match`. It carries no colour field, so it can show grounding but never set a priority.
+
+### `raise_recheck_flag`
+
+Serial vitals, never a re-classification:
+
+```json
+{"previous": {"respiratory_rate": 18, "heart_rate": 92, "temperature_c": 38.9, "avpu": "alert"},
+ "current":  {"respiratory_rate": 24, "heart_rate": 118, "temperature_c": 38.9, "avpu": "alert"}}
+```
+
+Returns `{"flag": true, "deteriorations": ["respiratory_rate", "heart_rate"], "changes": […],
+"reason": "serial vitals show deterioration; a second look is required"}`.
+
+### `commit_priority`
+
+The only queue-affecting tool. Refuses without a valid token, and the refusal touches no store:
+
+```json
+{"case_id": "0417", "colour": "ORANGE", "case": <CaseInput>, "approval_token": <ApprovalToken>}
+```
+
+```json
+{"committed": false, "refused": true, "reason": "no approval token supplied; refusing to commit", "position": null}
+```
+
+## 6. The approval token
+
+`commit_priority` validates this exact shape (see `core/schema.py` → `ApprovalToken`):
+
+```json
+{"decision": "approve", "approved_at": "2026-11-03T10:00:00Z",
+ "approved_by": "Nurse Demo", "role": "triage nurse", "final_colour": "ORANGE"}
+```
+
+- `approve` / `edit` require a non-blank `approved_by` **and** `role`, and a `final_colour` drawn
+  from the colours the loaded substrate declares (it is required for `approve` too).
+- `dismiss` carries no identity and no colour — only `decision` and `approved_at` — and commits
+  nothing:
+
+```json
+{"decision": "dismiss", "approved_at": "2026-11-03T10:00:00Z"}
+```
+
+The write is idempotent on (`case_id`, immutable case-content hash): a repeat approve, or an edit of
+the same case, re-derives the same key and supersedes one queue row instead of adding a second.
+
+## 7. What each call writes
+
+Every tool call — including read-only ones — appends **one** hash-chained audit record through the
+borrowed store, and emits **one** `tool` span to `spans.jsonl`:
+
+```json
+{"seq": 7, "ts": "2026-11-03T10:00:00Z", "case_id": "0417", "tool": "score_priority",
+ "actor": "agent", "inputs": {"case_id": "0417"}, "outputs": {"colour": "ORANGE"},
+ "approved_by": null, "role": null, "trace_id": "…", "prev_hash": "…", "hash": "…"}
+```
+
+Both artefacts land in the **harness's working directory**: `triage.db` (queue + audit) and
+`spans.jsonl` (local trace stream). Both are covered by `.gitignore`. Point the harness's `cwd` at
+this checkout if you want them here — but note that `tests/test_observability.py` asserts
+`spans.jsonl` is **absent from the repository root**, so delete it before running the suite if you
+have been calling these tools from the checkout.
+
+> Nothing a harness does can reach a patient: the only queue-affecting tool is `commit_priority`, and
+> it refuses without the named token in §6.
+
+## 8. How it is wired at runtime
+
+The shipped demo, harness and desk call the same tool **implementations** in-process, so the recording
+shows real tool calls without a subprocess. The stdio transport is exercised by
+`graph.build.load_graph_tools` / `run_case` and by `scripts/spike_mcp.py`; the adapter decision and
+the both-servers handshake are recorded in [`evidence/mcp-spike.json`](../evidence/mcp-spike.json).
+
+## 9. Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Every call fails, including read-only ones | the audit path needs the borrowed store | install Node, check `npx --version`, allow the first fetch of `mcp-sqlite@1.0.9` |
+| Server starts, harness shows zero tools | wrong `command`/`args`, or a copied block still says `REPO` | re-run `--harness <key>` and paste the resolved block |
+| `ModuleNotFoundError: triagedesk` | installed non-editable, or launched outside the checkout | keep `--project REPO`; for the Inspector use `mcp dev -e .` |
+| Tools error with a `data/*.yaml` path | the server was installed as a wheel | install editable (`uv pip install -e .`) |
+| `normalize_case` fails, others work | Ollama not running, or model not pulled | `ollama serve`, `ollama pull qwen2.5:1.5b` |
+| `commit_priority` returns `refused: true` | missing, malformed, or `dismiss` token | send the five-field token; a dismissal is meant to refuse |
+| A tool times out in the harness | harness default (often 30 s) vs CPU inference | raise the harness timeout — 120 000 ms is written for you |

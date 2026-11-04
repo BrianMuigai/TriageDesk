@@ -142,6 +142,7 @@ Not required by the brief, tracked because the agent touches a clinical queue. F
 | `ROADMAP.md` | EL-6, SB-4, SB-5, SB-9, ST-1 |
 | `SATS.md` | DC-1, JC-5 |
 | `docs/DEMO.md` | SB-4, SB-5, JC-6 |
+| `docs/MCP.md` | BW-2, BW-3 (both servers, installed and called) |
 | `LICENSE` | EL-3, SB-2 |
 
 ## 11. Open gaps & risks (tracked honestly)
