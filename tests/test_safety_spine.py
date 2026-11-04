@@ -24,7 +24,7 @@ from mcp import Client
 
 from conftest import NON_LOCAL_MODEL_PROVIDERS, build_graph_tools, imported_modules
 from triagedesk.core import scorer
-from triagedesk.core.schema import CaseInput, HandoverCard, RecheckFlag
+from triagedesk.core.schema import CaseInput, CommitResult, HandoverCard, RecheckFlag
 from triagedesk.graph import build as build_module
 from triagedesk.graph import nodes as nodes_module
 from triagedesk.graph.build import build_graph
@@ -69,11 +69,16 @@ _ADVERSARIAL_COMPLAINT = (
 )
 
 
-def _render_card(complaint: str = "central chest pain") -> HandoverCard:
+def _render_card(
+    complaint: str = "central chest pain",
+    commit_result: CommitResult | None = None,
+) -> HandoverCard:
     """Render the handover card for a fully-scored adult case (deterministic, no model).
 
     Builds the state the ``handover`` node reads and returns the rendered card, so the
-    test exercises the real node rather than a re-implementation (DRY).
+    test exercises the real node rather than a re-implementation (DRY). ``commit_result``
+    is placed on the state when supplied, so the committed-colour rule is exercised
+    through the same ONE renderer.
     """
     case = CaseInput(
         age_years=40,
@@ -95,6 +100,8 @@ def _render_card(complaint: str = "central chest pain") -> HandoverCard:
         "second_look": RecheckFlag(flag=False),
         "approval": {"decision": "approve", "approved_by": "Dr A. Nurse", "role": "nurse"},
     }
+    if commit_result is not None:
+        state["commit_result"] = commit_result
     return nodes_module.handover(state)["handover"]
 
 
@@ -118,6 +125,20 @@ def test_handover_card_renders_only_the_structured_field_set() -> None:
     assert card.decision == "approve"
     assert card.approved_by == "Dr A. Nurse"
     assert card.role == "nurse"
+
+
+def test_handover_card_shows_the_committed_colour_after_an_edit() -> None:
+    """The card shows the committed colour, so an edit never disagrees with the queue (D-05)."""
+    scored = _render_card()
+    assert scored.colour != "RED", "the fixture must not score RED for this test to mean anything"
+
+    committed = _render_card(commit_result=CommitResult(committed=True, colour="RED"))
+    assert committed.colour == "RED"
+
+    refused = _render_card(commit_result=CommitResult(refused=True, reason="dismissed"))
+    assert refused.colour == scored.colour
+
+    assert _render_card().colour == scored.colour
 
 
 def test_card_model_has_no_field_that_could_hold_assessment_prose() -> None:

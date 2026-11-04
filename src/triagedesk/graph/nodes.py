@@ -397,16 +397,26 @@ def handover(state: TriageState) -> dict[str, Any]:
     fields and the named approval; ``HandoverCard`` locks its field set
     (``extra="forbid"`` + ``FORBIDDEN_FIELD_TOKENS``), so there is no field for a
     diagnosis, assessment, impression, plan or prescription and no way to smuggle
-    one in (SAFE-02, D-11, Pitfall 9).
+    one in (SAFE-02, D-11, Pitfall 9). The card shows the committed colour so an
+    ``edit`` can never leave the card disagreeing with the queue row (D-05, D-11),
+    falling back to the scored colour when nothing was committed.
     """
     priority = state["priority"]
+    commit_result = state.get("commit_result")
+    # The card shows what the queue holds: an edit's committed colour wins; a dismissal,
+    # a refusal, or a direct render with no commit falls back to the scored colour.
+    card_colour = (
+        commit_result.colour
+        if commit_result is not None and commit_result.committed and commit_result.colour
+        else priority.colour
+    )
     approval = state.get("approval")
     approval = approval if isinstance(approval, Mapping) else {}
     # Only the declared, structured fields are passed — the card's field set is
     # exactly the schema's; an extra field would be rejected by ``extra="forbid"``.
     card = HandoverCard(
         case_id=case_id_for_note(state["raw_note"]),
-        colour=priority.colour,
+        colour=card_colour,
         target=priority.target,
         citations=list(priority.citations),
         triggered_rules=list(priority.triggered_rules),

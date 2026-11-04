@@ -164,7 +164,7 @@ async def test_edit_resume_supersedes_on_the_durable_path(
     assert first.thread_id == second.thread_id == thread_id
 
     # Thread 1: approve the scored colour.
-    await resume_paused(
+    approved = await resume_paused(
         tools,
         thread_id=thread_id,
         decision=approval_decision("approve", approver=approver, role=role),
@@ -174,9 +174,11 @@ async def test_edit_resume_supersedes_on_the_durable_path(
     assert len(rows) == 1
     scored_colour, position = rows[0].colour, rows[0].position
     assert scored_colour != EDITED_COLOUR, "the edit must change the committed colour"
+    # The card shows the colour the queue holds: the scored colour on an approve.
+    assert approved["handover"].colour == scored_colour
 
     # Thread 2: edit the SAME case to a different declared colour — it supersedes in place.
-    await resume_paused(
+    edited = await resume_paused(
         tools,
         thread_id=thread_id,
         decision=approval_decision(
@@ -190,3 +192,5 @@ async def test_edit_resume_supersedes_on_the_durable_path(
     assert rows[0].colour == EDITED_COLOUR
     assert rows[0].position == position, "the supersede moved the queue position"
     assert rows[0].content_hash == content_hash(thread_id, case.case)
+    # The end-to-end regression: card colour equals the queue row colour after an edit.
+    assert edited["handover"].colour == EDITED_COLOUR == rows[0].colour

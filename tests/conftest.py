@@ -18,6 +18,7 @@ import pytest
 from pydantic import ValidationError
 
 from triagedesk.core import confidence, matcher, recheck, retrieval, scorer
+from triagedesk.core.approval import committed_colour
 from triagedesk.core.schema import (
     ApprovalToken,
     CaseInput,
@@ -309,7 +310,11 @@ def build_graph_tools(
                 colour=inp["colour"],
                 content=CaseInput.model_validate(inp["case"]),
             )
-        return CommitResult(committed=store is not None, reason="accepted")
+        return CommitResult(
+            committed=store is not None,
+            colour=committed_colour(parsed, inp["colour"]),
+            reason="accepted",
+        )
 
     return {
         "normalize_case": normalize_case,
