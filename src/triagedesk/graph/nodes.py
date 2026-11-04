@@ -204,15 +204,8 @@ def _make_ground(tools: ToolMap) -> NodeFn:
         the contract in the ``evidence`` channel — the ONLY key it returns, never
         ``priority``, ``citations``, ``matched_ids`` or ``no_match`` (D9-07), so an
         advisory retrieval can never touch the scored colour. The node touches NO model
-        and writes NO store.
-
-        Retry consequence: when :func:`route_after_verify` loops a failed check
-        back to ``score``, the graph re-enters ``score -> ground -> verify`` and this node
-        runs a second time on the re-scored state. That is harmless and deterministic — the
-        complaint has not changed, so the same :class:`~triagedesk.core.schema.EvidenceResult`
-        is produced — and ``ground`` writes only ``evidence`` (last-write-wins; no reducer).
-        The only cost is a second node span and a second ``retrieve_evidence`` audit record
-        on a retried case (E-12 slices); no test asserts ``retrieve_evidence`` multiplicity.
+        and writes NO store. ``ground`` runs once per scored case because ``verify`` has
+        no retry edge; it still writes only ``evidence``.
         """
         case = state["case"]
         result = parse_tool_result(
@@ -252,8 +245,10 @@ def verify(state: TriageState) -> dict[str, Any]:
 
     Asserts the citation invariant (``len(citations) == len(triggered_rules)``) and
     that a scored (non-abstained) priority cites at least one rule. Sets
-    ``route="ok"`` when both hold, else ``route="retry"`` and bumps ``attempt`` so
-    the retry edge is bounded (a stubborn uncited result cannot loop forever).
+    ``route="ok"`` when both hold, else ``route="retry"`` and records the failed
+    check in ``attempt`` — the honest abort record the eval projection reads. The
+    failure is terminal: no retry edge exists, because no re-run of the same
+    deterministic scorer can repair a broken contract.
     """
     priority = state["priority"]
     invariant_holds = len(priority.citations) == len(priority.triggered_rules)

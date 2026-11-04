@@ -18,9 +18,11 @@ from typing import Any
 
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph import END
 from langgraph.types import Command
 
 from conftest import NON_LOCAL_MODEL_PROVIDERS, build_graph_tools, imported_modules
+from triagedesk.core.schema import PriorityResult
 from triagedesk.graph import build as build_module
 from triagedesk.graph.build import (
     CHECKPOINTS_DB_PATH,
@@ -123,9 +125,37 @@ async def test_checkpoint_survives_a_fresh_saver(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("attempt", [0, 1, 2])
-def test_route_after_verify_is_bounded(attempt: int) -> None:
-    """A failed evidence check retries while the budget lasts, then stops (T-03-05)."""
+def test_route_after_verify_fails_closed(attempt: int) -> None:
+    """A failed evidence check is terminal at every attempt count (T-03-05)."""
     retry_state: dict[str, Any] = {"route": "retry", "attempt": attempt}
-    expected = "score" if attempt < build_module._MAX_ATTEMPTS else "__end__"
-    assert build_module.route_after_verify(retry_state) == expected
+    assert build_module.route_after_verify(retry_state) == END
     assert build_module.route_after_verify({"route": "ok"}) == "recheck"
+
+
+def test_graph_has_no_verify_retry_edge() -> None:
+    """The drawn topology has no ``verify -> score`` edge — a failure cannot loop (T-03-05)."""
+    graph = build_graph(build_graph_tools())
+    edges = {(edge.source, edge.target) for edge in graph.get_graph().edges}
+    assert ("verify", "score") not in edges
+    assert ("verify", "recheck") in edges
+    assert ("verify", "__end__") in edges
+
+
+async def test_verify_failure_is_terminal_and_scores_exactly_once() -> None:
+    """A failed check ends card-less after ONE score — the dead retry never runs (T-03-05)."""
+    calls: list[tuple[str, Any]] = []
+    tools = build_graph_tools(calls=calls)
+    inner = tools["score_priority"]
+
+    async def uncited_score(inp: dict[str, Any]) -> PriorityResult:
+        result = await inner(inp)
+        return result.model_copy(update={"citations": []})
+
+    tools["score_priority"] = uncited_score
+    result = await build_graph(tools).ainvoke({"raw_note": NOTE})
+
+    assert result.get("handover") is None
+    assert result.get("route") == "retry"
+    assert result.get("attempt") == 1
+    assert [name for name, _ in calls].count("score_priority") == 1
+    assert "commit_priority" not in [name for name, _ in calls]
