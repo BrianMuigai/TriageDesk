@@ -17,7 +17,13 @@ from typing import Any
 from mcp import Client
 
 from triagedesk.core.rules import get_discriminators
-from triagedesk.core.schema import CaseInput, CommitResult, EvidenceResult, ExtractionResult
+from triagedesk.core.schema import (
+    CaseInput,
+    CommitResult,
+    EvidenceResult,
+    ExtractionResult,
+    PriorityResult,
+)
 from triagedesk.mcp import server as server_module
 
 
@@ -92,6 +98,25 @@ async def test_normalize_case_reports_no_match_when_all_ids_are_unknown(monkeypa
     parsed = ExtractionResult.model_validate_json(call.content[0].text)
     assert parsed.matched_discriminator_ids == []
     assert parsed.no_discriminator_matched is True
+
+
+async def test_score_priority_refuses_an_incomplete_case() -> None:
+    """A raw MCP caller must not receive a GREEN with no citations (stress test S1-4)."""
+    async with Client(server_module.server) as client:
+        call = await client.call_tool(
+            "score_priority",
+            {"case": {"age_years": 30, "complaint": "routine review"}},
+        )
+
+    assert not call.is_error, f"score_priority errored instead of refusing: {call}"
+    parsed = PriorityResult.model_validate_json(call.content[0].text)
+    assert parsed.abstained is True
+    assert parsed.colour is None
+    assert parsed.tews is None
+    assert parsed.citations == []
+    assert parsed.triggered_rules == []
+    assert "temperature" in parsed.missing_vitals
+    assert "re-measure" in (parsed.reason or "")
 
 
 async def test_commit_priority_refuses_without_a_token() -> None:

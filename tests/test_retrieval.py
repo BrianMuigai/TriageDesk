@@ -142,8 +142,9 @@ def test_there_is_one_normalisation_owner() -> None:
 
 
 def test_retrieval_reuses_the_matcher_phrase_rule() -> None:
-    """Retrieval reuses the matcher's contiguous-phrase helper — no second rule (DRY)."""
-    assert retrieval.contains_sequence is matcher.contains_sequence
+    """Retrieval reuses the matcher's contiguous, negation-aware phrase helper (DRY)."""
+    assert retrieval.alias_matches is matcher.alias_matches
+    assert retrieval.tokenize_with_spans is matcher.tokenize_with_spans
 
 
 @pytest.mark.parametrize(

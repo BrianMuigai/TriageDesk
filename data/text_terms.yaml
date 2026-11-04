@@ -1,0 +1,38 @@
+# Interpretation terms for free-text complaints and notes — NOT scoring rules.
+#
+# No TEWS band, colour threshold, discriminator category or citation lives here.
+# These are the words the matcher uses to decide whether a finding is negated and
+# the words the extraction-grounding step uses to confirm a stated category. They
+# are data because a note's language is input, not code (CONVENTIONS §1).
+version: 1
+
+# A finding behind one of these in the same clause is denied, not positive.
+negators: ["no", "not", "denies", "denied", "without", "never", "nil", "negative"]
+
+# A contrast/conjunction ends a negation scope. "or" is deliberately absent: it
+# continues a list ("no chest pain or shortness of breath" denies both).
+negation_boundaries: ["and", "but", "however", "except", "although", "though", "yet"]
+
+# Categorical phrases -> the schema's declared value. Longest/most-specific first.
+mobility:
+  - {term: "stretcher", value: "stretcher"}
+  - {term: "trolley", value: "stretcher"}
+  - {term: "with help", value: "with_help"}
+  - {term: "assisted", value: "with_help"}
+  - {term: "walking", value: "walking"}
+  - {term: "ambulant", value: "walking"}
+  - {term: "ambulatory", value: "walking"}
+  - {term: "walks", value: "walking"}
+
+avpu:
+  - {term: "unresponsive", value: "unresponsive"}
+  - {term: "unconscious", value: "unresponsive"}
+  - {term: "voice", value: "voice"}
+  - {term: "pain", value: "pain"}
+  - {term: "alert", value: "alert"}
+
+# Trauma phrases. Negatives are checked first because "no trauma" contains "trauma".
+trauma_negative: ["no trauma", "no injury", "no injuries", "denies trauma", "without trauma"]
+trauma_positive:
+  ["trauma", "injury", "injured", "accident", "fall", "assault", "stab", "gunshot",
+   "burn", "collision", "mva", "rtc", "wound"]

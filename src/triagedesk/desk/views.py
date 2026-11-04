@@ -20,8 +20,8 @@ from triagedesk.desk.copy import (
     _EMPTY_HEADING,
     _ESCALATED_COPY,
     _FAILURE_COPY,
-    _RECOVERY_COPY,
     _UNREACHED_COPY,
+    recovery_copy,
 )
 from triagedesk.desk.forms import _csrf_field, _vitals_fields
 from triagedesk.desk.gate import _gate_html
@@ -99,7 +99,9 @@ def _terminal_panel(state: Mapping[str, Any]) -> str:
     if kind == "escalated":
         return _panel(_ESCALATED_COPY, "muted")
     if kind == "recovery":
-        return _panel(_RECOVERY_COPY, "muted")
+        recovery = state.get("recovery")
+        missing = list(getattr(recovery, "missing_vitals", None) or [])
+        return _panel(recovery_copy(missing), "muted")
     return _panel(_UNREACHED_COPY, "muted")
 
 

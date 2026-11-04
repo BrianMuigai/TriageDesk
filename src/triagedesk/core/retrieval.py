@@ -23,7 +23,7 @@ same ranking, reproducibly and offline.
 from __future__ import annotations
 
 from triagedesk.core.citations import format_citation
-from triagedesk.core.matcher import contains_sequence, tokenize
+from triagedesk.core.matcher import alias_matches, tokenize, tokenize_with_spans
 from triagedesk.core.rules import Discriminator, get_discriminators
 from triagedesk.core.schema import EvidencePassage, EvidenceResult
 
@@ -38,24 +38,28 @@ MATCH_MIN_SCORE: int = 1
 MAX_PASSAGES: int = 5
 
 
-def _score(discriminator: Discriminator, complaint_tokens: list[str]) -> int:
-    """The lexical score of *discriminator* against the complaint tokens (D9-02).
+def _score(
+    discriminator: Discriminator,
+    complaint: str,
+    tokens: list[str],
+    spans: list[tuple[int, int]],
+) -> int:
+    """The lexical score of *discriminator* against the complaint (D9-02).
 
     Returns the length in tokens of the longest alias of *discriminator* that appears
-    as a CONTIGUOUS token phrase of the complaint, or ``0`` when no alias appears. The
-    phrase rule is the matcher's own (:func:`contains_sequence`), so retrieval and the
-    deterministic matcher agree on which discriminators a complaint names: retrieval
-    never fabricates a passage the matcher rejects. A set-subset, order-insensitive
-    match would fire on a negated phrase ("patient is breathing, no distress" matching
-    the alias "no breathing"), which is exactly the misleading grounding this channel
-    must not produce. Both sides are tokenised through the ONE normalisation owner
-    (:func:`tokenize`), so the comparison is boundary-respecting and reproducible.
+    as a CONTIGUOUS, UNNEGATED token phrase of the complaint, or ``0`` when no alias
+    appears. The phrase rule is the matcher's own (:func:`alias_matches`), so retrieval
+    and the deterministic matcher agree on which discriminators a complaint names:
+    retrieval never fabricates a passage the matcher rejects. That includes a negated
+    phrase ("no difficulty breathing noted"), which is exactly the misleading grounding
+    this channel must not produce. Both sides are tokenised through the ONE
+    normalisation owner (:func:`tokenize_with_spans`), so the comparison is
+    boundary-respecting and reproducible.
     """
     best = 0
     for alias in discriminator.aliases:
-        alias_tokens = tokenize(alias)
-        if alias_tokens and contains_sequence(complaint_tokens, alias_tokens):
-            best = max(best, len(alias_tokens))
+        if alias_matches(complaint, tokens, spans, alias):
+            best = max(best, len(tokenize(alias)))
     return best
 
 
@@ -77,10 +81,10 @@ def retrieve(complaint: str) -> EvidenceResult:
     ``no_match.warning`` READ from the data (never restated in code; D9-09).
     """
     substrate = get_discriminators()
-    complaint_tokens = tokenize(complaint)
+    tokens, spans = tokenize_with_spans(complaint)
 
     scored = [
-        (discriminator, _score(discriminator, complaint_tokens))
+        (discriminator, _score(discriminator, complaint, tokens, spans))
         for discriminator in substrate.discriminators
     ]
     matched = sorted(

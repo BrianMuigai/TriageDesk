@@ -23,6 +23,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = _REPO_ROOT / "data"
 TEWS_PATH = DATA_DIR / "sats_tews.yaml"
 DISCRIMINATORS_PATH = DATA_DIR / "sats_discriminators.yaml"
+TEXT_TERMS_PATH = DATA_DIR / "text_terms.yaml"
 
 
 class Band(BaseModel):
@@ -123,6 +124,38 @@ def load_discriminators(path: Path | None = None) -> DiscriminatorRules:
     return DiscriminatorRules.model_validate(raw)
 
 
+class TermValue(BaseModel):
+    """One phrase -> value mapping used to read a free-text note (not a scoring rule)."""
+
+    term: str
+    value: str
+
+
+class TextTerms(BaseModel):
+    """Linguistic terms loaded from ``data/text_terms.yaml`` (CONVENTIONS §1).
+
+    These are interpretation terms (negators, clause boundaries, categorical phrases),
+    not clinical scoring values: no band, colour, threshold or discriminator decision
+    lives here. Keeping them in data means the matcher and the extraction-grounding
+    step never inline a term a nurse's note may use.
+    """
+
+    version: int
+    negators: list[str]
+    negation_boundaries: list[str]
+    mobility: list[TermValue]
+    avpu: list[TermValue]
+    trauma_negative: list[str]
+    trauma_positive: list[str]
+
+
+def load_text_terms(path: Path | None = None) -> TextTerms:
+    """Load and validate the interpretation terms from *path* (default: the data file)."""
+    source = path or TEXT_TERMS_PATH
+    raw = yaml.safe_load(source.read_text(encoding="utf-8"))
+    return TextTerms.model_validate(raw)
+
+
 @lru_cache(maxsize=1)
 def get_tews() -> TewsRules:
     """Return the TEWS rule substrate, loaded once per process."""
@@ -133,3 +166,9 @@ def get_tews() -> TewsRules:
 def get_discriminators() -> DiscriminatorRules:
     """Return the discriminator substrate, loaded once per process."""
     return load_discriminators()
+
+
+@lru_cache(maxsize=1)
+def get_text_terms() -> TextTerms:
+    """Return the interpretation terms, loaded once per process."""
+    return load_text_terms()

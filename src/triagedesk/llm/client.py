@@ -18,6 +18,7 @@ from typing import Any
 import ollama
 
 from triagedesk.core.schema import ExtractionResult
+from triagedesk.llm.notes import grounded_case
 from triagedesk.llm.prompts import EXTRACTION_PROMPT
 from triagedesk.observability import span
 
@@ -118,6 +119,11 @@ def extract(
             "model returned an empty response (is think=False set for this model?)"
         )
     try:
-        return ExtractionResult.model_validate_json(raw)
+        parsed = ExtractionResult.model_validate_json(raw)
     except Exception as exc:  # noqa: BLE001 — re-raised as a typed error
         raise ExtractionError(f"model returned unparsable or schema-invalid JSON: {exc}") from exc
+    # The model structures; it is not trusted to be complete or exact. The deterministic
+    # grounding step drops unstated values, takes the AFTER value of a serial reading,
+    # converts °F, and recovers a stated age/categorical the model dropped (SAFE-01,
+    # nurse stress test S1-2/S1-3).
+    return parsed.model_copy(update={"case": grounded_case(parsed.case, note)})

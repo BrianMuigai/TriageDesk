@@ -235,8 +235,30 @@ def score_priority(
     function (SOLID: S/D): it touches no model and cannot inject a colour. The
     returned ``PriorityResult`` carries the colour, TEWS total, target time and
     one citation per triggered rule.
+
+    The tool contract fails closed on an incomplete case: when a scored vital is
+    absent it returns ``abstained=True`` with no colour, no total and no citations,
+    naming the missing vitals in ``reason``. The shipped graph already routes on
+    ``missing_vitals``; this guard protects a caller that invokes the MCP tool
+    directly and would otherwise see a GREEN with no evidence (nurse stress test
+    S1-4, SAFE-01).
     """
-    return scorer.score_priority(case, matched_discriminator_ids)
+    priority = scorer.score_priority(case, matched_discriminator_ids)
+    if not priority.missing_vitals:
+        return priority
+    missing = ", ".join(priority.missing_vitals)
+    return priority.model_copy(
+        update={
+            "colour": None,
+            "tews": None,
+            "target": None,
+            "destination": None,
+            "triggered_rules": [],
+            "citations": [],
+            "abstained": True,
+            "reason": f"missing scored vitals: {missing}; re-measure before scoring",
+        }
+    )
 
 
 @server.tool()
