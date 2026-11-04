@@ -189,6 +189,15 @@ queue** — it refuses to run without a valid approval token.
 schema and query safety are solved; a hand-rolled DB adds zero triage value"* — its read paths are
 exercised behind the unchanged `Store` protocol. Full tool contracts: [`ARCHITECTURE.md`](ARCHITECTURE.md) §4.
 
+**Installing it.** One command writes the block your harness expects — OpenCode, Claude Code, Claude
+Desktop, Cursor, VS Code, Codex, Gemini CLI, Zed, Windsurf/Devin — and [`docs/MCP.md`](docs/MCP.md)
+has the worked call shape for each of the seven tools and the gated approval token.
+
+```bash
+uv run python scripts/install_mcp.py --list
+uv run python scripts/install_mcp.py --harness opencode --write
+```
+
 ## Human-in-the-loop workflow
 
 Every irreversible action is gated. A LangGraph `interrupt()` pauses at the **approval gate** and
@@ -269,6 +278,7 @@ triagedesk/
 │   ├── DEMO.md            demo runbook
 │   ├── DESK.md            loopback desk-surface quickstart
 │   ├── REVIEW.md          live-review (Stage 2) rehearsal runbook
+│   ├── MCP.md             MCP install & direct-call guide (9 harnesses)
 │   └── assets/            architecture diagram, demo video + render script
 ├── data/                  SATS rules (the single source of thresholds)
 ├── evals/                 case fixtures + the measured report.json

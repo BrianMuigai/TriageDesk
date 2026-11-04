@@ -63,7 +63,7 @@ A **priority** and a **deterioration flag** could each move a queue position, so
 deterioration alert is a **second-look request** that does **not** reorder the queue. `commit_priority` is the **only** queue-changing tool and needs a signed approval record:
 
 ```json
-{ "case_id": "0417", "approved_by": "<clinician>", "approved_at": "<ts>", "decision": "approve|edit|dismiss", "final_colour": "ORANGE" }
+{ "decision": "approve|edit|dismiss", "approved_at": "<ts>", "approved_by": "<clinician>", "role": "<role>", "final_colour": "ORANGE" }
 ```
 
 The `interrupt()` in `approval_gate` halts before `commit` — nothing a model says places a patient in a
@@ -72,13 +72,13 @@ and its authentication is a declared production requirement (`SECURITY.md` §6).
 
 ## 6. Logging & audit
 
-Every tool call appends one hash-chained record (BW-8, BW-10):
+One chained record per tool call (BW-8, BW-10):
 
 ```json
 { "ts": "...", "case_id": "0417", "tool": "score_priority", "actor": "agent|clinician", "inputs": {}, "outputs": {}, "approved_by": null, "prev_hash": "...", "hash": "..." }
 ```
 
-Written to `log/audit.jsonl` **and** the SQLite audit table — readable and tamper-evident (JC-5).
+Written to the SQLite audit table; each call emits a `tool` span in `spans.jsonl` — readable and tamper-evident (JC-5).
 
 ## 7. Data flow & no-egress guarantee
 
