@@ -58,6 +58,7 @@ from triagedesk.core.schema import (
     RecoveryRequest,
 )
 from triagedesk.desk import server as desk_server
+from triagedesk.desk.copy import _DEFERRED_BADGE
 from triagedesk.desk.server import (
     decide,
     form_to_case,
@@ -981,6 +982,20 @@ def test_terminal_kind_prefers_the_deferral_channel() -> None:
     assert desk_server.terminal_kind({}) is None
 
 
+def test_recovery_panel_names_the_missing_vital() -> None:
+    """The recovery terminal tells the nurse WHAT to re-measure (stress test S2-2)."""
+    body = desk_server.render_state(
+        _run_from_state(
+            recovery=RecoveryRequest(
+                missing_vitals=["temperature"],
+                reason="a scored vital is missing; re-measure before scoring",
+            )
+        )
+    )
+    assert "temperature" in body, "the recovery panel did not name the missing vital"
+    assert "Re-measure before scoring" in body
+
+
 def test_deferred_case_renders_the_banner_read_only_card_and_no_gate(
     tmp_path: Path, injected_store: Any
 ) -> None:
@@ -1004,6 +1019,40 @@ def test_deferred_case_renders_the_banner_read_only_card_and_no_gate(
     ):
         assert control not in body, f"the deferred path rendered a gate control: {control}"
     assert injected_store.rows == []
+
+
+def test_deferred_card_shows_a_deferred_badge_and_no_colour(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A deferred card shows DEFERRED, never the colour it declines to stand behind (S2-3).
+
+    The suppressed facts are derived from the same scorer the graph used, and the
+    preconditions assert the deferral carried a colour and target — so the negative
+    assertions cannot pass vacuously.
+    """
+    case = _e09()
+    match = matcher.match_discriminators(case.case.complaint)
+    priority = scorer.score_priority(case.case, match.matched_ids)
+    assert match.no_match is True, "the E-09 fixture no longer exercises the deferred path"
+    assert priority.colour and priority.target, "the deferred payload lost its colour/target"
+
+    with _running_server(tmp_path / "deferred.db") as server:
+        body = _post(_base(server) + "/case", _form_from_case(case.case))
+
+    assert "DEFERRED" in body
+    assert priority.colour not in body, "the deferred card leaked the scored colour"
+    assert f'class="colour-block colour-{priority.colour.lower()}"' not in body
+    assert 'class="colour-block colour-deferred"' in _section(body, "priority-card")
+    assert "Suggested colour:" not in body
+    assert "Target time:" not in body
+    for retained in (
+        "Not recorded:",
+        "Why these vitals:",
+        "Evidence from the SATS knowledge base:",
+        "Case:",
+    ):
+        assert retained in body, f"the deferred card dropped a sourced fact: {retained}"
+    assert 'class="approval-gate"' not in body
 
 
 def test_banner_body_is_trigger_conditional() -> None:
@@ -1463,13 +1512,13 @@ def test_colour_label_accompanies_every_rendered_colour(
     assert 'onmouseover="alert(1)' not in hostile_card
     assert "colour-block colour-red&quot; onmouseover=&quot;alert(1)" in hostile_card
 
-    # The deferred read-only card renders its colour with its name and class too.
+    # The deferred read-only card shows the DEFERRED badge, not a colour (S2-3).
     case = _e09()
     with _running_server(tmp_path / "deferred.db") as server:
         deferred = _post(_base(server) + "/case", _form_from_case(case.case))
     deferred_card = _section(deferred, "priority-card")
-    assert "colour-block colour-" in deferred_card
-    assert '<span class="colour-name">' in deferred_card
+    assert 'class="colour-block colour-deferred"' in deferred_card
+    assert '<span class="colour-name">DEFERRED</span>' in deferred_card
 
 
 def test_submit_path_launches_no_borrowed_store(
@@ -1552,7 +1601,9 @@ def test_css_declares_every_substrate_colour_token() -> None:
     bands never produce BLUE: the surface renders whatever colour string the graph supplies and
     must never decide a colour is unreachable (10-UI-SPEC §Color), so a BLUE band must not
     render an uncoloured block. The gate's own offerable colours are a subset of the swatches,
-    so the gate can never offer a colour it cannot render.
+    so the gate can never offer a colour it cannot render. The read-only ``colour-deferred``
+    badge is a presentation state, not a substrate colour, so it is excluded from the equality
+    (derived from the ONE badge source, never a second literal — S2-3).
     """
     css = (ASSET_DIR / "styles.css").read_text(encoding="utf-8")
     expected = {colour.lower() for colour in get_tews().target_times}
@@ -1563,8 +1614,10 @@ def test_css_declares_every_substrate_colour_token() -> None:
         assert "color:" in block, f".colour-{colour} has no on-colour text colour"
 
     swatches = set(re.findall(r"\.colour-([a-z]+)\s*\{[^}]*background:", css))
-    assert swatches == expected, (
-        f"CSS swatches {sorted(swatches)} do not equal the substrate colours {sorted(expected)}"
+    colour_swatches = swatches - {_DEFERRED_BADGE.lower()}
+    assert colour_swatches == expected, (
+        f"CSS swatches {sorted(colour_swatches)} do not equal the substrate colours "
+        f"{sorted(expected)}"
     )
     editable = {colour.lower() for colour in desk_server.editable_colours()}
     assert editable <= swatches, (

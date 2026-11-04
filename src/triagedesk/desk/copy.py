@@ -23,8 +23,23 @@ _READ_ONLY_FRAMING = (
 )
 _NO_EVIDENCE_LINE = "No evidence excerpt matched this complaint."
 _DEFERRED_COPY = "This case was deferred for human review — no priority was committed."
+# The word the read-only card shows instead of a colour (nurse stress test S2-3).
+_DEFERRED_BADGE = "DEFERRED"
 _ESCALATED_COPY = "This case was escalated for human review — no priority was committed."
 _RECOVERY_COPY = "A scored vital is missing. Re-measure before scoring."
+
+
+def recovery_copy(missing: list[str] | tuple[str, ...]) -> str:
+    """Name the missing scored vitals in the recovery panel (nurse stress test S2-2).
+
+    The generic sentence is the fallback when the typed ``missing_vitals`` list is
+    empty; otherwise the nurse is told exactly what to re-measure. Presentation only —
+    the list comes from the graph's ``RecoveryRequest``, never re-derived here.
+    """
+    names = ", ".join(str(item) for item in missing)
+    if not names:
+        return _RECOVERY_COPY
+    return f"A scored vital is missing ({names}). Re-measure before scoring."
 _UNREACHED_COPY = "This case did not reach the approval gate — nothing has been committed."
 _DISMISSED_COPY = "Dismissed — nothing has been committed."
 _TIMEOUT_COPY = "No decision was made — nothing has been committed."

@@ -272,6 +272,14 @@ button[disabled] {
   color: var(--surface);
 }
 
+/* The read-only (deferred) card shows a DEFERRED badge, never a colour: a deferral
+ * declines to stand behind one (nurse stress test S2-3). Reuses the muted tokens — no
+ * new custom property and no new colour literal. */
+.colour-deferred {
+  background: var(--muted-bg);
+  color: var(--muted-text);
+}
+
 .why-vitals-list,
 .evidence-list {
   list-style: none;
