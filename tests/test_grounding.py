@@ -17,6 +17,7 @@ from conftest import async_return
 from triagedesk.core import grounding, matcher, scorer
 from triagedesk.core.rules import get_discriminators
 from triagedesk.core.schema import CaseInput, ExtractionResult
+from triagedesk.llm.notes import grounded_case
 from triagedesk.mcp import server as server_module
 
 
@@ -127,6 +128,67 @@ def test_a_comma_decimal_temperature_is_stated() -> None:
     grounded = grounding.ground_extraction(extraction, "temp 36,8")
 
     assert grounded.case.temperature_c == 36.8
+
+
+def test_an_explicit_fahrenheit_unit_grounds_its_celsius_value() -> None:
+    """100.4 °F is 38.0 °C: the unit the note states does not change the value's home."""
+    extraction = ExtractionResult(case=CaseInput(temperature_c=38.0))
+
+    grounded = grounding.ground_extraction(extraction, "temperature 100.4 F")
+
+    assert grounded.case.temperature_c == 38.0
+
+
+def test_a_hallucinated_temperature_is_still_dropped() -> None:
+    """A value the note does not state is nulled even though the note states a °F temp."""
+    extraction = ExtractionResult(case=CaseInput(temperature_c=38.5))
+
+    grounded = grounding.ground_extraction(extraction, "temp 98.6")
+
+    assert grounded.case.temperature_c is None
+
+
+def test_an_unrelated_numeric_token_does_not_ground_a_temperature() -> None:
+    """Only a temperature token counts; a diastolic 80 must not support 26.7 °C."""
+    extraction = ExtractionResult(
+        case=CaseInput(systolic_bp=120, diastolic_bp=80, temperature_c=26.7)
+    )
+
+    grounded = grounding.ground_extraction(extraction, "BP 120/80")
+
+    assert grounded.case.temperature_c is None
+    assert grounded.case.systolic_bp == 120
+    assert grounded.case.diastolic_bp == 80
+
+
+# The project's own supported Fahrenheit note (``tests/test_llm_notes.py``): the model
+# guesses a Celsius value, the client converts the stated °F, and the tool boundary must
+# not drop the converted value.
+_FAHRENHEIT_NOTE = (
+    "50 year old woman, temp 98.6, RR 20, HR 90, BP 120/80, alert, walking, "
+    "no trauma. Complaint: fever."
+)
+
+
+async def test_normalize_case_keeps_a_stated_fahrenheit_temperature(monkeypatch) -> None:
+    """A stated °F is converted by the client and survives the tool-boundary re-ground."""
+    model_guess = CaseInput(
+        temperature_c=37.2,
+        respiratory_rate=20,
+        heart_rate=90,
+        systolic_bp=120,
+        complaint="fever",
+    )
+    extraction = ExtractionResult(case=grounded_case(model_guess, _FAHRENHEIT_NOTE))
+    assert extraction.case.temperature_c == 37.0  # the client's deterministic conversion
+    monkeypatch.setattr(server_module, "extract_async", async_return(extraction))
+
+    async with Client(server_module.server) as client:
+        call = await client.call_tool("normalize_case", {"raw_note": _FAHRENHEIT_NOTE})
+
+    assert not call.is_error, f"owned tool errored: {call}"
+    parsed = ExtractionResult.model_validate_json(call.content[0].text)
+    assert parsed.case.temperature_c == 37.0
 
 
 def test_an_unstated_categorical_is_not_touched_by_this_step() -> None:

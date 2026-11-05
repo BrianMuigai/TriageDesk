@@ -19,7 +19,12 @@ import re
 
 from pydantic import ValidationError
 
-from triagedesk.core.grounding import NUMERIC_CASE_FIELDS, stated_numbers, value_is_stated
+from triagedesk.core.grounding import (
+    NUMERIC_CASE_FIELDS,
+    stated_numbers,
+    stated_temperature,
+    value_is_stated,
+)
 from triagedesk.core.rules import get_text_terms
 from triagedesk.core.schema import CaseInput
 
@@ -61,13 +66,8 @@ _TEMPERATURE_SERIAL = re.compile(
     re.IGNORECASE,
 )
 
-# A single temperature, with an optional unit. A bare value above the Celsius range is
-# treated as Fahrenheit (the desk's common shorthand) and converted deterministically.
-_TEMPERATURE = re.compile(
-    r"\b(?:temp|temperature|t)\s*[:=]?\s*(\d+(?:[.,]\d+)?)\s*(°?\s*[cf])?\b",
-    re.IGNORECASE,
-)
-_CELSIUS_MAX = 45.0
+# A single temperature is read by the ONE temperature rule in ``core.grounding`` (shared
+# with the tool boundary), so the °F conversion has a single home.
 
 _AGE_MONTHS = re.compile(r"\b(\d+)\s*(?:-\s*)?months?\s*old\b", re.IGNORECASE)
 _AGE_YEARS = re.compile(r"\b(\d+)\s*(?:-\s*)?(?:year|yr)s?\s*old\b", re.IGNORECASE)
@@ -132,17 +132,10 @@ def _apply_temperature(case: CaseInput, note: str) -> CaseInput:
     """Set a single stated temperature, converting °F deterministically."""
     if _TEMPERATURE_SERIAL.search(note) is not None:
         return case  # the serial helper already took the AFTER value
-    match = _TEMPERATURE.search(note)
-    if match is None:
+    celsius = stated_temperature(note)
+    if celsius is None:
         return case
-    raw = float(match.group(1).replace(",", "."))
-    unit = (match.group(2) or "").lower().replace("°", "").strip()
-    if unit == "f" or raw > _CELSIUS_MAX:
-        celsius = round((raw - 32.0) * 5.0 / 9.0, 1)
-        return _apply(case, {"temperature_c": celsius})
-    if unit in {"", "c"}:
-        return _apply(case, {"temperature_c": raw})
-    return case
+    return _apply(case, {"temperature_c": celsius})
 
 
 def _apply_age(case: CaseInput, note: str) -> CaseInput:
