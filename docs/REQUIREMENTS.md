@@ -5,7 +5,7 @@
 > This document tracks **every** requirement, judging criterion, and instant-disqualifier from that
 > page, and maps each to the artifact that satisfies it and its current status.
 >
-> **Updated 2026-10-13, post-build (v1.1 milestone close).** Full honest gap analysis — the one
+> **Updated 2026-11-05 (post-Phase-14).** Full honest gap analysis — the one
 > submission gap, UX, and state-of-the-art gaps — lives in [`../STATUS.md`](../STATUS.md).
 >
 > Legend — Status: ✅ **done & verified** · 🟡 **partial / open** · ⛔ **not done / blocked** · ⏳ **active
@@ -30,7 +30,7 @@ risks** — items we cannot yet close, tracked honestly.
 | EL-3 | Repo must carry an OSI-approved licence | Apache-2.0 | LICENSE | ✅ |
 | EL-4 | Submissions in English; agent may handle documents in any language | English build; multilingual kept out of scope | PROJECT.md §6 | ✅ |
 | EL-5 | New work, built during the submission period; existing project resubmitted is not allowed | Greenfield; first commit 2026-10-09, inside the window | ROADMAP.md | ✅ |
-| EL-6 | Repos cloned at deadline; commits after deadline disqualify | Frozen + tagged `v1.0-submission`; commits monitored until 2026-10-15 | ROADMAP.md §Freeze | ⏳ active |
+| EL-6 | Repos cloned at deadline; commits after deadline disqualify | The `v1.0-submission` tag is frozen + tagged (the live branch carries additive post-submission work); commits to that tag monitored until 2026-10-15 | ROADMAP.md §Freeze | ✅ (tag frozen) |
 | EL-7 | Ownership retained; organiser permission to reference/demonstrate | Apache-2.0 grants use; note in README | LICENSE / README | ✅ |
 
 ## 2. Safety non-negotiables (from the Overview)
@@ -66,11 +66,11 @@ risks** — items we cannot yet close, tracked honestly.
 | SB-1 | **Public code repository** | GitHub public repo — `github.com/BrianMuigai/TriageDesk` | ROADMAP.md | ✅ |
 | SB-2 | **OSI-approved licence** | Apache-2.0 | LICENSE | ✅ |
 | SB-3 | **README** that gets a stranger running in one command | `uv run triagedesk demo`; `uv run` auto-syncs from the committed `uv.lock`, so there is no separate install step | ../README.md | ✅ one command |
-| SB-4 | **Demo video under 3 minutes**, **uploaded to YouTube or Vimeo and publicly visible** | Recorded (`docs/assets/triagedesk-demo.mp4`, 2:28 — one complete candidate with the tool calls on screen) — **not yet uploaded** | docs/DEMO.md | ⛔ the one submission blocker — STATUS G1 |
+| SB-4 | **Demo video under 3 minutes**, **uploaded to YouTube or Vimeo and publicly visible** | Recorded (`docs/assets/triagedesk-demo.mp4`, 2:28 — one complete candidate with the tool calls on screen) and **uploaded to Google Drive during submission** ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)) — the brief names YouTube/Vimeo, so platform compliance is the residual caveat | docs/DEMO.md | 🟡 delivered; platform caveat — STATUS G1 |
 | SB-5 | **Unedited agent run, tool calls on screen** — **not slides** | Real unedited terminal screen recording of `triagedesk demo` (offline), the seven owned tool calls on screen, incl. the declared E-09 failure | docs/assets/triagedesk-demo.mp4 | ✅ |
 | SB-6 | **~300-word text description**: what it does, sub-theme, facility & workflow | DESCRIPTION.md — within ±10% of 300 (guarded by `tests/test_docs_final.py`) | DESCRIPTION.md | ✅ |
 | SB-7 | **ARCHITECTURE.md — one page**: agent shape, MCP servers built vs borrowed, why | ARCHITECTURE.md (one page) | ../ARCHITECTURE.md | ✅ |
-| SB-8 | **EVALS.md**: 8+ test tasks with pass/fail, plus one failure not fixed + what you'd try next | 16 cases, measured; E-09 declared | ../EVALS.md | ✅ (counts reconciled) |
+| SB-8 | **EVALS.md**: 8+ test tasks with pass/fail, plus one failure not fixed + what you'd try next | 16 cases; E-09 declared + E-11 recorded gate failure | ../EVALS.md | ✅ (counts reconciled) |
 | SB-9 | Repo that **runs** (not a repo that does not run) | One-command run + synthetic fixture + CI smoke test | ROADMAP.md | ✅ |
 
 ## 5. Data conduct
@@ -88,8 +88,8 @@ risks** — items we cannot yet close, tracked honestly.
 | --- | --- | --- | --- | --- |
 | JC-1 | Agentic depth & MCP craft (**30**) | Plans, calls tools, recovers — not one model call in a loop; tool boundaries a stranger could reuse | Explicit LangGraph plan with one deterministic evidence check whose failure is a fail-closed terminal (no gate, no commit, no card), missing-vital recovery, tool-failure recovery, safe abstention, and seven reusable tool contracts | ../ARCHITECTURE.md §3–4 |
 | JC-2 | Open-source rigour (**20**) | Clone & run; README honest about unfinished | One-command run, synthetic fixture, CI smoke test, honest status table incl. unfinished items | README, EVALS |
-| JC-3 | Fit to triage desk (**20**) | Named nurse does a real thing faster, at the desk, under queue pressure; *did you talk to one?* | Models the real five-step SATS desk process with an assumption-labelled throughput model; a loopback desk surface now ships ([`DEMO.md`](DEMO.md), [`DESK.md`](DESK.md)), while **no clinician interview available** remains a declared gap | PROJECT.md §3, §3.1; EVALS §7; STATUS §6 |
-| JC-4 | Evaluation & reliability (**15**) | Honest test set, not curated to pass; run-to-run variation measured or hidden | 16 cases incl. a declared failure; 3 runs/case; variation + latency + cost reported | ../EVALS.md |
+| JC-3 | Fit to triage desk (**20**) | Named nurse does a real thing faster, at the desk, under queue pressure; *did you talk to one?* | Models the real five-step SATS desk process with an assumption-labelled throughput model; a loopback desk surface now ships ([`DEMO.md`](DEMO.md), [`DESK.md`](DESK.md)) with online extraction, an acuity-ordered read-only waiting room, and keyboard-first vitals (Phase 13–14), while **no clinician interview available** remains a declared gap | PROJECT.md §3, §3.1; EVALS §7; STATUS §6 |
+| JC-4 | Evaluation & reliability (**15**) | Honest test set, not curated to pass; run-to-run variation measured or hidden | 16 cases; E-09 declared + E-11 recorded gate failure; 3 runs/case; variation + latency + cost reported | ../EVALS.md |
 | JC-5 | Defensibility (**10**) | Priority survives a clinical-audit question; sourced, readable log; known cost per run | Deterministic SATS scorer + exact citations + hash-chained audit log + measured cost/run (tokens + wall-clock) | ../ARCHITECTURE.md §3, §6; ../EVALS.md §3.1 |
 | JC-6 | Demo (**5**) | Three clear minutes, including where it fails | One 2:28 recording: tool calls on screen, the measured eval + the declared failure | docs/DEMO.md |
 
@@ -113,7 +113,7 @@ Not required by the brief, tracked because the agent touches a clinical queue. F
 
 | ID | Item | How we satisfy it | Artifact | Status |
 | --- | --- | --- | --- | --- |
-| SW-1 | **Untrusted input treated as data** (prompt-injection resistance) | Complaint parsed to typed fields; deterministic scorer; citation invariant; no source = rejected; extraction grounding keeps an extracted discriminator only when one of its declared aliases occurs in the note, and a model-supplied numeric vital only when its own numeric token occurs in the note | ../SECURITY.md §4, DECISIONS.md D15, [EVALS.md §4](../EVALS.md) | 🟡 shipped + unit-tested; the measured E-13 run is no longer a gate failure — it now defers as reduced coverage ([EVALS.md §4](../EVALS.md)) |
+| SW-1 | **Untrusted input treated as data** (prompt-injection resistance) | Complaint parsed to typed fields; deterministic scorer; citation invariant; no source = rejected; extraction grounding keeps an extracted discriminator only when one of its declared aliases occurs in the note, and a model-supplied numeric vital only when its own numeric token occurs in the note (or, for temperature, when the note states the Fahrenheit equivalent) | ../SECURITY.md §4, DECISIONS.md D15, [EVALS.md §4](../EVALS.md) | 🟡 shipped + unit-tested; the measured E-13 run is no longer a gate failure — it now defers as reduced coverage ([EVALS.md §4](../EVALS.md)) |
 | SW-2 | **Least privilege** | Tool allowlist; no network/credentials; the gated write is the only mutation | ../SECURITY.md §5 | ✅ |
 | SW-3 | **Idempotent irreversible writes** | `commit_priority` keyed by `case_id` + content hash | ../SECURITY.md §7, DECISIONS.md D16 | ✅ (key breadth — integration-verified) |
 | SW-4 | **Approver identity + role recorded** | `approved_by`, `role`, `approved_at`, `decision`; authentication is a declared production requirement | ../SECURITY.md §6 | 🟡 authn deferred — G-8 |
@@ -154,12 +154,12 @@ Not required by the brief, tracked because the agent touches a clinical queue. F
 | G-3 | Host Python is 3.14 | wheels | **Resolved:** Python 3.12 pinned via `uv` | ✅ resolved |
 | G-4 | Borrowed MCP server availability | BW-3 | **Resolved:** `mcp-sqlite@1.0.9` adopted (World A); MCP spec 2026-07-28 | ✅ resolved |
 | G-5 | Multi-step tool-calling reliability on a small CPU model | JC-1 | **Resolved:** explicit graph + structured output; E-12 covers failure recovery | ✅ resolved |
-| G-6 | Deadline (2026-10-15) | EL-6 | Frozen + tagged; **no post-deadline commits** | ⏳ active |
+| G-6 | Deadline (2026-10-15) | EL-6 | The `v1.0-submission` tag is frozen + tagged; **no post-deadline commits to that tag**; post-submission work continues on the live branch | ✅ (tag frozen) |
 | G-7 | Paediatric triage out of scope | Clinical completeness | **Resolved:** safe abstention + escalation (E-06); never mis-scores a child | ✅ resolved |
 | G-8 | **Approver authentication deferred** (identity recorded only) | T-8 | Declared production requirement (`../SECURITY.md` §6) | **OPEN** (declared) |
-| G-9 | **Demo video not uploaded** (SB-4) | The one submission blocker | Upload `docs/assets/triagedesk-demo.mp4` (2:28) to YouTube/Vimeo (Public) | **OPEN** — human |
+| G-9 | **Demo video platform** (SB-4) | Uploaded to Google Drive during submission; the brief names YouTube/Vimeo | Re-host `docs/assets/triagedesk-demo.mp4` (2:28) on YouTube/Vimeo and confirm the Drive folder is viewable by anyone with the link | **RESIDUAL** |
 | G-10 | **README "one command" is two** (SB-3) | Open-source rigour | **Resolved:** `uv run triagedesk demo` is the literal one-liner (`uv run` auto-syncs); a test guards it (D11-09) | ✅ resolved |
-| G-11 | **Residual desk-UX gaps** (JC-3, JC-6) | Fit-to-desk + demo | Desk surface + real approve/edit/dismiss gate shipped (Phase 10, [`DESK.md`](DESK.md)); remaining: vitals-entry ergonomics, environment/accessibility, approver authn (STATUS §6) | 🟡 **partial** |
+| G-11 | **Residual desk-UX gaps** (JC-3, JC-6) | Fit-to-desk + demo | Desk surface + real approve/edit/dismiss gate shipped (Phase 10, [`DESK.md`](DESK.md)); remaining: units/missing-vital prompting, environment/accessibility, approver authn (STATUS §6) | 🟡 **partial** |
 
 > The full ranked analysis, UX considerations, and state-of-the-art gap assessment are in
 > [`../STATUS.md`](../STATUS.md).

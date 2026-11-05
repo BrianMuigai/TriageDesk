@@ -94,8 +94,8 @@ effortless. It also separates clinical content review from code.
 **Consequence:** a small loader/validator is needed; worth it.
 
 ### D12 — Hash-chained audit log
-**Decision:** every tool call is appended to `log/audit.jsonl` and the SQLite audit table, with a hash
-chained to the previous entry.
+**Decision:** every tool call is appended to the SQLite audit table (hash-chained); there is no
+`log/audit.jsonl` file.
 **Why:** "readable log" is a scored, defensibility criterion; a tamper-evident chain is cheap and
 credible.
 **Consequence:** negligible overhead; strong JC-5 story.

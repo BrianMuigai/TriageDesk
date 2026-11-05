@@ -162,9 +162,9 @@ fixture, threshold or expectation was tuned. **E-09 remains the one declared fai
 recorded as a declared *deferral*, not a delivered under-triage.
 
 This phase's extraction-contract change shifted two cases in this record — E-08 returns to an all-deferred
-coverage marker, while E-11 now abstains on two of three runs (a terminal reached before the confidence
-check) and so enters the recorded, unfixed gate failures — the **honest** consequence of the change, with
-no expectation, threshold or fixture tuned to produce it (D11-07).
+coverage marker, while E-11 now takes the `RECOVER` terminal on two of three runs (a terminal
+reached before the confidence check) and so enters the recorded, unfixed gate failures — the **honest**
+consequence of the change, with no expectation, threshold or fixture tuned to produce it (D11-07).
 
 ### 6.2 The E-07 fixture-note repair — a note↔golden inconsistency (D11-14)
 

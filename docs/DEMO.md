@@ -2,16 +2,17 @@
 
 > **One unedited screen recording, tool calls on screen, no slides.** The submission video is a real
 > screen recording of the shipped CLI — every line is what `uv run triagedesk demo` prints. It is
-> **2:28** (`docs/assets/triagedesk-demo.mp4`): the seven owned tool calls across the five beats, the
+> **2:28** (`docs/assets/triagedesk-demo.mp4`): the seven owned tools' calls across the five beats, the
 > measured evaluation, and the declared E-09 failure. It is reproducible from the repository (see
 > *Rendering the video* below).
 >
-> **`human_needed` — the public upload.** Recording is now scripted and reproducible; the **public
-> upload** to YouTube or Vimeo is the remaining **HUMAN** action and the **one submission blocker**
-> (`STATUS.md` G1, `docs/REQUIREMENTS.md` G-9). This runbook documents the script and never claims a
-> video is hosted. Paste the public URL into the submission form once it is.
+> **Upload status.** The video was uploaded to Google Drive during submission
+> ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)). The brief names
+> YouTube or Vimeo, so re-hosting there remains a platform caveat (`STATUS.md` G1,
+> `docs/REQUIREMENTS.md` G-9) — and the Drive folder should be confirmed viewable by anyone with the
+> link. This runbook documents the recording script.
 >
-> **Record against the v1.1 state (this commit), not the frozen `v1.0-submission` tag.** The
+> **Record against the current state (this commit), not the frozen `v1.0-submission` tag.** The
 > Durable-mode and desk sections below document v1.1-only behaviour — `--durable`/`resume`/`replay`,
 > `desk`, and the `no_match` **deferral** — none of which exists at `v1.0-submission`, whose CLI
 > exposes only `eval` and `demo`. The frozen tag remains the reference for the **freeze protocol**
@@ -267,6 +268,10 @@ does not hide the miss.
 that is the terminal recording above (`docs/assets/triagedesk-demo.mp4`), which carries the tool calls,
 the measured eval and the declared failure. This capture is a separate, clearly-labelled artefact.
 
+> **The recording predates the later desk additions.** It was captured on 2026-10-13, before the
+> `Waiting room` / `New case` nav and live mode label, `--online`, the complaint precompute, and the
+> keyboard-first form. It does not show any of those; the sections below describe the current page.
+
 Run the surface it records (offline, local, CPU-only — no egress):
 
 ```bash
@@ -316,7 +321,8 @@ The video must be as honest as the docs. Point the close at what the repository 
 - Clinician validation remains a **declared gap** (`EVALS.md` §7): the expected colours come from the
   published SATS rules, not clinician adjudication. **No** triage nurse/clinician review was obtained as
   of 2026-10-13.
-- The video is recorded (`docs/assets/triagedesk-demo.mp4`, 2:28) but **not yet uploaded** — the one
-  submission blocker (see the `human_needed` note above).
+- The video is recorded (`docs/assets/triagedesk-demo.mp4`, 2:28) and was **uploaded to Google Drive
+  during submission** (folder link above). The brief's YouTube/Vimeo requirement is the residual
+  platform caveat.
 
 Record the close over the running terminal, not over slides: open source, offline, synthetic.

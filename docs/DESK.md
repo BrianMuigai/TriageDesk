@@ -1,10 +1,9 @@
 # DESK — TriageDesk desk-surface quickstart
 
-> **One local page, nothing else.** The desk surface is a single local HTML page served by the
-> shipped `triagedesk` command. It binds to **loopback only** (`127.0.0.1`), makes **no external
-> request**, needs **no build step**, and adds **no dependency**. A nurse opens it, enters the
-> patient's vitals and complaint, reads the sourced suggestion with its evidence, and approves,
-> edits, or dismisses it.
+> **One local surface.** The desk surface is served by the shipped `triagedesk` command. It binds
+> to **loopback only** (`127.0.0.1`), makes **no external request**, needs **no build step**, and
+> adds **no dependency**. A nurse opens it, enters the patient's vitals and complaint, reads the
+> sourced suggestion with its evidence, and approves, edits, or dismisses it.
 
 ## One-time setup (from a clean clone)
 
@@ -21,6 +20,10 @@ uv run triagedesk desk
 
 # Overrides: a different loopback address, port, or checkpoint file.
 uv run triagedesk desk --host 127.0.0.1 --port 8765 --db checkpoints.db
+
+# Offline is the default (no model called). Add --online to run the local model on the
+# free-text complaint; the deterministic scorer still decides the colour.
+uv run triagedesk desk --online
 ```
 
 Then open **http://127.0.0.1:8765** in a browser and stop the server with `Ctrl-C`.
@@ -41,8 +44,8 @@ No case yet
   Enter the patient's vitals and complaint, then choose Get suggested priority.
 
 Patient vitals
-  Age (years) · Age (months) · Age unclear · Height (cm) · Breathing rate · Heart rate
-  Systolic BP · Diastolic BP · Temperature (°C) · Oxygen saturation · Mobility · Alertness (AVPU)
+  Age (years) · Age (months) · Age unclear · Height (cm) · Alertness (AVPU) · Breathing rate
+  Oxygen saturation · Heart rate · Systolic BP · Diastolic BP · Temperature (°C) · Mobility
   Trauma · Complaint
   [ Get suggested priority ]
 
@@ -62,6 +65,12 @@ No decision was made — nothing has been committed.
 
 No discriminator matched / low confidence — nurse to confirm
 ```
+
+> **Since this transcript was written:** the page now carries a `Waiting room` / `New case` nav and a
+> live mode label (offline by default; `--online` says the local model reads the complaint). `GET
+> /waiting` renders the committed queue as an acuity-ordered, **read-only** waiting room — it never
+> writes a row. The complaint field precomputes its extraction in the background while you finish the
+> vitals, and the form is keyboard-first: the DOM order is the tab order, so no pointer is required.
 
 A case that cannot be confirmed from the vitals alone shows the same banner above a read-only
 card and **no decision controls** — nothing can be queued from it.

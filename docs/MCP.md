@@ -24,7 +24,8 @@ npx --version         # the borrowed server, fetched once on the first tool call
 ollama pull qwen2.5:1.5b   # ONLY needed for normalize_case
 ```
 
-No model and no network are needed for the other six tools.
+No model is needed for the other six tools; the first call may fetch the pinned
+`mcp-sqlite@1.0.9` for the audit path (see §4).
 
 ## 2. Start it without a harness
 
@@ -67,10 +68,10 @@ is only ever **appended** when its table is absent. Without `--write`, every har
 | Zed | `--harness zed` | `~/.config/zed/settings.json` | user |
 | Windsurf / Devin Desktop | `--harness windsurf` | `.devin/mcp_config.json` / `~/.config/devin/mcp_config.json` | project, user |
 
-Where `REPO` below is **the absolute path to this checkout** (`--print` fills it in for you). Replace
-it with a harness variable — `${workspaceFolder}` (Cursor), `${CLAUDE_PROJECT_DIR}` (Claude Code) —
-if you commit the file. OpenCode needs none of that: `"cwd": "."` resolves from the workspace root,
-which is the form this repository ships in `opencode.json`.
+Where `REPO` below is **the absolute path to this checkout** (the default print mode fills it in for
+you). Replace it with a harness variable — `${workspaceFolder}` (Cursor), `${CLAUDE_PROJECT_DIR}`
+(Claude Code) — if you commit the file. OpenCode needs none of that: `"cwd": "."` resolves from the
+workspace root, which is the form this repository ships in `opencode.json`.
 
 **OpenCode** — local servers take one argv array, a `cwd`, and a timeout:
 
@@ -156,7 +157,8 @@ The deterministic path — no model. Missing age makes it fail closed:
 
 ```json
 {"case": {"age_years": 34, "respiratory_rate": 24, "heart_rate": 118,
-          "systolic_bp": 108, "temperature_c": 38.9, "avpu": "alert"},
+          "systolic_bp": 108, "temperature_c": 38.9, "avpu": "alert",
+          "mobility": "walking", "trauma": false},
  "matched_discriminator_ids": ["acute_shortness_of_breath"]}
 ```
 
@@ -164,7 +166,7 @@ The deterministic path — no model. Missing age makes it fail closed:
 {"colour": "ORANGE", "tews": 6, "target": "< 10 min", "destination": "Majors",
  "triggered_rules": [{"rule_id": "respiratory_rate", "detail": "respiratory_rate=24 -> 2 points",
                       "points": 2, "citation": "SATS Training Manual 2012 (EMSSA), adult TEWS — respiratory_rate band"}, "…"],
- "citations": ["…one per triggered rule…"], "missing_vitals": ["mobility", "trauma"],
+ "citations": ["…one per triggered rule…"], "missing_vitals": [],
  "out_of_scope": false, "abstained": false, "reason": null}
 ```
 

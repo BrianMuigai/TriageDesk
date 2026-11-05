@@ -83,7 +83,7 @@ v1.0 behaviour.
 | Security & hardening | ✅ Documented → [`SECURITY.md`](SECURITY.md) |
 | MCP server / agent / evals | ✅ Built & tested → [`tests/`](tests) |
 | Evaluation (measured) | ✅ Run → [`EVALS.md`](EVALS.md) |
-| Demo video | 🎬 Recorded (2:28) — awaiting public upload → [`docs/DEMO.md`](docs/DEMO.md) |
+| Demo video | 🎬 Uploaded (2:28) — Google Drive, during submission → [`docs/DEMO.md`](docs/DEMO.md) |
 | Status & gap analysis | 🟡 Honest self-assessment → [`STATUS.md`](STATUS.md) |
 
 **What is unfinished.** The measured run records honest misses, not a green sweep: the declared failure
@@ -93,10 +93,10 @@ hidden, and the other misses are recorded in
 fit-to-desk claim is scoped to what was built and measured; if a review is arranged, an attributed quote
 (name/role/date, with consent) will be added to [`EVALS.md`](EVALS.md) §7 — nothing is claimed until it
 is. The demo video is **recorded** (`docs/assets/triagedesk-demo.mp4`, a 2:28 screen recording of the
-shipped CLI with the tool calls on screen) but **not yet uploaded** — the one submission blocker
-([`docs/DEMO.md`](docs/DEMO.md)). [`EVALS.md`](EVALS.md) is the single source for every number. A full
-honest gap analysis — the video upload, UX considerations, and state-of-the-art gaps — is in
-[`STATUS.md`](STATUS.md).
+shipped CLI with the tool calls on screen) and was **uploaded to Google Drive during submission**
+([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3); runbook in
+[`docs/DEMO.md`](docs/DEMO.md)). [`EVALS.md`](EVALS.md) is the single source for every number. A full
+honest gap analysis — UX considerations and state-of-the-art gaps — is in [`STATUS.md`](STATUS.md).
 
 ## Quickstart
 
@@ -215,7 +215,7 @@ reordering the queue. See [`ARCHITECTURE.md`](ARCHITECTURE.md) §5 and the desk 
 | Orchestration | **LangGraph** (explicit graph; `interrupt()` gate) |
 | MCP | Owned server on the **MCP SDK v2**; borrowed **`mcp-sqlite@1.0.9`** |
 | MCP client | `langchain.mcp` adapter (stdio) |
-| Model | **Qwen2.5 1.5B** via **Ollama** (open weights, offline); `qwen3.5:4b` fallback |
+| Model | **Qwen2.5 1.5B** via **Ollama** (open weights, offline); `qwen3.5:4b` documented alternative |
 | Schemas | **Pydantic** (one schema module) |
 | Storage | SQLite (domain + audit) and `checkpoints.db` (runtime state) |
 | Quality | `pytest`, `ruff`, `mypy` |
@@ -248,10 +248,10 @@ From [`STATUS.md`](STATUS.md) §7:
 
 - **Calibrated confidence** — a true selective-prediction probability beyond today's deterministic
   coverage signal.
-- **Model routing / caching / budgets** to attack the extraction latency.
+- **Model routing / budgets** (desk precompute caching now ships) to attack the extraction latency.
 - **Online evaluation + drift monitoring.**
 - **Multimodal intake** (voice + cuff/chart photo) — the real desk UX.
-- **Vitals-entry ergonomics** (numeric keypad, units, missing-vital prompting).
+- **Vitals-entry ergonomics** (units, missing-vital prompting).
 - **Approver authentication** (identity is recorded today, not authenticated).
 - **MCP sampling / elicitation** — the current spec's agent↔server negotiation.
 
@@ -308,3 +308,9 @@ patient data is used, at any point, in any form. See [`docs/PROJECT.md`](docs/PR
 ## License
 
 Apache-2.0 — see [`LICENSE`](LICENSE). OSI-approved.
+
+## Further reading
+
+- [`docs/TESTING.md`](docs/TESTING.md) — running and writing the test suite.
+- [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) — environment variables and runtime settings.
+- [`EVALS.md`](EVALS.md) — the measured evaluation and its recorded failures.
