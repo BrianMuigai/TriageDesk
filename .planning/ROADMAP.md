@@ -35,3 +35,29 @@ audit: `.planning/milestones/v1.1-MILESTONE-AUDIT.md`). 7 phases, 19 plans, 42 t
 - [x] **Phase 12: Live Review, Demo & Milestone-Close Documentation** (3/3 plans) — completed 2026-10-13
 
 </details>
+
+### Phase 13: Desk Fit — queue-shaped, model-real surface: (1) non-blocking async extraction and a persistent desk event loop; (2) online free-text extraction with precompute during vitals entry; (3) acuity-ordered waiting-room panel and keyboard-first vitals entry
+
+**Goal:** An OPD triage nurse can enter vitals at the desk while the local model works in the background, and read the whole waiting room in acuity order — with no new path to the queue and no uncited colour.
+**Requirements**: JC-1, JC-3
+**Depends on:** Phase 12
+**Plans:** 3/3 plans complete
+
+Plans:
+
+- [x] 13-01-PLAN.md — Non-blocking async extraction and one persistent desk event loop
+- [x] 13-02-PLAN.md — Online free-text extraction with background precompute during vitals entry
+- [x] 13-03-PLAN.md — Acuity-ordered waiting room and keyboard-first vitals entry
+
+### Phase 14: Evidence Fidelity — ground every extracted sign in the complaint text (E-13 injection), carry the committed target through an edit, and correct the stale verify-retry prose in ARCHITECTURE.md and docs/REQUIREMENTS.md
+
+**Goal:** Every extracted sign is grounded in the note it came from, the committed target travels with the committed colour through an edit, and the architecture docs describe the shipped fail-closed verify — with the measured eval status left unchanged.
+**Requirements**: JC-1, JC-4, JC-5
+**Depends on:** Phase 13
+**Plans:** 3/3 plans complete
+
+Plans:
+
+- [x] 14-01-PLAN.md — Ground every extracted discriminator and vital in the complaint text (E-13 unit regression)
+- [x] 14-02-PLAN.md — Carry the committed target through an edit so the card and queue row agree
+- [x] 14-03-PLAN.md — Correct the stale verify-retry prose and state the E-13 position honestly
