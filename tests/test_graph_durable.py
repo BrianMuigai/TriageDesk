@@ -24,6 +24,7 @@ import pytest
 from langgraph.types import Command
 
 from conftest import async_return
+from triagedesk.core.rules import get_tews
 from triagedesk.core.schema import ExtractionResult
 from triagedesk.durable import (
     DurableError,
@@ -173,10 +174,11 @@ async def test_edit_resume_supersedes_on_the_durable_path(
     )
     rows = await injected_store.read_queue_rows()
     assert len(rows) == 1
-    scored_colour, position = rows[0].colour, rows[0].position
+    scored_colour, scored_target, position = rows[0].colour, rows[0].target, rows[0].position
     assert scored_colour != EDITED_COLOUR, "the edit must change the committed colour"
-    # The card shows the colour the queue holds: the scored colour on an approve.
+    # The card shows what the queue holds: the scored colour and target on an approve.
     assert approved["handover"].colour == scored_colour
+    assert approved["handover"].target == scored_target
 
     # Thread 2: edit the SAME case to a different declared colour — it supersedes in place.
     edited = await resume_paused(
@@ -193,5 +195,10 @@ async def test_edit_resume_supersedes_on_the_durable_path(
     assert rows[0].colour == EDITED_COLOUR
     assert rows[0].position == position, "the supersede moved the queue position"
     assert rows[0].content_hash == content_hash(thread_id, case.case)
-    # The end-to-end regression: card colour equals the queue row colour after an edit.
+    # The end-to-end regression: card colour AND target equal the queue row after an
+    # edit. The expected target is read from the substrate, never a literal (D-08).
+    expected_target = get_tews().target_times[EDITED_COLOUR].target
+    assert rows[0].target == expected_target
     assert edited["handover"].colour == EDITED_COLOUR == rows[0].colour
+    assert edited["handover"].target == rows[0].target
+    assert edited["handover"].target != scored_target, "the edit must change the target"

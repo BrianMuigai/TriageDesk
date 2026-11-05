@@ -25,6 +25,7 @@ from typing import Any
 from langgraph.types import interrupt
 from pydantic import BaseModel, ValidationError
 
+from triagedesk.core.approval import committed_or_scored
 from triagedesk.core.hashing import hash_value
 from triagedesk.core.schema import (
     CaseInput,
@@ -392,19 +393,13 @@ def handover(state: TriageState) -> dict[str, Any]:
     fields and the named approval; ``HandoverCard`` locks its field set
     (``extra="forbid"`` + ``FORBIDDEN_FIELD_TOKENS``), so there is no field for a
     diagnosis, assessment, impression, plan or prescription and no way to smuggle
-    one in (SAFE-02, D-11, Pitfall 9). The card shows the committed colour so an
-    ``edit`` can never leave the card disagreeing with the queue row (D-05, D-11),
-    falling back to the scored colour when nothing was committed.
+    one in (SAFE-02, D-11, Pitfall 9). The card shows the committed colour AND target
+    so an ``edit`` can never leave the card disagreeing with the queue row (D-05,
+    D-11); ``core.approval.committed_or_scored`` owns that rule and supplies the
+    fallback to the scored pair for a dismissal, a refusal or no commit.
     """
     priority = state["priority"]
-    commit_result = state.get("commit_result")
-    # The card shows what the queue holds: an edit's committed colour wins; a dismissal,
-    # a refusal, or a direct render with no commit falls back to the scored colour.
-    card_colour = (
-        commit_result.colour
-        if commit_result is not None and commit_result.committed and commit_result.colour
-        else priority.colour
-    )
+    card_colour, card_target = committed_or_scored(state.get("commit_result"), priority)
     approval = state.get("approval")
     approval = approval if isinstance(approval, Mapping) else {}
     # Only the declared, structured fields are passed — the card's field set is
@@ -412,7 +407,7 @@ def handover(state: TriageState) -> dict[str, Any]:
     card = HandoverCard(
         case_id=case_id_for_note(state["raw_note"]),
         colour=card_colour,
-        target=priority.target,
+        target=card_target,
         citations=list(priority.citations),
         triggered_rules=list(priority.triggered_rules),
         missing_vitals=list(priority.missing_vitals),

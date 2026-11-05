@@ -354,6 +354,13 @@ class CommitResult(BaseModel):
     ``final_colour`` for an ``edit``, the scored colour for an ``approve`` — and is
     ``None`` on a refusal. It exists so a reader presents the committed colour instead of
     re-deriving it from the pre-approval priority.
+
+    ``target`` is the target time the gated write actually persisted, derived from the
+    committed ``colour`` through the loaded SATS substrate — never from the pre-approval
+    priority — and is ``None`` on a refusal. It exists so a reader presents the committed
+    target beside the committed colour instead of re-deriving it from the pre-approval
+    priority. The field is additive (this model does not declare ``extra="forbid"``), so
+    no existing caller's shape changes.
     """
 
     committed: bool = False
@@ -361,6 +368,7 @@ class CommitResult(BaseModel):
     reason: str | None = None
     position: int | None = None
     colour: str | None = None
+    target: str | None = None
 
 
 class HandoverCard(BaseModel):
