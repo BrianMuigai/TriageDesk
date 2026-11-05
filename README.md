@@ -236,7 +236,9 @@ Honest, measured limitations — not aspirational claims:
   integration ([`docs/DESK.md`](docs/DESK.md)).
 - **Approver identity is recorded, not authenticated** ([`SECURITY.md`](SECURITY.md) §6).
 - **English-only and synthetic-data-only** by design.
-- Two cases remain recorded, unfixed evaluation failures ([`EVALS.md`](EVALS.md) §6).
+- One recorded gate failure (**E-11**) and one declared discriminator-selection failure (**E-09**)
+  remain unfixed ([`EVALS.md`](EVALS.md) §6). The prompt-injection case (**E-13**) is no longer a gate
+  failure; it now defers as reduced coverage.
 
 The full ranked gap analysis is [`STATUS.md`](STATUS.md).
 
