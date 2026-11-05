@@ -9,36 +9,48 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from triagedesk.core.schema import CaseInput
+from triagedesk.core.schema import CaseInput, ExtractionResult
+from triagedesk.desk.extraction import merge_case
 from triagedesk.durable import (
     PausedRun,
     approval_decision,
     resume_thread,
     run_to_gate,
 )
-from triagedesk.evals.tools import offline_tools
+from triagedesk.evals.tools import offline_tools, online_tools
 from triagedesk.evals.usage import UsageRecorder
 
 
-def _tools_for(case: CaseInput) -> dict[str, Any]:
-    """Build the offline in-process tool map for one desk submission (D10-15).
+def _tools_for(case: CaseInput, extraction: ExtractionResult | None = None) -> dict[str, Any]:
+    """Build the in-process tool map for one desk submission (D10-15, Plan 13-02).
 
-    The form already supplies a structured ``CaseInput``, so the surface is model-free: the
-    offline mapping returns the case's own extraction while the matcher, scorer, retrieval,
-    confidence and the gated commit all run for real. It needs no harness ``CaseSpec`` — the
-    harness-free ``evals.tools.offline_tools`` builds the mapping from the ``CaseInput`` alone.
+    The form already supplies a structured ``CaseInput``, so the default surface is
+    model-free: the offline mapping returns the case's own extraction while the matcher,
+    scorer, retrieval, confidence and the gated commit all run for real. When *extraction*
+    is supplied (the online mode), the same mapping is built with that already-merged
+    extraction returned by ``normalize_case`` — one seam, no second code path, and the six
+    other tools are identical (SOLID: L).
     """
-    return offline_tools(case, UsageRecorder())
+    recorder = UsageRecorder()
+    if extraction is not None:
+        return online_tools(case, extraction, recorder)
+    return offline_tools(case, recorder)
 
 
-async def submit_case(case: CaseInput, db_path: str | Path) -> PausedRun:
+async def submit_case(
+    case: CaseInput, db_path: str | Path, *, extraction: ExtractionResult | None = None
+) -> PausedRun:
     """Run one desk case to the approval gate over the shipped pause plumbing (D10-11).
 
     The content-derived thread id comes from the ONE plumbing (``durable.run_to_gate``); the
-    bridge derives no second id and hashes nothing.
+    bridge derives no second id and hashes nothing. ``raw_note`` stays the form case's JSON in
+    both modes, so the thread id is the same offline and online. When *extraction* is given,
+    the nurse's form is merged over it before the tool map is built, so the model can change
+    latency but never a vital (T-13-05).
     """
+    merged = merge_case(case, extraction) if extraction is not None else None
     return await run_to_gate(
-        _tools_for(case),
+        _tools_for(case, merged),
         raw_note=case.model_dump_json(),
         case=case,
         db_path=db_path,

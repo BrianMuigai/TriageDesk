@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 
 from triagedesk.core.rules import get_discriminators, get_text_terms
-from triagedesk.core.schema import MatchResult
+from triagedesk.core.schema import ExtractionResult, MatchResult
 
 # The ONE token pattern: lower-case alphanumeric runs. It is applied to both the
 # complaint and every alias, so the two sides are normalised identically and a
@@ -200,3 +200,19 @@ def validate_discriminator_ids(ids: list[str]) -> list[str]:
     """
     closed = {discriminator.id for discriminator in get_discriminators().discriminators}
     return sorted({id_ for id_ in ids if id_ in closed})
+
+
+def filter_discriminator_ids(result: ExtractionResult) -> ExtractionResult:
+    """Constrain a model extraction's ids to the closed set — the ONE filter home (D-06).
+
+    The model may only *structure* a note; it may not choose a discriminator outside the
+    closed set declared in ``data/sats_discriminators.yaml``. Every caller that receives a
+    model ``ExtractionResult`` — the owned ``normalize_case`` tool and the desk's online
+    extraction seam — goes through this function, so the "unknown ids are dropped and
+    ``no_discriminator_matched`` follows what survives" rule is stated exactly once
+    (T-02-11, DRY).
+    """
+    ids = validate_discriminator_ids(result.matched_discriminator_ids)
+    return result.model_copy(
+        update={"matched_discriminator_ids": ids, "no_discriminator_matched": not ids}
+    )

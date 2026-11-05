@@ -9,8 +9,11 @@ deterministic matcher, scorer, recheck and the real gated commit — runs for re
 
 :func:`build_tools` serves the harness (a ``CaseSpec``); :func:`offline_tools` is the
 harness-free entry point for a caller that already has a structured ``CaseInput`` and no
-fixture (the desk submission and the durable resume). Both delegate to the ONE private
-``_tool_map`` core, so the mapping is assembled in exactly one place (DRY).
+fixture (the desk submission and the durable resume); :func:`online_tools` is the same
+harness-free entry point for a caller that has already resolved the complaint to an
+extraction (the desk's online mode). All three delegate to the ONE private ``_tool_map``
+core, so the mapping is assembled in exactly one place (DRY) and the seven tools and their
+order never drift.
 
 In real mode ``normalize_case`` drives the real owned server, whose module-level
 ``extract_async`` is wrapped (via :func:`recorded_extract_seam`) with the run's usage sink,
@@ -85,6 +88,7 @@ def _tool_map(
     offline: bool,
     inject: FaultInjection | None,
     recorder: UsageRecorder,
+    extraction: ExtractionResult | None = None,
 ) -> dict[str, Any]:
     """Build the injected tool mapping from a resolved ``CaseInput`` and fault — the ONE core.
 
@@ -96,6 +100,11 @@ def _tool_map(
     server's ``extract_async`` with it via :func:`recorded_extract_seam` — but it is threaded
     through so the mapping is built from the same per-run recorder the seam uses.
 
+    ``extraction`` is the third way to supply the normalize result (the desk's online mode):
+    when given, it is returned unchanged, so the caller's already-computed, already-merged
+    extraction is the case the graph scores. It is checked before the ``offline`` branch, so a
+    caller that supplies an extraction is never silently handed *case*'s own extraction.
+
     When ``inject`` is declared, the ``normalize_case`` callable is wrapped with the fault
     (T-04-09) so the graph's real bounded retry and deterministic fallback run.
     """
@@ -104,6 +113,8 @@ def _tool_map(
     async def normalize_case(inp: Mapping[str, Any]) -> Any:
         # The graph's own ``parse_tool_result`` is the ONE parser of a tool payload, so
         # this callable returns the server's result unchanged and lets the graph coerce it.
+        if extraction is not None:
+            return extraction
         if offline:
             return ExtractionResult(case=case, matched_discriminator_ids=[])
         return await server_module.normalize_case(str(inp["raw_note"]))
@@ -177,4 +188,24 @@ def offline_tools(case: CaseInput, recorder: UsageRecorder) -> dict[str, Any]:
     return _tool_map(case, offline=True, inject=None, recorder=recorder)
 
 
-__all__ = ["ToolMap", "build_tools", "offline_tools", "recorded_extract_seam"]
+def online_tools(
+    case: CaseInput, extraction: ExtractionResult, recorder: UsageRecorder
+) -> dict[str, Any]:
+    """Build the tool mapping from a pre-computed extraction — the harness-free online entry.
+
+    The desk's online mode resolves the complaint to a real, closed-set-filtered extraction
+    and merges the nurse's form over it before calling here; this entry point hands that
+    extraction to the graph's ``normalize`` node unchanged, so the model call happened once
+    (in the background precompute or the submit path), never inside the graph run. The other
+    six tools are the same real owned tools :func:`offline_tools` returns (SOLID: L).
+    """
+    return _tool_map(case, offline=False, inject=None, recorder=recorder, extraction=extraction)
+
+
+__all__ = [
+    "ToolMap",
+    "build_tools",
+    "offline_tools",
+    "online_tools",
+    "recorded_extract_seam",
+]

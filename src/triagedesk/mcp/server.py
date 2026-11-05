@@ -220,10 +220,7 @@ async def normalize_case(raw_note: str) -> ExtractionResult:
     vitals stay ``None`` — never imputed.
     """
     result = await extract_async(raw_note)
-    ids = matcher.validate_discriminator_ids(result.matched_discriminator_ids)
-    return result.model_copy(
-        update={"matched_discriminator_ids": ids, "no_discriminator_matched": not ids}
-    )
+    return matcher.filter_discriminator_ids(result)
 
 
 @server.tool()
