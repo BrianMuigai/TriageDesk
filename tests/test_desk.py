@@ -1657,3 +1657,87 @@ def test_the_gate_script_keeps_the_submitting_button_enabled(
         assert re.search(
             rf'<button[^>]*name="decision"[^>]*value="{decision}"', gate
         ), f"the gate has no named `decision` button for {decision!r}"
+
+
+# --------------------------------------------------- one event loop (Plan 13-01, JC-1)
+
+
+def test_desk_reuses_one_event_loop_across_requests(
+    tmp_path: Path, injected_store: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both POSTs run their coroutine on the server's ONE loop (no per-request loop)."""
+    loop_ids: list[int] = []
+
+    async def fake_submit(case: CaseInput, db_path: Path) -> PausedRun:
+        loop_ids.append(id(asyncio.get_running_loop()))
+        return _run_from_state()
+
+    monkeypatch.setattr(desk_server, "submit_case", fake_submit)
+
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        base = _base(server)
+        _post(base + "/case", _form_from_case(COMPLETE_CASE))
+        _post(base + "/case", _form_from_case(COMPLETE_CASE))
+
+        assert len(loop_ids) == 2
+        assert len(set(loop_ids)) == 1, "the desk built a second event loop per request"
+        assert loop_ids[0] == id(server.loop.loop)
+
+
+def test_slow_submit_does_not_block_the_loop(
+    tmp_path: Path, injected_store: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """While a submit awaits, an independent coroutine on the same loop still completes."""
+    started = threading.Event()
+    finished = threading.Event()
+
+    async def slow_submit(case: CaseInput, db_path: Path) -> PausedRun:
+        started.set()
+        await asyncio.sleep(0.3)
+        finished.set()
+        return _run_from_state()
+
+    monkeypatch.setattr(desk_server, "submit_case", slow_submit)
+
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        base = _base(server)
+
+        def post() -> None:
+            _post(base + "/case", _form_from_case(COMPLETE_CASE))
+
+        thread = threading.Thread(target=post)
+        thread.start()
+        try:
+            assert started.wait(timeout=5), "the submit never reached the loop"
+            # If the loop were blocked by the awaiting submit, this would not return.
+            server.loop.run(asyncio.sleep(0.01))
+            assert not finished.is_set(), "the slow submit finished before the loop was free"
+        finally:
+            thread.join(timeout=5)
+
+        assert finished.is_set(), "the slow submit never completed"
+
+
+def test_desk_loop_stops_on_server_close(tmp_path: Path) -> None:
+    """``server_close`` joins the loop thread, and the stopped loop fails closed."""
+    server = desk_server.DeskServer(
+        ("127.0.0.1", 0), desk_server.DeskHandler, bind_and_activate=False
+    )
+    server.db_path = tmp_path / "checkpoints.db"
+    thread = server.loop._thread
+
+    server.server_close()
+
+    assert not thread.is_alive(), "server_close leaked the desk loop thread"
+    coro = asyncio.sleep(0)
+    try:
+        with pytest.raises(RuntimeError):
+            server.loop.run(coro)
+    finally:
+        coro.close()
+
+
+def test_no_per_request_event_loop_in_the_desk() -> None:
+    """The structural guard: the per-request ``asyncio.run`` cannot come back."""
+    source = (DESK_DIR / "server.py").read_text(encoding="utf-8")
+    assert "asyncio.run(" not in source

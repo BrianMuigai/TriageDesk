@@ -24,12 +24,11 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import secrets
-import threading
-from collections.abc import Mapping
+from collections.abc import Coroutine, Mapping
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 from urllib.parse import parse_qs
 
 from pydantic import ValidationError
@@ -38,10 +37,13 @@ from triagedesk.desk.assets import _ASSETS, STATIC_DIR
 from triagedesk.desk.copy import _FAILURE_COPY, _NO_THREAD_COPY, _SCHEMA_HINT
 from triagedesk.desk.forms import _CSRF_FIELD, form_to_case
 from triagedesk.desk.gate import editable_colours
+from triagedesk.desk.loop import DeskLoop
 from triagedesk.desk.pipeline import decide, submit_case
 from triagedesk.desk.views import banner_trigger, render_state, terminal_kind
 from triagedesk.durable import DurableError
 from triagedesk.graph.build import CHECKPOINTS_DB_PATH
+
+_T = TypeVar("_T")
 
 # The host names the surface answers to beyond a loopback IP (WR-02). ``127.0.0.0/8`` and
 # ``::1`` are recognised by ``ipaddress.is_loopback``; this set only adds the one name that is
@@ -61,13 +63,15 @@ class DeskServer(ThreadingHTTPServer):
 
     Safe by construction: the loopback guard runs in ``__init__`` (IN-04), so a direct
     ``DeskServer((host, port), DeskHandler)`` cannot bind a wildcard the way ``make_server``
-    would refuse. The per-server CSRF token (WR-01) and the submission lock (IN-03) are minted
-    here too, so every construction path — factory or direct — is protected identically.
+    would refuse. The per-server CSRF token (WR-01) is minted here too, and the server owns
+    ONE long-lived event loop for its whole lifetime (``self.loop``), so every construction
+    path — factory or direct — is protected identically.
     """
 
     db_path: Path
     csrf_token: str
-    db_lock: threading.Lock
+    loop: DeskLoop
+    db_lock: asyncio.Lock
 
     def __init__(
         self,
@@ -85,9 +89,32 @@ class DeskServer(ThreadingHTTPServer):
         # One token per server lifetime: minted before any request, so ``GET /`` always
         # renders the token the surface will require on the next POST (WR-01).
         self.csrf_token = secrets.token_urlsafe(32)
-        # Serialise the checkpoint-touching submissions: each POST runs its own event loop
-        # against the one SQLite file, so concurrent writes could contend for the lock (IN-03).
-        self.db_lock = threading.Lock()
+        # ONE event loop for the server's lifetime: a request never builds and destroys a
+        # loop, and an ``await`` leaves the loop free to run another request's coroutine.
+        self.loop = DeskLoop()
+        self.loop.start()
+        # Serialise the checkpoint-touching submissions: the one SQLite file still needs one
+        # writer at a time, but the waiting now happens INSIDE the loop (IN-03). It is only
+        # ever awaited on ``self.loop``.
+        self.db_lock = asyncio.Lock()
+
+    async def serialised(self, coro: Coroutine[Any, Any, _T]) -> _T:
+        """Await *coro* under the ONE in-loop write lock (the checkpoint serialisation)."""
+        async with self.db_lock:
+            return await coro
+
+    def server_close(self) -> None:
+        """Stop and join the loop thread, then close the socket (fail-closed teardown).
+
+        ``TCPServer.__init__`` calls ``server_close`` when the bind fails, before this
+        class has created its loop; the loop is therefore stopped only when it exists.
+        """
+        loop = getattr(self, "loop", None)
+        try:
+            if loop is not None:
+                loop.stop()
+        finally:
+            super().server_close()
 
 
 def _loopback_host(host_header: str) -> bool:
@@ -259,9 +286,11 @@ class DeskHandler(BaseHTTPRequestHandler):
             # validator is still reported, never an approve (the surface's stated contract).
             return self._page(error=_FAILURE_COPY, form_values=form)
         try:
-            # The lock serialises submissions over the one checkpoint file (IN-03).
-            with self.server.db_lock:
-                paused = asyncio.run(submit_case(case, self.server.db_path))
+            # ONE loop, one in-loop write lock: the checkpoint file still needs one writer
+            # at a time, but the waiting happens inside the loop (IN-03).
+            paused = self.server.loop.run(
+                self.server.serialised(submit_case(case, self.server.db_path))
+            )
         except Exception:  # noqa: BLE001 - any failure is reported, never an approve
             return self._page(error=_FAILURE_COPY, form_values=form)
         return self._page(paused=paused, form_values=form)
@@ -271,8 +300,9 @@ class DeskHandler(BaseHTTPRequestHandler):
         if not thread_id:
             return self._page(error=_NO_THREAD_COPY, form_values=form)
         try:
-            with self.server.db_lock:
-                result = asyncio.run(decide(thread_id, form, self.server.db_path))
+            result = self.server.loop.run(
+                self.server.serialised(decide(thread_id, form, self.server.db_path))
+            )
         except DurableError as exc:
             # The gate's OWN refusal (blank identity, missing colour, no pending gate): the
             # surface shows that reason and restates no gate logic.
@@ -353,10 +383,13 @@ def serve(
     """Serve the desk surface until interrupted (loopback only — D10-03).
 
     A non-loopback *host* is refused unless ``allow_non_loopback=True`` is passed (WR-02).
+    The owned event loop is always stopped and joined, even when ``serve_forever`` raises.
     """
-    make_server(
-        host, port, db_path, allow_non_loopback=allow_non_loopback
-    ).serve_forever()
+    server = make_server(host, port, db_path, allow_non_loopback=allow_non_loopback)
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
 
 
 __all__ = [
