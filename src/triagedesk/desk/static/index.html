@@ -9,6 +9,10 @@
 <body>
 <main>
 <h1>TriageDesk — triage desk</h1>
+<nav class="desk-nav" aria-label="Desk pages">
+  <a href="/waiting">Waiting room</a>
+  <a href="/">New case</a>
+</nav>
 <p class="mode-label">$mode_label</p>
 
 <section class="quickstart-panel" aria-labelledby="quickstart-heading">
@@ -28,6 +32,7 @@
 
 $state_panel
 <div class="uncertainty-banner" aria-live="polite">$banner</div>
+$waiting
 $card
 $gate
 </main>

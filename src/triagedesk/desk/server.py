@@ -41,6 +41,7 @@ from triagedesk.desk.copy import (
     _MODE_ONLINE,
     _NO_THREAD_COPY,
     _SCHEMA_HINT,
+    _WAITING_FAILED,
 )
 from triagedesk.desk.extraction import PrecomputeCache, extract_complaint
 from triagedesk.desk.forms import _CSRF_FIELD, form_to_case
@@ -48,8 +49,10 @@ from triagedesk.desk.gate import editable_colours
 from triagedesk.desk.loop import DeskLoop
 from triagedesk.desk.pipeline import decide, submit_case
 from triagedesk.desk.views import banner_trigger, render_state, terminal_kind
+from triagedesk.desk.waiting import read_rows, waiting_html
 from triagedesk.durable import DurableError
 from triagedesk.graph.build import CHECKPOINTS_DB_PATH
+from triagedesk.store import Store
 
 _T = TypeVar("_T")
 
@@ -82,6 +85,7 @@ class DeskServer(ThreadingHTTPServer):
     db_lock: asyncio.Lock
     online: bool
     extraction: PrecomputeCache
+    store: Store | None
 
     def __init__(
         self,
@@ -104,6 +108,10 @@ class DeskServer(ThreadingHTTPServer):
         # forward the caller's choice. The cache is only ever touched on ``self.loop``.
         self.online = False
         self.extraction = PrecomputeCache()
+        # The injectable store seam (Plan 13-03): ``None`` means "resolve the ONE store
+        # factory on demand", which is what the waiting room's read does. A test injects
+        # its in-memory double here; the submit path never reads it.
+        self.store = None
         # ONE event loop for the server's lifetime: a request never builds and destroys a
         # loop, and an ``await`` leaves the loop free to run another request's coroutine.
         self.loop = DeskLoop()
@@ -238,6 +246,9 @@ class DeskHandler(BaseHTTPRequestHandler):
             return
         path = self.path.split("?", 1)[0]
         name = "index.html" if path in ("/", "") else path.lstrip("/")
+        if path == "/waiting":
+            self._send_html(self._waiting_page())
+            return
         if name not in _ASSETS:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
@@ -250,6 +261,19 @@ class DeskHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def _waiting_page(self) -> str:
+        """Render the waiting room over the store seam, failing into a panel (Plan 13-03).
+
+        The read runs on the server's ONE loop and never takes the write lock. A store
+        failure is caught and rendered as the failure panel (200, no traceback, no partial
+        table); nothing else in the handler changes.
+        """
+        try:
+            rows = self.server.loop.run(read_rows(self.server.store))
+        except Exception:  # noqa: BLE001 - a store failure renders a panel, never a 500
+            return self._page(waiting=waiting_html([], error=_WAITING_FAILED))
+        return self._page(waiting=waiting_html(rows))
 
     def do_POST(self) -> None:  # noqa: N802 (stdlib naming)
         """Dispatch ``/case``, ``/decision`` and ``/precompute`` over the ONE plumbing.
@@ -432,6 +456,7 @@ def make_server(
     *,
     allow_non_loopback: bool = False,
     online: bool = False,
+    store: Store | None = None,
 ) -> DeskServer:
     """Construct the desk bridge bound to *host* (loopback only — D10-03) over *db_path*.
 
@@ -440,12 +465,15 @@ def make_server(
     is never the default (WR-02). The refusal lives in :class:`DeskServer` itself (IN-04), so
     this factory and a direct construction are protected identically. *online* selects the
     real local extraction on the complaint; the default stays offline (no model call).
+    *store* is the waiting room's injectable read seam (Plan 13-03); ``None`` resolves the
+    ONE store factory on demand.
     """
     server = DeskServer(
         (host, port), DeskHandler, allow_non_loopback=allow_non_loopback
     )
     server.db_path = Path(db_path)
     server.online = online
+    server.store = store
     return server
 
 
@@ -456,15 +484,22 @@ def serve(
     db_path: str | Path = CHECKPOINTS_DB_PATH,
     allow_non_loopback: bool = False,
     online: bool = False,
+    store: Store | None = None,
 ) -> None:
     """Serve the desk surface until interrupted (loopback only — D10-03).
 
     A non-loopback *host* is refused unless ``allow_non_loopback=True`` is passed (WR-02).
     The owned event loop is always stopped and joined, even when ``serve_forever`` raises.
     *online* runs the real local extraction on the complaint; the default is offline.
+    *store* is the waiting room's injectable read seam; ``None`` resolves the default store.
     """
     server = make_server(
-        host, port, db_path, allow_non_loopback=allow_non_loopback, online=online
+        host,
+        port,
+        db_path,
+        allow_non_loopback=allow_non_loopback,
+        online=online,
+        store=store,
     )
     try:
         server.serve_forever()

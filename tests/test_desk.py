@@ -58,7 +58,7 @@ from triagedesk.core.schema import (
     RecoveryRequest,
 )
 from triagedesk.desk import server as desk_server
-from triagedesk.desk.copy import _DEFERRED_BADGE
+from triagedesk.desk.copy import _DEFERRED_BADGE, _WAITING_FAILED
 from triagedesk.desk.server import (
     decide,
     form_to_case,
@@ -66,10 +66,12 @@ from triagedesk.desk.server import (
     serve,
     submit_case,
 )
+from triagedesk.desk.waiting import order_rows
 from triagedesk.durable import PausedRun
 from triagedesk.evals.case import CaseSpec, load_cases
 from triagedesk.evals.invariants import prohibited_tokens
-from triagedesk.store.queue import content_hash
+from triagedesk.store.memory import InMemoryStore
+from triagedesk.store.queue import commit_to_queue, content_hash
 
 DESK_DIR = Path(desk_server.__file__).parent
 SRC_ROOT = DESK_DIR.resolve().parents[1]  # .../src (the parent of the triagedesk package)
@@ -96,9 +98,13 @@ _COMMIT_SYMBOLS = frozenset({"commit_to_queue", "commit_priority"})
 
 
 @contextlib.contextmanager
-def _running_server(db_path: Path) -> Iterator[Any]:
-    """Start the bridge on an OS-picked loopback port; shut it down in a ``finally``."""
-    server = make_server("127.0.0.1", 0, db_path)
+def _running_server(db_path: Path, store: Any = None) -> Iterator[Any]:
+    """Start the bridge on an OS-picked loopback port; shut it down in a ``finally``.
+
+    *store* is the waiting room's injectable read seam (Plan 13-03); the default ``None``
+    keeps every existing call site unchanged.
+    """
+    server = make_server("127.0.0.1", 0, db_path, store=store)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -1741,3 +1747,65 @@ def test_no_per_request_event_loop_in_the_desk() -> None:
     """The structural guard: the per-request ``asyncio.run`` cannot come back."""
     source = (DESK_DIR / "server.py").read_text(encoding="utf-8")
     assert "asyncio.run(" not in source
+
+
+# --------------------------------------------------- waiting room (Plan 13-03, JC-3)
+
+
+def _seed_two_queued_cases(store: Any) -> list[Any]:
+    """Seed one routine row then one urgent row, so acuity order differs from position."""
+    bands = sorted(get_tews().tews_to_colour, key=lambda band: band.min)
+    least, most = bands[0].colour, bands[-1].colour
+    second_case = COMPLETE_CASE.model_copy(update={"complaint": "headache"})
+
+    async def seed() -> list[Any]:
+        await commit_to_queue(store, case_id="routine", colour=least, content=COMPLETE_CASE)
+        await commit_to_queue(store, case_id="urgent", colour=most, content=second_case)
+        return await store.read_queue_rows()
+
+    return asyncio.run(seed())
+
+
+def test_waiting_route_renders_acuity_order_and_writes_nothing(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """``GET /waiting`` renders ``order_rows`` order and makes no write (T-13-10)."""
+    rows = _seed_two_queued_cases(injected_store)
+    expected = [row.position for row in order_rows(rows)]
+    assert expected != sorted(expected), "the fixture does not exercise acuity ordering"
+
+    injected_store.calls.clear()
+    with _running_server(tmp_path / "checkpoints.db", store=injected_store) as server:
+        body = _get(_base(server) + "/waiting")
+
+    rendered = [
+        int(value) for value in re.findall(r'class="waiting-position">(\d+)<', body)
+    ]
+    assert rendered == expected
+    assert injected_store.calls == [("read_queue_rows", ())], injected_store.calls
+
+
+def test_waiting_route_store_failure_renders_a_panel(tmp_path: Path) -> None:
+    """A store read that raises renders the failure panel, never a partial table."""
+
+    class _FailingStore(InMemoryStore):
+        async def read_queue_rows(self) -> list[Any]:
+            raise RuntimeError("store unavailable")
+
+    with _running_server(tmp_path / "checkpoints.db", store=_FailingStore()) as server:
+        body = _get(_base(server) + "/waiting")
+
+    assert _WAITING_FAILED in body
+    assert "state-panel state-error" in body
+    assert "waiting-table" not in body
+
+
+def test_main_page_does_not_read_the_store(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """``GET /`` renders no waiting panel and touches no store (the offline desk)."""
+    with _running_server(tmp_path / "checkpoints.db", store=injected_store) as server:
+        body = _get(_base(server) + "/")
+
+    assert "waiting-room" not in body
+    assert injected_store.calls == [], injected_store.calls

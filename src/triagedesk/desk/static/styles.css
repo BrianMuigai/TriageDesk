@@ -397,3 +397,64 @@ button[disabled] {
   background: var(--muted-bg);
   color: var(--muted-text);
 }
+
+/* The waiting room: an acuity-ordered read of the committed queue. Reuses
+ * the existing surface/border/spacing/colour tokens — no new custom property, no colour
+ * literal, no external fetch. */
+.desk-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin: 0 0 var(--space-lg);
+}
+
+.waiting-room {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: var(--space-lg);
+  margin: 0 0 var(--space-2xl);
+}
+
+.waiting-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.waiting-table th,
+.waiting-table td {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.waiting-caption {
+  caption-side: top;
+  text-align: left;
+  padding: 0 0 var(--space-sm);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--muted-text);
+}
+
+.waiting-empty {
+  color: var(--muted-text);
+}
+
+/* A compact swatch inside the table: the colour class still supplies the background and
+ * text colour, so the row shows the colour AND its name. */
+.waiting-room .colour-block {
+  display: inline-flex;
+  min-height: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: 4px;
+  margin: 0;
+}
+
+.waiting-room .colour-name {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}

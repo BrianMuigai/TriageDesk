@@ -237,6 +237,7 @@ def _render(
     csrf_token: str | None = None,
     field_error: tuple[str, str] | None = None,
     mode_label: str = _MODE_OFFLINE,
+    waiting: str = "",
 ) -> str:
     """Substitute the server-rendered regions into the hand-authored page (string.Template).
 
@@ -246,7 +247,8 @@ def _render(
     *field_error* names the offending field — renders the schema's own message beside it. The
     ``csrf_field`` region carries the per-server token into the vitals form (WR-01).
     ``mode_label`` names the live extraction mode (Plan 13-02); it defaults to the offline
-    label, so a direct render states the default truthfully.
+    label, so a direct render states the default truthfully. ``waiting`` is the waiting-room
+    panel (Plan 13-03); it defaults to empty, so a direct render shows no panel.
     """
     template = string.Template((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
     return template.substitute(
@@ -255,6 +257,7 @@ def _render(
         mode_label=mode_label,
         state_panel=view["state_panel"],
         banner=view["banner"],
+        waiting=waiting,
         card=view["card"],
         gate=view["gate"],
     )
@@ -269,6 +272,7 @@ def render_state(
     form_values: Mapping[str, str] | None = None,
     csrf_token: str | None = None,
     mode_label: str = _MODE_OFFLINE,
+    waiting: str = "",
 ) -> str:
     """Render the page for one state: empty, paused card+gate, terminal, decision, or error.
 
@@ -282,14 +286,25 @@ def render_state(
     *csrf_token* is the per-server secret the rendered forms carry (WR-01); it is optional so a
     direct (non-request) render — a test or a proof — needs no server. *mode_label* names the
     live extraction mode (Plan 13-02); a direct render therefore labels the offline default.
+    *waiting* is the waiting-room panel (Plan 13-03); a direct render shows no panel.
     """
     form = form_values or {}
     if result is not None:
         return _render(
-            _decision_view(result, form), form, csrf_token, mode_label=mode_label
+            _decision_view(result, form),
+            form,
+            csrf_token,
+            mode_label=mode_label,
+            waiting=waiting,
         )
     if paused is not None:
-        return _render(_paused_view(paused, csrf_token), form, csrf_token, mode_label=mode_label)
+        return _render(
+            _paused_view(paused, csrf_token),
+            form,
+            csrf_token,
+            mode_label=mode_label,
+            waiting=waiting,
+        )
     if error is not None:
         return _render(
             {
@@ -301,6 +316,7 @@ def render_state(
             form,
             csrf_token,
             mode_label=mode_label,
+            waiting=waiting,
         )
     if field_error is not None:
         return _render(
@@ -309,5 +325,8 @@ def render_state(
             csrf_token,
             field_error,
             mode_label=mode_label,
+            waiting=waiting,
         )
-    return _render(_empty_view(), form, csrf_token, mode_label=mode_label)
+    return _render(
+        _empty_view(), form, csrf_token, mode_label=mode_label, waiting=waiting
+    )

@@ -93,11 +93,14 @@ async def test_replay_writes_nothing(
         for record in await injected_store.read_audit_records()
     )
     records_before = len(await injected_store.read_audit_records())
-    calls_before = len(injected_store.calls)
+    calls_before = list(injected_store.calls)
 
     out = await replay_case(thread_id, db_path=db_path)
 
-    # Zero writes: no queue row, no commit record, no new audit record, no store call.
+    # Zero writes: no queue row, no commit record, no new audit record, no store WRITE.
+    # The shared double now records the queue read too (``read_queue_rows``), which the
+    # replay's audit reconciliation legitimately makes, so the call comparison excludes
+    # that one read and proves the remaining call list is unchanged.
     assert len(await injected_store.read_queue_rows()) == rows_before
     assert (
         sum(
@@ -107,7 +110,11 @@ async def test_replay_writes_nothing(
         == commits_before
     )
     assert len(await injected_store.read_audit_records()) == records_before
-    assert len(injected_store.calls) == calls_before
+    writes_after = [
+        call for call in injected_store.calls if call[0] != "read_queue_rows"
+    ]
+    writes_before = [call for call in calls_before if call[0] != "read_queue_rows"]
+    assert writes_after == writes_before
 
     # Outcome equality: the rendered view carries the recorded colour, target and citations.
     priority = final["priority"]
