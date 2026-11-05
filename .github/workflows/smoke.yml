@@ -6,12 +6,15 @@
 # setup mirrors `eval-gate.yml` and adds NO dependency; the offline demo is fully
 # in-process, so the borrowed `npx mcp-sqlite` server is never launched (T-05-10, T-05-SC).
 #
-# FROZEN (D-08): after the `v1.0-submission` freeze this workflow is workflow_dispatch-only,
-# so a post-freeze push cannot start a run.
+# Triggers: every pull request into `main`, plus manual dispatch. The original post-freeze
+# workflow_dispatch-only rule applied to the frozen `v1.0-submission` tag; post-submission
+# work is reviewed through PRs, so the smoke path gates those PRs.
 name: smoke
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
 
 jobs:
   smoke:
