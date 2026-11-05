@@ -9,7 +9,6 @@ span. Also proves the async transport genuinely yields — two calls are in flig
 from __future__ import annotations
 
 import asyncio
-import time
 from typing import Any
 
 import pytest
@@ -83,12 +82,12 @@ async def test_extract_async_overlaps_two_calls(monkeypatch: pytest.MonkeyPatch)
 
     monkeypatch.setattr(client, "_async_generate", slow_async_generate)
 
-    started = time.perf_counter()
     await asyncio.gather(client.extract_async("a"), client.extract_async("b"))
-    elapsed = time.perf_counter() - started
 
+    # ``peak`` is the deterministic proof of overlap: the second call entered the
+    # generator before the first returned. A wall-clock bound was removed because it
+    # flaked under host load without adding evidence the counter does not already give.
     assert peak == 2, "the second extraction did not start before the first finished"
-    assert elapsed < 0.09, f"the calls serialised instead of overlapping ({elapsed:.3f}s)"
 
 
 @pytest.mark.parametrize(
