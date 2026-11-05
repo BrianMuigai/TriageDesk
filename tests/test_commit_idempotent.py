@@ -18,6 +18,7 @@ from typing import Any
 
 from mcp import Client
 
+from triagedesk.core.rules import get_tews
 from triagedesk.core.schema import CaseInput, CommitResult
 from triagedesk.durable import approval_decision
 from triagedesk.mcp import server as server_module
@@ -138,6 +139,7 @@ async def test_commit_priority_refuses_without_a_token_and_writes_nothing(
     result = CommitResult.model_validate_json(call.content[0].text)
     assert result.refused is True
     assert result.committed is False
+    assert result.target is None
     assert injected_store.calls == []
     assert injected_store.rows == []
 
@@ -197,8 +199,14 @@ async def test_commit_priority_commits_once_through_the_injected_store(injected_
             {"case_id": "c-1", "colour": "ORANGE", "case": _CASE, "approval_token": token},
         )
 
-    assert CommitResult.model_validate_json(first.content[0].text).committed is True
-    assert CommitResult.model_validate_json(repeat.content[0].text).committed is True
+    first_result = CommitResult.model_validate_json(first.content[0].text)
+    repeat_result = CommitResult.model_validate_json(repeat.content[0].text)
+    assert first_result.committed is True
+    assert repeat_result.committed is True
+    expected_target = get_tews().target_times["ORANGE"].target
+    assert first_result.target == expected_target
+    assert first_result.target == injected_store.rows[0].target
+    assert repeat_result.target == first_result.target
     assert len(injected_store.rows) == 1
 
 
@@ -216,6 +224,10 @@ async def test_commit_priority_edit_commits_the_tokens_final_colour(injected_sto
     assert parsed.colour == "GREEN"
     assert len(injected_store.rows) == 1
     assert injected_store.rows[0].colour == "GREEN"
+    # The target follows the COMMITTED colour through the substrate, not the scored RED.
+    expected_target = get_tews().target_times["GREEN"].target
+    assert expected_target != get_tews().target_times["RED"].target
+    assert parsed.target == expected_target == injected_store.rows[0].target
 
 
 async def test_an_edit_supersedes_the_same_case_keeping_the_same_position(
@@ -258,6 +270,10 @@ async def test_an_edit_supersedes_the_same_case_keeping_the_same_position(
     # The two decisions report the colour each actually committed for the same case.
     assert approve_result.colour == "RED"
     assert edit_result.colour == "GREEN"
+    # And each reports the target of its OWN committed colour, matching the final row.
+    assert approve_result.target == get_tews().target_times["RED"].target
+    assert edit_result.target == get_tews().target_times["GREEN"].target
+    assert injected_store.rows[0].target == edit_result.target
     assert len(injected_store.rows) == 1
 
 

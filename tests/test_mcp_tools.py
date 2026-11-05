@@ -17,7 +17,7 @@ from typing import Any
 from mcp import Client
 
 from conftest import async_return
-from triagedesk.core.rules import get_discriminators
+from triagedesk.core.rules import get_discriminators, get_tews
 from triagedesk.core.schema import (
     CaseInput,
     CommitResult,
@@ -142,6 +142,7 @@ async def test_commit_priority_refuses_without_a_token() -> None:
     assert parsed.refused is True
     assert parsed.committed is False
     assert parsed.colour is None
+    assert parsed.target is None
 
 
 async def test_commit_priority_refuses_a_malformed_token() -> None:
@@ -191,6 +192,11 @@ async def test_commit_priority_commits_once_through_the_injected_store(injected_
     assert repeat_result.committed is True
     assert first_result.position == 1
     assert repeat_result.position == first_result.position
+    # The target is the committed colour's substrate target, read back from the row.
+    expected_target = get_tews().target_times["RED"].target
+    assert first_result.target == expected_target
+    assert first_result.target == injected_store.rows[0].target
+    assert repeat_result.target == first_result.target
     assert len(injected_store.rows) == 1
 
 

@@ -24,6 +24,7 @@ from mcp import Client
 
 from conftest import NON_LOCAL_MODEL_PROVIDERS, build_graph_tools, imported_modules
 from triagedesk.core import scorer
+from triagedesk.core.rules import get_tews
 from triagedesk.core.schema import CaseInput, CommitResult, HandoverCard, RecheckFlag
 from triagedesk.graph import build as build_module
 from triagedesk.graph import nodes as nodes_module
@@ -127,18 +128,26 @@ def test_handover_card_renders_only_the_structured_field_set() -> None:
     assert card.role == "nurse"
 
 
-def test_handover_card_shows_the_committed_colour_after_an_edit() -> None:
-    """The card shows the committed colour, so an edit never disagrees with the queue (D-05)."""
+def test_handover_card_shows_the_committed_colour_and_target_after_an_edit() -> None:
+    """The card shows the committed colour AND target, so an edit never disagrees (D-05)."""
     scored = _render_card()
     assert scored.colour != "RED", "the fixture must not score RED for this test to mean anything"
+    red_target = get_tews().target_times["RED"].target
+    assert scored.target != red_target, "the fixture's scored target must differ from RED's"
 
-    committed = _render_card(commit_result=CommitResult(committed=True, colour="RED"))
+    committed = _render_card(
+        commit_result=CommitResult(committed=True, colour="RED", target=red_target)
+    )
     assert committed.colour == "RED"
+    assert committed.target == red_target
 
     refused = _render_card(commit_result=CommitResult(refused=True, reason="dismissed"))
     assert refused.colour == scored.colour
+    assert refused.target == scored.target
 
-    assert _render_card().colour == scored.colour
+    uncommitted = _render_card()
+    assert uncommitted.colour == scored.colour
+    assert uncommitted.target == scored.target
 
 
 def test_card_model_has_no_field_that_could_hold_assessment_prose() -> None:

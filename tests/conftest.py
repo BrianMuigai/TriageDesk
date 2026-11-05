@@ -18,7 +18,7 @@ import pytest
 from pydantic import ValidationError
 
 from triagedesk.core import confidence, matcher, recheck, retrieval, scorer
-from triagedesk.core.approval import committed_colour
+from triagedesk.core.approval import committed_colour, target_for_colour
 from triagedesk.core.schema import (
     ApprovalToken,
     CaseInput,
@@ -338,16 +338,24 @@ def build_graph_tools(
                 refused=True, reason="clinician dismissed the priority; refusing to commit"
             )
         writes.append(inp)
+        # Mirror the shipped gate exactly (SOLID: L): the committed colour and its
+        # substrate-derived target are what the row persists AND what the result reports.
+        # Persisting the scored colour while reporting the committed one was a latent
+        # divergence (T-14-06) — an edit through the fake would leave row and card apart.
+        committed = committed_colour(parsed, inp["colour"])
+        target = target_for_colour(committed)
         if store is not None:
             await commit_to_queue(
                 store,
                 case_id=inp["case_id"],
-                colour=inp["colour"],
+                colour=committed,
                 content=CaseInput.model_validate(inp["case"]),
+                target=target,
             )
         return CommitResult(
             committed=store is not None,
-            colour=committed_colour(parsed, inp["colour"]),
+            colour=committed,
+            target=target,
             reason="accepted",
         )
 
