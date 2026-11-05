@@ -314,6 +314,21 @@ one contract model without `extra="forbid"`, so every existing constructor and r
 None)`), never the reason; the CLI reason string is untouched; and the desk package still imports
 neither the store/queue nor the MCP server (the no-self-commit guard stays green).
 
+### D27 — The MCP server ships a packaged usage skill, installed with it
+**Decision:** ship one agent-facing usage skill (`triagedesk-triage`) as **package data** under
+`src/triagedesk/skills/`. `scripts/install_mcp.py --write` copies it into the harness's native skills
+directory (or the portable `.agents/skills` convention), and `triagedesk skill path|install` exposes
+the same copy from an installed wheel. `--no-skill` and `--skill-path` are the escape hatches.
+**Why:** installing the MCP alone does not teach a harness the safe sequence. A raw caller can call
+`score_priority` directly and present a colour for a case with no age or a missing vital — the
+raw-MCP trap the nurse stress test already documented. The skill encodes the fail-closed workflow, the
+stop signals (`out_of_scope`, `abstained`, `missing_vitals`, `no_match`, `deferral`, `refused`), and the
+named-clinician `ApprovalToken` rule. Package data means one source travels with the wheel; the
+installer remains the ONE owner of every harness spelling (DRY).
+**Consequence:** the skill is documentation, not a second SATS authority — it links to `data/*.yaml`
+and never restates a band or threshold. A locally edited installed skill is never overwritten without
+`--force`; `docs/MCP.md` stays the human runbook and the skill is the agent-facing contract.
+
 ---
 
 ## Disclosed third-party components (DQ-8)

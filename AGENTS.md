@@ -101,7 +101,7 @@ the queue without her approval.** If everything else fails, this must work.
 | Ollama CLI | Model pull/run | `ollama pull qwen2.5:1.5b` (and optionally `qwen3.5:4b`). |
 | `npx` (Node 22 present) | Launch the borrowed SQLite MCP server | `npx -y mcp-sqlite <db>` — **pin the package version**, do not rely on `latest`. |
 | MCP Inspector | Debug the owned server | `uv run mcp dev -e . src/triagedesk/mcp/server.py` (the CLI needs `npx` on PATH). |
-| MCP installer | Write a harness's MCP config (OpenCode, Claude, Cursor, VS Code, Codex, Gemini, Zed, Windsurf) | `uv run python scripts/install_mcp.py --list`, then `--harness <key> [--write]` — see `docs/MCP.md`. |
+| MCP installer | Write a harness's MCP config **and** its `triagedesk-triage` usage skill (OpenCode, Claude, Cursor, VS Code, Codex, Gemini, Zed, Windsurf) | `uv run python scripts/install_mcp.py --list`, then `--harness <key> --write` (`--no-skill` / `--skill-path DIR` are the escape hatches) — see `docs/MCP.md`. |
 
 ## Installation
 
@@ -236,6 +236,7 @@ the audit chain — is mapped in [`ARCHITECTURE.md`](./ARCHITECTURE.md).
 
 ## Project Skills
 
+- **`triagedesk-triage`** — the packaged usage skill. Source: `src/triagedesk/skills/triagedesk-triage/`; installed at `.opencode/skills/triagedesk-triage/` (and by `scripts/install_mcp.py --write` into any harness's native skills directory). It teaches a harness the safe MCP call sequence and the fail-closed stop rules.
 - [`triage-nurse-stress-test`](.claude/skills/triage-nurse-stress-test/SKILL.md) — stress-test the TriageDesk MCP server as a SATS-trained triage nurse: clinical safety, colour correctness, missing-vital handling, complaint coverage, serial-vitals recheck, the approval gate, latency, and competition readiness.
 
 Add further skills to any of: `.claude/skills/`, `.agents/skills/`, `.cursor/skills/`, `.github/skills/`, or `.codex/skills/` with a `SKILL.md` index file.

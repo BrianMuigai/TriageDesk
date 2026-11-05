@@ -190,12 +190,15 @@ schema and query safety are solved; a hand-rolled DB adds zero triage value"* �
 exercised behind the unchanged `Store` protocol. Full tool contracts: [`ARCHITECTURE.md`](ARCHITECTURE.md) §4.
 
 **Installing it.** One command writes the block your harness expects — OpenCode, Claude Code, Claude
-Desktop, Cursor, VS Code, Codex, Gemini CLI, Zed, Windsurf/Devin — and [`docs/MCP.md`](docs/MCP.md)
-has the worked call shape for each of the seven tools and the gated approval token.
+Desktop, Cursor, VS Code, Codex, Gemini CLI, Zed, Windsurf/Devin — **and** installs the packaged
+`triagedesk-triage` usage skill beside it, so the agent knows the safe call sequence and the
+fail-closed rules. [`docs/MCP.md`](docs/MCP.md) has the worked call shape for each of the seven tools
+and the gated approval token.
 
 ```bash
 uv run python scripts/install_mcp.py --list
-uv run python scripts/install_mcp.py --harness opencode --write
+uv run python scripts/install_mcp.py --harness opencode --write   # MCP config + skill
+uv run python scripts/install_mcp.py --harness opencode --write --no-skill   # config only
 ```
 
 ## Human-in-the-loop workflow

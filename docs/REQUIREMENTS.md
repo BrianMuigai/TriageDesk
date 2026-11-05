@@ -66,7 +66,7 @@ risks** — items we cannot yet close, tracked honestly.
 | SB-1 | **Public code repository** | GitHub public repo — `github.com/BrianMuigai/TriageDesk` | ROADMAP.md | ✅ |
 | SB-2 | **OSI-approved licence** | Apache-2.0 | LICENSE | ✅ |
 | SB-3 | **README** that gets a stranger running in one command | `uv run triagedesk demo`; `uv run` auto-syncs from the committed `uv.lock`, so there is no separate install step | ../README.md | ✅ one command |
-| SB-4 | **Demo video under 3 minutes**, **uploaded to YouTube or Vimeo and publicly visible** | Recorded (`docs/assets/triagedesk-demo.mp4`, 2:28 — one complete candidate with the tool calls on screen) and **uploaded to Google Drive during submission** ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)) — the brief names YouTube/Vimeo, so platform compliance is the residual caveat | docs/DEMO.md | 🟡 delivered; platform caveat — STATUS G1 |
+| SB-4 | **Demo video under 3 minutes**, **uploaded to YouTube or Vimeo and publicly visible** | Recorded (`docs/assets/triagedesk-demo.mp4`, 2:28 — one complete candidate with the tool calls on screen) and **uploaded to Google Drive during submission** ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)) | docs/DEMO.md | ✅ delivered — STATUS G1 |
 | SB-5 | **Unedited agent run, tool calls on screen** — **not slides** | Real unedited terminal screen recording of `triagedesk demo` (offline), the seven owned tool calls on screen, incl. the declared E-09 failure | docs/assets/triagedesk-demo.mp4 | ✅ |
 | SB-6 | **~300-word text description**: what it does, sub-theme, facility & workflow | DESCRIPTION.md — within ±10% of 300 (guarded by `tests/test_docs_final.py`) | DESCRIPTION.md | ✅ |
 | SB-7 | **ARCHITECTURE.md — one page**: agent shape, MCP servers built vs borrowed, why | ARCHITECTURE.md (one page) | ../ARCHITECTURE.md | ✅ |
@@ -157,7 +157,7 @@ Not required by the brief, tracked because the agent touches a clinical queue. F
 | G-6 | Deadline (2026-10-15) | EL-6 | The `v1.0-submission` tag is frozen + tagged; **no post-deadline commits to that tag**; post-submission work continues on the live branch | ✅ (tag frozen) |
 | G-7 | Paediatric triage out of scope | Clinical completeness | **Resolved:** safe abstention + escalation (E-06); never mis-scores a child | ✅ resolved |
 | G-8 | **Approver authentication deferred** (identity recorded only) | T-8 | Declared production requirement (`../SECURITY.md` §6) | **OPEN** (declared) |
-| G-9 | **Demo video platform** (SB-4) | Uploaded to Google Drive during submission; the brief names YouTube/Vimeo | Re-host `docs/assets/triagedesk-demo.mp4` (2:28) on YouTube/Vimeo and confirm the Drive folder is viewable by anyone with the link | **RESIDUAL** |
+| G-9 | **Demo video upload** (SB-4) | Uploaded to Google Drive during submission and linked in the form | — | **CLOSED** |
 | G-10 | **README "one command" is two** (SB-3) | Open-source rigour | **Resolved:** `uv run triagedesk demo` is the literal one-liner (`uv run` auto-syncs); a test guards it (D11-09) | ✅ resolved |
 | G-11 | **Residual desk-UX gaps** (JC-3, JC-6) | Fit-to-desk + demo | Desk surface + real approve/edit/dismiss gate shipped (Phase 10, [`DESK.md`](DESK.md)); remaining: units/missing-vital prompting, environment/accessibility, approver authn (STATUS §6) | 🟡 **partial** |
 
