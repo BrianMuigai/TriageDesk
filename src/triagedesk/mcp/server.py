@@ -28,7 +28,7 @@ from typing import Any
 from mcp.server import MCPServer
 from pydantic import BaseModel, ValidationError
 
-from triagedesk.core import confidence, matcher, recheck, retrieval, scorer
+from triagedesk.core import confidence, grounding, matcher, recheck, retrieval, scorer
 from triagedesk.core.approval import committed_colour
 from triagedesk.core.schema import (
     ApprovalToken,
@@ -213,14 +213,16 @@ async def normalize_case(raw_note: str) -> ExtractionResult:
 
     The extraction is awaited through the async transport, so a slow model call no
     longer pins the event loop. The contract, the read-only guarantee and the
-    closed-set filter are unchanged: the model may only *structure* a note; it may
-    not choose a discriminator outside the closed set. Model-returned ids are
-    therefore filtered to the declared set (unknown ids dropped) and
-    ``no_discriminator_matched`` is set when nothing survives (T-02-11). Missing
-    vitals stay ``None`` — never imputed.
+    closed-set filter are unchanged: the model may only *structure* a note and
+    *select* ids; it may not choose a discriminator outside the closed set, and an
+    id now also needs one of its declared aliases in the note. Model-returned ids
+    are therefore filtered to the declared set (unknown ids dropped) and grounded
+    against the note (unevidenced ids dropped), with ``no_discriminator_matched``
+    following what survives (T-02-11, T-14-01). Missing vitals stay ``None`` — never
+    imputed.
     """
     result = await extract_async(raw_note)
-    return matcher.filter_discriminator_ids(result)
+    return grounding.ground_extraction(result, raw_note)
 
 
 @server.tool()
