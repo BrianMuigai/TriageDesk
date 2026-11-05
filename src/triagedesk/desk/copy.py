@@ -58,3 +58,12 @@ _FAILURE_COPY = (
 )
 _SCHEMA_HINT = "Check the highlighted field and try again."
 _NO_THREAD_COPY = "There is no paused case to decide. Submit the vitals first."
+
+# The waiting room's own copy (Plan 13-03): its heading, the no-rows line, and the line the
+# failure panel shows when the store read raises. Presentation only — no clinical value.
+_WAITING_HEADING = "Waiting room"
+_WAITING_EMPTY = "No patients are waiting. Approved cases appear here."
+_WAITING_FAILED = (
+    "The waiting room could not be read. Nothing has been changed. "
+    "Try again, or check the desk log."
+)

@@ -162,6 +162,17 @@ def get_tews() -> TewsRules:
     return load_tews()
 
 
+def colour_urgency(rules: TewsRules | None = None) -> dict[str, float]:
+    """Map each colour to its data-derived urgency rank — the ONE acuity order (D-01).
+
+    The rank is the colour band's lower TEWS bound from ``data/sats_tews.yaml``: a colour
+    whose band begins at a higher TEWS total is more urgent (RED > ORANGE > YELLOW > GREEN).
+    The order is derived from the data — no colour token is hard-coded here (CONVENTIONS §1),
+    so a future band change re-ranks every caller at once.
+    """
+    return {band.colour: float(band.min) for band in (rules or get_tews()).tews_to_colour}
+
+
 @lru_cache(maxsize=1)
 def get_discriminators() -> DiscriminatorRules:
     """Return the discriminator substrate, loaded once per process."""

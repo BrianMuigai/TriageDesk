@@ -23,6 +23,7 @@ from triagedesk.core.rules import (
     DiscriminatorCategory,
     Parameter,
     TewsRules,
+    colour_urgency,
     get_discriminators,
     get_tews,
 )
@@ -136,12 +137,11 @@ def _colour_for(rules: TewsRules, total: int) -> str:
 def _colour_urgency(rules: TewsRules) -> dict[str, float]:
     """Map each colour to a data-derived urgency rank (D-01, T-02-08).
 
-    The rank is the colour band's lower TEWS bound from ``data/sats_tews.yaml``:
-    a colour that begins at a higher TEWS total is more urgent (RED > ORANGE >
-    YELLOW > GREEN). The order is derived from the data — no colour token is
-    hard-coded here (CONVENTIONS §1).
+    A one-line delegate to the ONE public home, :func:`core.rules.colour_urgency`; the
+    private name is kept so the scorer's callers and tests are untouched. No colour token
+    is hard-coded here (CONVENTIONS §1).
     """
-    return {band.colour: float(band.min) for band in rules.tews_to_colour}
+    return colour_urgency(rules)
 
 
 def _most_urgent_category(
