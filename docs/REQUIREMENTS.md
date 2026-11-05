@@ -86,7 +86,7 @@ risks** — items we cannot yet close, tracked honestly.
 
 | ID | Criterion (pts) | What the judge checks | Our answer | Artifact |
 | --- | --- | --- | --- | --- |
-| JC-1 | Agentic depth & MCP craft (**30**) | Plans, calls tools, recovers — not one model call in a loop; tool boundaries a stranger could reuse | Explicit LangGraph plan with a `verify`/retry loop, missing-vital recovery, tool-failure recovery, safe abstention, and seven reusable tool contracts | ../ARCHITECTURE.md §3–4 |
+| JC-1 | Agentic depth & MCP craft (**30**) | Plans, calls tools, recovers — not one model call in a loop; tool boundaries a stranger could reuse | Explicit LangGraph plan with one deterministic evidence check whose failure is a fail-closed terminal (no gate, no commit, no card), missing-vital recovery, tool-failure recovery, safe abstention, and seven reusable tool contracts | ../ARCHITECTURE.md §3–4 |
 | JC-2 | Open-source rigour (**20**) | Clone & run; README honest about unfinished | One-command run, synthetic fixture, CI smoke test, honest status table incl. unfinished items | README, EVALS |
 | JC-3 | Fit to triage desk (**20**) | Named nurse does a real thing faster, at the desk, under queue pressure; *did you talk to one?* | Models the real five-step SATS desk process with an assumption-labelled throughput model; a loopback desk surface now ships ([`DEMO.md`](DEMO.md), [`DESK.md`](DESK.md)), while **no clinician interview available** remains a declared gap | PROJECT.md §3, §3.1; EVALS §7; STATUS §6 |
 | JC-4 | Evaluation & reliability (**15**) | Honest test set, not curated to pass; run-to-run variation measured or hidden | 16 cases incl. a declared failure; 3 runs/case; variation + latency + cost reported | ../EVALS.md |
@@ -113,7 +113,7 @@ Not required by the brief, tracked because the agent touches a clinical queue. F
 
 | ID | Item | How we satisfy it | Artifact | Status |
 | --- | --- | --- | --- | --- |
-| SW-1 | **Untrusted input treated as data** (prompt-injection resistance) | Complaint parsed to typed fields; deterministic scorer; citation invariant; no source = rejected | ../SECURITY.md §4, DECISIONS.md D15, EVALS E-13 | ✅ (E-13/E-14 exercised) |
+| SW-1 | **Untrusted input treated as data** (prompt-injection resistance) | Complaint parsed to typed fields; deterministic scorer; citation invariant; no source = rejected; extraction grounding keeps an extracted discriminator only when one of its declared aliases occurs in the note, and a model-supplied numeric vital only when its own numeric token occurs in the note | ../SECURITY.md §4, DECISIONS.md D15, [EVALS.md §4](../EVALS.md) | 🟡 shipped + unit-tested; measured E-13 status unchanged ([EVALS.md §4](../EVALS.md)) |
 | SW-2 | **Least privilege** | Tool allowlist; no network/credentials; the gated write is the only mutation | ../SECURITY.md §5 | ✅ |
 | SW-3 | **Idempotent irreversible writes** | `commit_priority` keyed by `case_id` + content hash | ../SECURITY.md §7, DECISIONS.md D16 | ✅ (key breadth — integration-verified) |
 | SW-4 | **Approver identity + role recorded** | `approved_by`, `role`, `approved_at`, `decision`; authentication is a declared production requirement | ../SECURITY.md §6 | 🟡 authn deferred — G-8 |
