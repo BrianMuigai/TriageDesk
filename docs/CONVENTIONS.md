@@ -15,6 +15,7 @@
 | Citation formatting | one helper | call it — never inline strings |
 | Audit-log record shape | one logging function | every tool call routes through it |
 | Tool contracts | one declaration per tool | MCP server + graph share it |
+| Agent-facing usage skill | `src/triagedesk/skills/triagedesk-triage/` | `install_mcp.py` copies it; `docs/MCP.md` links to it; it links to `data/*.yaml` and never restates a SATS band |
 | Design detail | this file + root docs | `.planning/` and root docs **link**, never duplicate |
 
 Any TEWS threshold, discriminator string, or citation that appears in more than one place **in code or at

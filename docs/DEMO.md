@@ -6,10 +6,10 @@
 > measured evaluation, and the declared E-09 failure. It is reproducible from the repository (see
 > *Rendering the video* below).
 >
-> **`human_needed` — the public upload.** Recording is now scripted and reproducible; the **public
-> upload** to YouTube or Vimeo is the remaining **HUMAN** action and the **one submission blocker**
-> (`STATUS.md` G1, `docs/REQUIREMENTS.md` G-9). This runbook documents the script and never claims a
-> video is hosted. Paste the public URL into the submission form once it is.
+> **Upload status.** The video was uploaded to Google Drive during submission
+> ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)) and linked in the
+> submission form (`STATUS.md` G1, `docs/REQUIREMENTS.md` G-9). This runbook documents the recording
+> script.
 >
 > **Record against the v1.1 state (this commit), not the frozen `v1.0-submission` tag.** The
 > Durable-mode and desk sections below document v1.1-only behaviour — `--durable`/`resume`/`replay`,
@@ -316,7 +316,7 @@ The video must be as honest as the docs. Point the close at what the repository 
 - Clinician validation remains a **declared gap** (`EVALS.md` §7): the expected colours come from the
   published SATS rules, not clinician adjudication. **No** triage nurse/clinician review was obtained as
   of 2026-10-13.
-- The video is recorded (`docs/assets/triagedesk-demo.mp4`, 2:28) but **not yet uploaded** — the one
-  submission blocker (see the `human_needed` note above).
+- The video is recorded (`docs/assets/triagedesk-demo.mp4`, 2:28) and was **uploaded to Google Drive
+  during submission** (folder link above).
 
 Record the close over the running terminal, not over slides: open source, offline, synthetic.

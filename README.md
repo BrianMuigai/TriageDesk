@@ -83,7 +83,7 @@ v1.0 behaviour.
 | Security & hardening | ✅ Documented → [`SECURITY.md`](SECURITY.md) |
 | MCP server / agent / evals | ✅ Built & tested → [`tests/`](tests) |
 | Evaluation (measured) | ✅ Run → [`EVALS.md`](EVALS.md) |
-| Demo video | 🎬 Recorded (2:28) — awaiting public upload → [`docs/DEMO.md`](docs/DEMO.md) |
+| Demo video | 🎬 Uploaded (2:28) — Google Drive, during submission → [`docs/DEMO.md`](docs/DEMO.md) |
 | Status & gap analysis | 🟡 Honest self-assessment → [`STATUS.md`](STATUS.md) |
 
 **What is unfinished.** The measured run records honest misses, not a green sweep: the declared failure
@@ -93,10 +93,10 @@ hidden, and the other misses are recorded in
 fit-to-desk claim is scoped to what was built and measured; if a review is arranged, an attributed quote
 (name/role/date, with consent) will be added to [`EVALS.md`](EVALS.md) §7 — nothing is claimed until it
 is. The demo video is **recorded** (`docs/assets/triagedesk-demo.mp4`, a 2:28 screen recording of the
-shipped CLI with the tool calls on screen) but **not yet uploaded** — the one submission blocker
-([`docs/DEMO.md`](docs/DEMO.md)). [`EVALS.md`](EVALS.md) is the single source for every number. A full
-honest gap analysis — the video upload, UX considerations, and state-of-the-art gaps — is in
-[`STATUS.md`](STATUS.md).
+shipped CLI with the tool calls on screen) and was **uploaded to Google Drive during submission**
+([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3); runbook in
+[`docs/DEMO.md`](docs/DEMO.md)). [`EVALS.md`](EVALS.md) is the single source for every number. A full
+honest gap analysis — UX considerations and state-of-the-art gaps — is in [`STATUS.md`](STATUS.md).
 
 ## Quickstart
 
@@ -190,12 +190,15 @@ schema and query safety are solved; a hand-rolled DB adds zero triage value"* �
 exercised behind the unchanged `Store` protocol. Full tool contracts: [`ARCHITECTURE.md`](ARCHITECTURE.md) §4.
 
 **Installing it.** One command writes the block your harness expects — OpenCode, Claude Code, Claude
-Desktop, Cursor, VS Code, Codex, Gemini CLI, Zed, Windsurf/Devin — and [`docs/MCP.md`](docs/MCP.md)
-has the worked call shape for each of the seven tools and the gated approval token.
+Desktop, Cursor, VS Code, Codex, Gemini CLI, Zed, Windsurf/Devin — **and** installs the packaged
+`triagedesk-triage` usage skill beside it, so the agent knows the safe call sequence and the
+fail-closed rules. [`docs/MCP.md`](docs/MCP.md) has the worked call shape for each of the seven tools
+and the gated approval token.
 
 ```bash
 uv run python scripts/install_mcp.py --list
-uv run python scripts/install_mcp.py --harness opencode --write
+uv run python scripts/install_mcp.py --harness opencode --write   # MCP config + skill
+uv run python scripts/install_mcp.py --harness opencode --write --no-skill   # config only
 ```
 
 ## Human-in-the-loop workflow

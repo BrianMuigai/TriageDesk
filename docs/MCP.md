@@ -10,13 +10,21 @@
 
 TriageDesk runs **two** MCP servers, and only one of them is installed into a harness:
 
-| Server | Role | How it starts |
+| Component | Role | How it is installed |
 | --- | --- | --- |
-| `triagedesk-triage` (**owned**, SDK v2, 7 tools) | scoring, matching, retrieval, recheck, gated commit | you install it — this page |
-| `mcp-sqlite@1.0.9` (**borrowed**) | storage: queue rows + the hash-chained audit | launched by the owned server's audit path, on demand |
+| `triagedesk-triage` (**owned server**, SDK v2, 7 tools) | scoring, matching, retrieval, recheck, gated commit | you install it — this page |
+| `mcp-sqlite@1.0.9` (**borrowed server**) | storage: queue rows + the hash-chained audit | launched by the owned server's audit path, on demand |
+| `triagedesk-triage` (**usage skill**) | the agent-facing safe sequence and fail-closed stop rules | copied by the same installer into the harness's skills directory |
 
-Tool contracts and the seven-tool table live in [`ARCHITECTURE.md`](../ARCHITECTURE.md) §4; this page
-does not restate them. **Prerequisites:**
+The skill is what teaches the calling agent the safe sequence and the fail-closed rules; without it a
+harness can call `score_priority` directly and present a colour for a case with no age. It ships inside
+the Python package (`src/triagedesk/skills/triagedesk-triage/`) and is copied by the same installer,
+so it travels with the MCP.
+
+Tool contracts and the seven-tool table live in [`ARCHITECTURE.md`](../ARCHITECTURE.md) §4; the skill's
+own self-contained contracts are in
+[`src/triagedesk/skills/triagedesk-triage/references/tool-contracts.md`](../src/triagedesk/skills/triagedesk-triage/references/tool-contracts.md).
+This page does not restate them. **Prerequisites:**
 
 ```bash
 uv --version          # the lock is synced by `uv run`; no separate install step
@@ -46,14 +54,27 @@ install loses the SATS substrate.
 One command installs, or prints, the config your harness expects:
 
 ```bash
-uv run python scripts/install_mcp.py --list                    # every harness + its config path
-uv run python scripts/install_mcp.py --harness opencode        # print the block (default)
-uv run python scripts/install_mcp.py --harness cursor --write   # merge it into the config file
+uv run python scripts/install_mcp.py --list                     # harness, config path, skill target
+uv run python scripts/install_mcp.py --harness opencode         # print the block (default)
+uv run python scripts/install_mcp.py --harness cursor --write    # config + skill
+uv run python scripts/install_mcp.py --harness opencode --write --no-skill   # config only
 ```
 
 `--write` merges a JSON config without touching any other key, and is idempotent. A differing
 existing `triagedesk` entry is never replaced silently (`--force` does that). The Codex `config.toml`
 is only ever **appended** when its table is absent. Without `--write`, every harness is print-only.
+
+`--write` also copies the whole `triagedesk-triage` skill directory (including `references/`) into the
+harness's skills directory. A locally edited skill is never overwritten without `--force`. `--no-skill`
+skips the copy; `--skill-path DIR` overrides the destination (the installer creates
+`DIR/triagedesk-triage/`).
+
+The skill is package data, so an installed package can install it without the checkout:
+
+```bash
+uv run triagedesk skill path                       # from the checkout: print the skill directory
+triagedesk skill install --path .opencode/skills   # from an installed package: copy it anywhere
+```
 
 | Harness | `--harness` | Config file | Scope |
 | --- | --- | --- | --- |
@@ -66,6 +87,18 @@ is only ever **appended** when its table is absent. Without `--write`, every har
 | Gemini CLI | `--harness gemini` | `.gemini/settings.json` / `~/.gemini/settings.json` | project, user |
 | Zed | `--harness zed` | `~/.config/zed/settings.json` | user |
 | Windsurf / Devin Desktop | `--harness windsurf` | `.devin/mcp_config.json` / `~/.config/devin/mcp_config.json` | project, user |
+
+The skill goes to the harness's native skills directory where it has one, and to the portable
+`.agents/skills` convention otherwise:
+
+| Harness | Project skill directory | User skill directory |
+| --- | --- | --- |
+| OpenCode | `.opencode/skills` | `~/.config/opencode/skills` |
+| Claude Code | `.claude/skills` | `~/.claude/skills` |
+| Cursor | `.cursor/skills` | `~/.cursor/skills` |
+| VS Code (Copilot) | `.github/skills` | — |
+| Codex CLI / ChatGPT desktop | `.codex/skills` | `~/.codex/skills` |
+| Claude Desktop, Gemini CLI, Zed, Windsurf/Devin | `.agents/skills` (portable) | `~/.agents/skills` (portable) |
 
 Where `REPO` below is **the absolute path to this checkout** (`--print` fills it in for you). Replace
 it with a harness variable — `${workspaceFolder}` (Cursor), `${CLAUDE_PROJECT_DIR}` (Claude Code) —
@@ -136,6 +169,21 @@ uv run python -m triagedesk.mcp.server </dev/null && echo "server starts and exi
 
 A working install returns `acute_shortness_of_breath` and `chest_pain`. The first call also fetches
 `mcp-sqlite@1.0.9` and creates `triage.db` — that is the audit path, not an error.
+
+### The installed skill
+
+`--write` leaves the skill at `<skills dir>/triagedesk-triage/SKILL.md` (and `references/` beside it).
+The harness discovers it by its `description`; ask a triage question and the skill should load before
+the first tool call. It is the agent-facing contract:
+
+- the safe sequence: normalize → match → score → evidence → confidence → clinician approval → commit;
+- the stop rules: `out_of_scope`, `abstained`, `missing_vitals`, `no_match`, `deferral`, `refused`;
+- the exact `ApprovalToken` shape and the rule that only a named clinician supplies it;
+- a self-contained tool reference, so it still works when the checkout is not on the harness's path.
+
+If the harness does not list the skill, confirm the file exists at the target printed by `--list` and
+that the harness's skill discovery is enabled. The MCP server works without the skill, but the agent
+then has to be told the safe sequence explicitly — install the skill for any real triage use.
 
 ## 5. Use: the seven tools
 
@@ -282,3 +330,4 @@ the both-servers handshake are recorded in [`evidence/mcp-spike.json`](../eviden
 | `normalize_case` fails, others work | Ollama not running, or model not pulled | `ollama serve`, `ollama pull qwen2.5:1.5b` |
 | `commit_priority` returns `refused: true` | missing, malformed, or `dismiss` token | send the five-field token; a dismissal is meant to refuse |
 | A tool times out in the harness | harness default (often 30 s) vs CPU inference | raise the harness timeout — 120 000 ms is written for you |
+| The `triagedesk-triage` skill is not listed | the skill was skipped, or the harness does not read that directory | re-run `--harness <key> --write` (not `--no-skill`); check the target printed by `--list`; use `--skill-path DIR` for a harness with no native skill dir |
