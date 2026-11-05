@@ -95,6 +95,7 @@ class InMemoryStore:
         return self.cases.get(case_id)
 
     async def read_queue_rows(self) -> list[QueueRow]:
+        self._note("read_queue_rows")
         return list(self.rows)
 
     async def read_chain_head(self) -> str:

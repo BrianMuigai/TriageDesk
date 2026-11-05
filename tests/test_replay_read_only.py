@@ -13,7 +13,7 @@ checkpointer and the shared in-memory store double:
   non-zero exit.
 
 The tools are the real owned tools called in-process (only the model is stubbed, via the one
-``server_module.extract`` seam), so the suite launches no borrowed ``npx mcp-sqlite``
+``server_module.extract_async`` seam), so the suite launches no borrowed ``npx mcp-sqlite``
 subprocess and no model. Row/commit counts are asserted as PER-RUN deltas (07-RESEARCH
 Pitfall 7: content-addressed cases may share a trace across beats, so absolute counts are
 never asserted).
@@ -27,6 +27,7 @@ from pathlib import Path
 
 import pytest
 
+from conftest import async_return
 from triagedesk.cli import _build_parser, main
 from triagedesk.core.schema import ExtractionResult
 from triagedesk.durable import approval_decision, resume_paused, run_to_gate
@@ -56,16 +57,16 @@ async def _run_to_commit(
 ) -> tuple[CaseSpec, str, dict]:
     """Run one case to a committed handover over the durable saver (D6-12 replay input).
 
-    The model is stubbed through the ONE owned ``extract`` seam, so ``normalize_case`` runs
-    as the real audited owned tool with no model call. The case pauses at the gate and is
+    The model is stubbed through the ONE owned ``extract_async`` seam, so ``normalize_case``
+    runs as the real audited owned tool with no model call. The case pauses at the gate and is
     resumed with a named ``approve`` through the ONE decision builder, so the checkpoint
     carries ``approval``/``commit_result``/``handover`` for replay to read back.
     """
     case = _case(case_id)
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: ExtractionResult(case=case.case, matched_discriminator_ids=[]),
+        "extract_async",
+        async_return(ExtractionResult(case=case.case, matched_discriminator_ids=[])),
     )
     tools = build_tools(case, offline=False, recorder=UsageRecorder())
     paused = await run_to_gate(tools, raw_note=case.note, case=case.case, db_path=db_path)
@@ -92,11 +93,14 @@ async def test_replay_writes_nothing(
         for record in await injected_store.read_audit_records()
     )
     records_before = len(await injected_store.read_audit_records())
-    calls_before = len(injected_store.calls)
+    calls_before = list(injected_store.calls)
 
     out = await replay_case(thread_id, db_path=db_path)
 
-    # Zero writes: no queue row, no commit record, no new audit record, no store call.
+    # Zero writes: no queue row, no commit record, no new audit record, no store WRITE.
+    # The shared double now records the queue read too (``read_queue_rows``), which the
+    # replay's audit reconciliation legitimately makes, so the call comparison excludes
+    # that one read and proves the remaining call list is unchanged.
     assert len(await injected_store.read_queue_rows()) == rows_before
     assert (
         sum(
@@ -106,7 +110,11 @@ async def test_replay_writes_nothing(
         == commits_before
     )
     assert len(await injected_store.read_audit_records()) == records_before
-    assert len(injected_store.calls) == calls_before
+    writes_after = [
+        call for call in injected_store.calls if call[0] != "read_queue_rows"
+    ]
+    writes_before = [call for call in calls_before if call[0] != "read_queue_rows"]
+    assert writes_after == writes_before
 
     # Outcome equality: the rendered view carries the recorded colour, target and citations.
     priority = final["priority"]
@@ -156,10 +164,10 @@ async def test_replay_never_calls_the_model(
         case_id="E-02", db_path=db_path, monkeypatch=monkeypatch
     )
 
-    def _boom(*args: object, **kwargs: object) -> object:
+    async def _boom(*args: object, **kwargs: object) -> object:
         raise AssertionError("replay called the model")
 
-    monkeypatch.setattr("triagedesk.llm.client.extract", _boom)
+    monkeypatch.setattr("triagedesk.llm.client.extract_async", _boom)
     model_spans_before = sum(1 for row in read_spans() if row["kind"] == "model")
 
     # Must not raise: the model seam is never reached by a read-only projection.

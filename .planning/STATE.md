@@ -2,18 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Score Uplift
-status: Awaiting next milestone
-stopped_at: Phase 12 complete — all phases complete
-last_updated: "2026-10-14T09:55:00.000Z"
-last_activity: 2026-10-14
-last_activity_desc: "Completed quick task 261014-f37: recorded ONE reproducible <3 min submission video with the tool calls on screen (G5 closed)"
-current_phase: 12
+current_phase: 14
+status: completed
+stopped_at: Milestone v1.1 Score Uplift shipped (audit passed; archived to `.planning/milestones/`; tagged `v1.1`)
+last_updated: "2026-11-05T08:53:32.080Z"
+last_activity: 2026-11-05
+last_activity_desc: Phase 13 complete
 progress:
-  total_phases: 7
-  completed_phases: 12
-  total_plans: 19
-  completed_plans: 19
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 state_head: fa9e2571b66e4524c9159fdb69489c930244fff6
 ---
 
@@ -28,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 
 ## Current Position
 
-Phase: Milestone v1.1 complete
-Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-10-14 - Completed quick task 261014-f37: recorded ONE reproducible <3 min submission video with the tool calls on screen (G5 closed)
+Phase: 14
+Plan: Not started
+Status: All phases complete
+Last activity: 2026-11-05 — Phase 14 complete
 
 ## Performance Metrics
 
@@ -53,6 +52,8 @@ Last activity: 2026-10-14 - Completed quick task 261014-f37: recorded ONE reprod
 | 10 | 3 | - | - |
 | 11 | 3 | - | - |
 | 12 | 3 | - | - |
+| 13 | 3 | - | - |
+| 14 | 3 | - | - |
 
 **Recent Trend:**
 
@@ -176,6 +177,9 @@ None yet.
 | 5 | refresh STATUS.md with the post-v1.1 desk hardening, the queue-position payoff and the two recorded walkthroughs | 2026-10-14 | 0991141 | complete | [261014-ad2-refresh-status-md-with-the-post-v1-1-des](./quick/261014-ad2-refresh-status-md-with-the-post-v1-1-des/) |
 | 6 | overhaul STATUS.md into a current-state gap analysis | 2026-10-14 | a7eba9e | Verified | [261014-asx-overhaul-status-md-into-a-current-state-](./quick/261014-asx-overhaul-status-md-into-a-current-state-/) |
 | 7 | record ONE reproducible <3 min submission video with the tool calls on screen (G5) | 2026-10-14 | 88b02ab | complete | [261014-f37-single-tool-call-demo-video](./quick/261014-f37-single-tool-call-demo-video/) |
+| 8 | fix two correctness defects: handover card shows the committed colour after an edit; the dead verify retry edge fails closed | 2026-11-04 | 119890c | complete | [261104-ueu-fix-two-correctness-defects-1-the-handov](./quick/261104-ueu-fix-two-correctness-defects-1-the-handov/) |
+| 9 | add safe lay/OPD phrasing aliases to existing discriminators and show DEFERRED (not GREEN) on the read-only card | 2026-11-04 | bb73945 | complete | [261104-w53-expand-safe-lay-phrasing-aliases-only-fo](./quick/261104-w53-expand-safe-lay-phrasing-aliases-only-fo/) |
+| 10 | close the three nurse stress-test defects (negation, incomplete-case refusal, extraction grounding) plus the named recovery copy | 2026-11-04 | 8c41d54 | complete | [261104-nst-nurse-stress-test-fixes](./quick/261104-nst-nurse-stress-test-fixes/) |
 
 ## Deferred Verification
 
@@ -203,7 +207,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-13
+Last session: 2026-11-04T19:23:19.162Z
 Stopped at: Milestone v1.1 Score Uplift shipped (audit passed; archived to `.planning/milestones/`; tagged `v1.1`)
 Resume file: None
 

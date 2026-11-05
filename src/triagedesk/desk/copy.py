@@ -18,13 +18,38 @@ _BANNER_LOW_CONFIDENCE_BODY = (
 _EMPTY_HEADING = "No case yet"
 _EMPTY_BODY = "Enter the patient's vitals and complaint, then choose Get suggested priority."
 _CARD_FRAMING = "This is a suggestion, not a decision. You confirm the priority."
+# The mode label the page always shows (Plan 13-02): which extraction path is live, and the
+# one fact that never changes — the deterministic scorer decides the colour in both modes.
+_MODE_OFFLINE = (
+    "Offline mode: the desk uses the vitals you enter, and no model is called. "
+    "The deterministic scorer decides the colour."
+)
+_MODE_ONLINE = (
+    "Online mode: the local model reads the complaint text you type. "
+    "The deterministic scorer still decides the colour."
+)
 _READ_ONLY_FRAMING = (
     "Not confirmed and not queued — this is what the system computed from the vitals alone."
 )
 _NO_EVIDENCE_LINE = "No evidence excerpt matched this complaint."
 _DEFERRED_COPY = "This case was deferred for human review — no priority was committed."
+# The word the read-only card shows instead of a colour (nurse stress test S2-3).
+_DEFERRED_BADGE = "DEFERRED"
 _ESCALATED_COPY = "This case was escalated for human review — no priority was committed."
 _RECOVERY_COPY = "A scored vital is missing. Re-measure before scoring."
+
+
+def recovery_copy(missing: list[str] | tuple[str, ...]) -> str:
+    """Name the missing scored vitals in the recovery panel (nurse stress test S2-2).
+
+    The generic sentence is the fallback when the typed ``missing_vitals`` list is
+    empty; otherwise the nurse is told exactly what to re-measure. Presentation only —
+    the list comes from the graph's ``RecoveryRequest``, never re-derived here.
+    """
+    names = ", ".join(str(item) for item in missing)
+    if not names:
+        return _RECOVERY_COPY
+    return f"A scored vital is missing ({names}). Re-measure before scoring."
 _UNREACHED_COPY = "This case did not reach the approval gate — nothing has been committed."
 _DISMISSED_COPY = "Dismissed — nothing has been committed."
 _TIMEOUT_COPY = "No decision was made — nothing has been committed."
@@ -33,3 +58,12 @@ _FAILURE_COPY = (
 )
 _SCHEMA_HINT = "Check the highlighted field and try again."
 _NO_THREAD_COPY = "There is no paused case to decide. Submit the vitals first."
+
+# The waiting room's own copy (Plan 13-03): its heading, the no-rows line, and the line the
+# failure panel shows when the store read raises. Presentation only — no clinical value.
+_WAITING_HEADING = "Waiting room"
+_WAITING_EMPTY = "No patients are waiting. Approved cases appear here."
+_WAITING_FAILED = (
+    "The waiting room could not be read. Nothing has been changed. "
+    "Try again, or check the desk log."
+)

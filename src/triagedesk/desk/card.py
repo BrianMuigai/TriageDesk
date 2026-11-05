@@ -9,6 +9,7 @@ from typing import Any
 
 from triagedesk.desk.copy import (
     _CARD_FRAMING,
+    _DEFERRED_BADGE,
     _NO_EVIDENCE_LINE,
     _READ_ONLY_FRAMING,
 )
@@ -19,7 +20,8 @@ def _colour_class(colour: str) -> str:
     """Map a substrate colour string to its CSS swatch class (a lookup, never a computation).
 
     The colour NAMES live only in ``styles.css`` (an asset the no-duplicated-SATS guard does
-    not scan), so no SATS colour literal enters Python.
+    not scan), so no SATS colour literal enters Python. The deferred badge reuses this same
+    mapping — ``DEFERRED`` yields ``colour-deferred`` — so there is no second naming rule.
     """
     return f"colour-{colour.lower()}"
 
@@ -67,8 +69,10 @@ def _card_html(
     colour, its target, each fired rule's ``detail`` beside its adjacent citation, the
     evidence grounding it, the missing vitals, the second-look flag and the case id — and
     re-derived nowhere. The colour is rendered with its name as text (D10-08). ``read_only``
-    swaps the framing line for the deferred/read-only card (D10-17); the card itself is the
-    same presentation in both cases.
+    swaps the framing line for the deferred/read-only card (D10-17) and suppresses the colour
+    and target facts: a deferral declines to stand behind a colour, so it shows a DEFERRED
+    badge instead and keeps every sourced fact (nurse stress test S2-3). The committable card
+    is unchanged.
     """
     colour = str(payload.get("colour") or "")
     target = str(payload.get("target") or "")
@@ -91,16 +95,26 @@ def _card_html(
         second_text = "—"
 
     framing = _READ_ONLY_FRAMING if read_only else _CARD_FRAMING
+    if read_only:
+        swatch_class = _colour_class(_DEFERRED_BADGE)
+        swatch_name = _DEFERRED_BADGE
+        priority_facts = ""
+    else:
+        swatch_class = _colour_class(colour)
+        swatch_name = colour
+        priority_facts = (
+            f'<p><span class="label">Suggested colour:</span> '
+            f'<span class="value">{_escaped(colour)}</span></p>'
+            f'<p><span class="label">Target time:</span> '
+            f'<span class="value">{_escaped(target)}</span></p>'
+        )
     return (
         '<section class="priority-card" aria-labelledby="card-heading">'
         '<h2 id="card-heading">Suggested priority</h2>'
         f'<p class="framing">{_escaped(framing)}</p>'
-        f'<div class="colour-block {_escaped(_colour_class(colour))}">'
-        f'<span class="colour-name">{_escaped(colour)}</span></div>'
-        f'<p><span class="label">Suggested colour:</span> '
-        f'<span class="value">{_escaped(colour)}</span></p>'
-        f'<p><span class="label">Target time:</span> '
-        f'<span class="value">{_escaped(target)}</span></p>'
+        f'<div class="colour-block {_escaped(swatch_class)}">'
+        f'<span class="colour-name">{_escaped(swatch_name)}</span></div>'
+        f"{priority_facts}"
         "<h3>Why these vitals:</h3>"
         f'<ul class="why-vitals-list">{rows}</ul>'
         "<h3>Evidence from the SATS knowledge base:</h3>"

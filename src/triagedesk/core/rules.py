@@ -23,6 +23,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = _REPO_ROOT / "data"
 TEWS_PATH = DATA_DIR / "sats_tews.yaml"
 DISCRIMINATORS_PATH = DATA_DIR / "sats_discriminators.yaml"
+TEXT_TERMS_PATH = DATA_DIR / "text_terms.yaml"
 
 
 class Band(BaseModel):
@@ -123,13 +124,62 @@ def load_discriminators(path: Path | None = None) -> DiscriminatorRules:
     return DiscriminatorRules.model_validate(raw)
 
 
+class TermValue(BaseModel):
+    """One phrase -> value mapping used to read a free-text note (not a scoring rule)."""
+
+    term: str
+    value: str
+
+
+class TextTerms(BaseModel):
+    """Linguistic terms loaded from ``data/text_terms.yaml`` (CONVENTIONS §1).
+
+    These are interpretation terms (negators, clause boundaries, categorical phrases),
+    not clinical scoring values: no band, colour, threshold or discriminator decision
+    lives here. Keeping them in data means the matcher and the extraction-grounding
+    step never inline a term a nurse's note may use.
+    """
+
+    version: int
+    negators: list[str]
+    negation_boundaries: list[str]
+    mobility: list[TermValue]
+    avpu: list[TermValue]
+    trauma_negative: list[str]
+    trauma_positive: list[str]
+
+
+def load_text_terms(path: Path | None = None) -> TextTerms:
+    """Load and validate the interpretation terms from *path* (default: the data file)."""
+    source = path or TEXT_TERMS_PATH
+    raw = yaml.safe_load(source.read_text(encoding="utf-8"))
+    return TextTerms.model_validate(raw)
+
+
 @lru_cache(maxsize=1)
 def get_tews() -> TewsRules:
     """Return the TEWS rule substrate, loaded once per process."""
     return load_tews()
 
 
+def colour_urgency(rules: TewsRules | None = None) -> dict[str, float]:
+    """Map each colour to its data-derived urgency rank — the ONE acuity order (D-01).
+
+    The rank is the colour band's lower TEWS bound from ``data/sats_tews.yaml``: a colour
+    whose band begins at a higher TEWS total is more urgent (RED > ORANGE > YELLOW > GREEN).
+    The order is derived from the data — no colour token is hard-coded here (CONVENTIONS §1),
+    so a future band change re-ranks every caller at once.
+    """
+    return {band.colour: float(band.min) for band in (rules or get_tews()).tews_to_colour}
+
+
 @lru_cache(maxsize=1)
 def get_discriminators() -> DiscriminatorRules:
     """Return the discriminator substrate, loaded once per process."""
     return load_discriminators()
+
+
+@lru_cache(maxsize=1)
+def get_text_terms() -> TextTerms:
+    """Return the interpretation terms, loaded once per process."""
+    return load_text_terms()

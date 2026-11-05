@@ -11,7 +11,7 @@ checkpointer:
    and the checkpoint file.
 
 The tools are the real owned tools called in-process (only the model is stubbed, via the
-one ``extract`` seam), and the store is the shared in-memory double — so the suite
+one ``extract_async`` seam), and the store is the shared in-memory double — so the suite
 launches no borrowed ``npx mcp-sqlite`` subprocess and no model.
 """
 
@@ -23,6 +23,8 @@ from pathlib import Path
 import pytest
 from langgraph.types import Command
 
+from conftest import async_return
+from triagedesk.core.rules import get_tews
 from triagedesk.core.schema import ExtractionResult
 from triagedesk.durable import (
     DurableError,
@@ -66,12 +68,12 @@ async def test_restart_resumes_to_one_row_and_one_commit_audit(
 ) -> None:
     """A paused case survives a restart: one queue row, one audit record per tool (D6-12)."""
     case = _case("E-02")
-    # The model is stubbed through the ONE owned ``extract`` seam, so ``normalize_case``
+    # The model is stubbed through the ONE owned ``extract_async`` seam, so ``normalize_case``
     # runs as the real audited owned tool with no model call (offline, deterministic).
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: ExtractionResult(case=case.case, matched_discriminator_ids=[]),
+        "extract_async",
+        async_return(ExtractionResult(case=case.case, matched_discriminator_ids=[])),
     )
     tools = build_tools(case, offline=False, recorder=UsageRecorder())
     thread_id = derive_thread_id(case.note)
@@ -146,8 +148,8 @@ async def test_edit_resume_supersedes_on_the_durable_path(
     case = _case("E-02")
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: ExtractionResult(case=case.case, matched_discriminator_ids=[]),
+        "extract_async",
+        async_return(ExtractionResult(case=case.case, matched_discriminator_ids=[])),
     )
     tools = build_tools(case, offline=False, recorder=UsageRecorder())
     thread_id = derive_thread_id(case.note)
@@ -164,7 +166,7 @@ async def test_edit_resume_supersedes_on_the_durable_path(
     assert first.thread_id == second.thread_id == thread_id
 
     # Thread 1: approve the scored colour.
-    await resume_paused(
+    approved = await resume_paused(
         tools,
         thread_id=thread_id,
         decision=approval_decision("approve", approver=approver, role=role),
@@ -172,11 +174,14 @@ async def test_edit_resume_supersedes_on_the_durable_path(
     )
     rows = await injected_store.read_queue_rows()
     assert len(rows) == 1
-    scored_colour, position = rows[0].colour, rows[0].position
+    scored_colour, scored_target, position = rows[0].colour, rows[0].target, rows[0].position
     assert scored_colour != EDITED_COLOUR, "the edit must change the committed colour"
+    # The card shows what the queue holds: the scored colour and target on an approve.
+    assert approved["handover"].colour == scored_colour
+    assert approved["handover"].target == scored_target
 
     # Thread 2: edit the SAME case to a different declared colour — it supersedes in place.
-    await resume_paused(
+    edited = await resume_paused(
         tools,
         thread_id=thread_id,
         decision=approval_decision(
@@ -190,3 +195,10 @@ async def test_edit_resume_supersedes_on_the_durable_path(
     assert rows[0].colour == EDITED_COLOUR
     assert rows[0].position == position, "the supersede moved the queue position"
     assert rows[0].content_hash == content_hash(thread_id, case.case)
+    # The end-to-end regression: card colour AND target equal the queue row after an
+    # edit. The expected target is read from the substrate, never a literal (D-08).
+    expected_target = get_tews().target_times[EDITED_COLOUR].target
+    assert rows[0].target == expected_target
+    assert edited["handover"].colour == EDITED_COLOUR == rows[0].colour
+    assert edited["handover"].target == rows[0].target
+    assert edited["handover"].target != scored_target, "the edit must change the target"

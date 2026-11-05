@@ -162,8 +162,8 @@ def assess(
 
     The signal reads only the scored ``priority`` and the retrieved discriminator facts —
     it takes no ``CaseInput``, so the tool/node contract cannot carry a field the
-    computation ignores (WR-03): the retry from ``score`` recomputes the same
-    ``PriorityResult`` from the same case, so nothing is lost by not re-passing it.
+    computation ignores (WR-03): the scored ``PriorityResult`` already carries every
+    fact the signal reads.
     """
     components = [
         _vitals_component(priority),

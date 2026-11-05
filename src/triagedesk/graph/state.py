@@ -30,8 +30,9 @@ class TriageState(TypedDict, total=False):
     Every field is optional (``total=False``) so each node returns a partial
     update: ``ingest`` seeds ``raw_note``/``attempt``; ``normalize`` adds ``case``;
     ``retrieve`` adds ``matched_ids``/``no_match``; ``score`` adds ``priority``;
-    ``ground`` adds ``evidence``; ``verify`` sets ``route`` (and bumps ``attempt``
-    on a retry); ``recheck`` adds ``second_look``; ``assess`` adds ``confidence``;
+    ``ground`` adds ``evidence``; ``verify`` sets ``route`` and records a failed
+    check in ``attempt``; a failure is terminal. ``recheck`` adds ``second_look``;
+    ``assess`` adds ``confidence``;
     ``approval_gate`` adds the resumed ``approval``; ``commit`` adds
     ``commit_result``; ``handover`` adds ``handover``. ``error`` is reserved for a
     fail-closed stop.

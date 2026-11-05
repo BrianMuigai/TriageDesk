@@ -58,6 +58,7 @@ from triagedesk.core.schema import (
     RecoveryRequest,
 )
 from triagedesk.desk import server as desk_server
+from triagedesk.desk.copy import _DEFERRED_BADGE, _WAITING_FAILED
 from triagedesk.desk.server import (
     decide,
     form_to_case,
@@ -65,10 +66,12 @@ from triagedesk.desk.server import (
     serve,
     submit_case,
 )
+from triagedesk.desk.waiting import order_rows
 from triagedesk.durable import PausedRun
 from triagedesk.evals.case import CaseSpec, load_cases
 from triagedesk.evals.invariants import prohibited_tokens
-from triagedesk.store.queue import content_hash
+from triagedesk.store.memory import InMemoryStore
+from triagedesk.store.queue import commit_to_queue, content_hash
 
 DESK_DIR = Path(desk_server.__file__).parent
 SRC_ROOT = DESK_DIR.resolve().parents[1]  # .../src (the parent of the triagedesk package)
@@ -95,9 +98,13 @@ _COMMIT_SYMBOLS = frozenset({"commit_to_queue", "commit_priority"})
 
 
 @contextlib.contextmanager
-def _running_server(db_path: Path) -> Iterator[Any]:
-    """Start the bridge on an OS-picked loopback port; shut it down in a ``finally``."""
-    server = make_server("127.0.0.1", 0, db_path)
+def _running_server(db_path: Path, store: Any = None) -> Iterator[Any]:
+    """Start the bridge on an OS-picked loopback port; shut it down in a ``finally``.
+
+    *store* is the waiting room's injectable read seam (Plan 13-03); the default ``None``
+    keeps every existing call site unchanged.
+    """
+    server = make_server("127.0.0.1", 0, db_path, store=store)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -981,6 +988,20 @@ def test_terminal_kind_prefers_the_deferral_channel() -> None:
     assert desk_server.terminal_kind({}) is None
 
 
+def test_recovery_panel_names_the_missing_vital() -> None:
+    """The recovery terminal tells the nurse WHAT to re-measure (stress test S2-2)."""
+    body = desk_server.render_state(
+        _run_from_state(
+            recovery=RecoveryRequest(
+                missing_vitals=["temperature"],
+                reason="a scored vital is missing; re-measure before scoring",
+            )
+        )
+    )
+    assert "temperature" in body, "the recovery panel did not name the missing vital"
+    assert "Re-measure before scoring" in body
+
+
 def test_deferred_case_renders_the_banner_read_only_card_and_no_gate(
     tmp_path: Path, injected_store: Any
 ) -> None:
@@ -1004,6 +1025,40 @@ def test_deferred_case_renders_the_banner_read_only_card_and_no_gate(
     ):
         assert control not in body, f"the deferred path rendered a gate control: {control}"
     assert injected_store.rows == []
+
+
+def test_deferred_card_shows_a_deferred_badge_and_no_colour(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A deferred card shows DEFERRED, never the colour it declines to stand behind (S2-3).
+
+    The suppressed facts are derived from the same scorer the graph used, and the
+    preconditions assert the deferral carried a colour and target — so the negative
+    assertions cannot pass vacuously.
+    """
+    case = _e09()
+    match = matcher.match_discriminators(case.case.complaint)
+    priority = scorer.score_priority(case.case, match.matched_ids)
+    assert match.no_match is True, "the E-09 fixture no longer exercises the deferred path"
+    assert priority.colour and priority.target, "the deferred payload lost its colour/target"
+
+    with _running_server(tmp_path / "deferred.db") as server:
+        body = _post(_base(server) + "/case", _form_from_case(case.case))
+
+    assert "DEFERRED" in body
+    assert priority.colour not in body, "the deferred card leaked the scored colour"
+    assert f'class="colour-block colour-{priority.colour.lower()}"' not in body
+    assert 'class="colour-block colour-deferred"' in _section(body, "priority-card")
+    assert "Suggested colour:" not in body
+    assert "Target time:" not in body
+    for retained in (
+        "Not recorded:",
+        "Why these vitals:",
+        "Evidence from the SATS knowledge base:",
+        "Case:",
+    ):
+        assert retained in body, f"the deferred card dropped a sourced fact: {retained}"
+    assert 'class="approval-gate"' not in body
 
 
 def test_banner_body_is_trigger_conditional() -> None:
@@ -1463,13 +1518,13 @@ def test_colour_label_accompanies_every_rendered_colour(
     assert 'onmouseover="alert(1)' not in hostile_card
     assert "colour-block colour-red&quot; onmouseover=&quot;alert(1)" in hostile_card
 
-    # The deferred read-only card renders its colour with its name and class too.
+    # The deferred read-only card shows the DEFERRED badge, not a colour (S2-3).
     case = _e09()
     with _running_server(tmp_path / "deferred.db") as server:
         deferred = _post(_base(server) + "/case", _form_from_case(case.case))
     deferred_card = _section(deferred, "priority-card")
-    assert "colour-block colour-" in deferred_card
-    assert '<span class="colour-name">' in deferred_card
+    assert 'class="colour-block colour-deferred"' in deferred_card
+    assert '<span class="colour-name">DEFERRED</span>' in deferred_card
 
 
 def test_submit_path_launches_no_borrowed_store(
@@ -1552,7 +1607,9 @@ def test_css_declares_every_substrate_colour_token() -> None:
     bands never produce BLUE: the surface renders whatever colour string the graph supplies and
     must never decide a colour is unreachable (10-UI-SPEC §Color), so a BLUE band must not
     render an uncoloured block. The gate's own offerable colours are a subset of the swatches,
-    so the gate can never offer a colour it cannot render.
+    so the gate can never offer a colour it cannot render. The read-only ``colour-deferred``
+    badge is a presentation state, not a substrate colour, so it is excluded from the equality
+    (derived from the ONE badge source, never a second literal — S2-3).
     """
     css = (ASSET_DIR / "styles.css").read_text(encoding="utf-8")
     expected = {colour.lower() for colour in get_tews().target_times}
@@ -1563,8 +1620,10 @@ def test_css_declares_every_substrate_colour_token() -> None:
         assert "color:" in block, f".colour-{colour} has no on-colour text colour"
 
     swatches = set(re.findall(r"\.colour-([a-z]+)\s*\{[^}]*background:", css))
-    assert swatches == expected, (
-        f"CSS swatches {sorted(swatches)} do not equal the substrate colours {sorted(expected)}"
+    colour_swatches = swatches - {_DEFERRED_BADGE.lower()}
+    assert colour_swatches == expected, (
+        f"CSS swatches {sorted(colour_swatches)} do not equal the substrate colours "
+        f"{sorted(expected)}"
     )
     editable = {colour.lower() for colour in desk_server.editable_colours()}
     assert editable <= swatches, (
@@ -1604,3 +1663,149 @@ def test_the_gate_script_keeps_the_submitting_button_enabled(
         assert re.search(
             rf'<button[^>]*name="decision"[^>]*value="{decision}"', gate
         ), f"the gate has no named `decision` button for {decision!r}"
+
+
+# --------------------------------------------------- one event loop (Plan 13-01, JC-1)
+
+
+def test_desk_reuses_one_event_loop_across_requests(
+    tmp_path: Path, injected_store: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both POSTs run their coroutine on the server's ONE loop (no per-request loop)."""
+    loop_ids: list[int] = []
+
+    async def fake_submit(case: CaseInput, db_path: Path) -> PausedRun:
+        loop_ids.append(id(asyncio.get_running_loop()))
+        return _run_from_state()
+
+    monkeypatch.setattr(desk_server, "submit_case", fake_submit)
+
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        base = _base(server)
+        _post(base + "/case", _form_from_case(COMPLETE_CASE))
+        _post(base + "/case", _form_from_case(COMPLETE_CASE))
+
+        assert len(loop_ids) == 2
+        assert len(set(loop_ids)) == 1, "the desk built a second event loop per request"
+        assert loop_ids[0] == id(server.loop.loop)
+
+
+def test_slow_submit_does_not_block_the_loop(
+    tmp_path: Path, injected_store: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """While a submit awaits, an independent coroutine on the same loop still completes."""
+    started = threading.Event()
+    finished = threading.Event()
+
+    async def slow_submit(case: CaseInput, db_path: Path) -> PausedRun:
+        started.set()
+        await asyncio.sleep(0.3)
+        finished.set()
+        return _run_from_state()
+
+    monkeypatch.setattr(desk_server, "submit_case", slow_submit)
+
+    with _running_server(tmp_path / "checkpoints.db") as server:
+        base = _base(server)
+
+        def post() -> None:
+            _post(base + "/case", _form_from_case(COMPLETE_CASE))
+
+        thread = threading.Thread(target=post)
+        thread.start()
+        try:
+            assert started.wait(timeout=5), "the submit never reached the loop"
+            # If the loop were blocked by the awaiting submit, this would not return.
+            server.loop.run(asyncio.sleep(0.01))
+            assert not finished.is_set(), "the slow submit finished before the loop was free"
+        finally:
+            thread.join(timeout=5)
+
+        assert finished.is_set(), "the slow submit never completed"
+
+
+def test_desk_loop_stops_on_server_close(tmp_path: Path) -> None:
+    """``server_close`` joins the loop thread, and the stopped loop fails closed."""
+    server = desk_server.DeskServer(
+        ("127.0.0.1", 0), desk_server.DeskHandler, bind_and_activate=False
+    )
+    server.db_path = tmp_path / "checkpoints.db"
+    thread = server.loop._thread
+
+    server.server_close()
+
+    assert not thread.is_alive(), "server_close leaked the desk loop thread"
+    coro = asyncio.sleep(0)
+    try:
+        with pytest.raises(RuntimeError):
+            server.loop.run(coro)
+    finally:
+        coro.close()
+
+
+def test_no_per_request_event_loop_in_the_desk() -> None:
+    """The structural guard: the per-request ``asyncio.run`` cannot come back."""
+    source = (DESK_DIR / "server.py").read_text(encoding="utf-8")
+    assert "asyncio.run(" not in source
+
+
+# --------------------------------------------------- waiting room (Plan 13-03, JC-3)
+
+
+def _seed_two_queued_cases(store: Any) -> list[Any]:
+    """Seed one routine row then one urgent row, so acuity order differs from position."""
+    bands = sorted(get_tews().tews_to_colour, key=lambda band: band.min)
+    least, most = bands[0].colour, bands[-1].colour
+    second_case = COMPLETE_CASE.model_copy(update={"complaint": "headache"})
+
+    async def seed() -> list[Any]:
+        await commit_to_queue(store, case_id="routine", colour=least, content=COMPLETE_CASE)
+        await commit_to_queue(store, case_id="urgent", colour=most, content=second_case)
+        return await store.read_queue_rows()
+
+    return asyncio.run(seed())
+
+
+def test_waiting_route_renders_acuity_order_and_writes_nothing(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """``GET /waiting`` renders ``order_rows`` order and makes no write (T-13-10)."""
+    rows = _seed_two_queued_cases(injected_store)
+    expected = [row.position for row in order_rows(rows)]
+    assert expected != sorted(expected), "the fixture does not exercise acuity ordering"
+
+    injected_store.calls.clear()
+    with _running_server(tmp_path / "checkpoints.db", store=injected_store) as server:
+        body = _get(_base(server) + "/waiting")
+
+    rendered = [
+        int(value) for value in re.findall(r'class="waiting-position">(\d+)<', body)
+    ]
+    assert rendered == expected
+    assert injected_store.calls == [("read_queue_rows", ())], injected_store.calls
+
+
+def test_waiting_route_store_failure_renders_a_panel(tmp_path: Path) -> None:
+    """A store read that raises renders the failure panel, never a partial table."""
+
+    class _FailingStore(InMemoryStore):
+        async def read_queue_rows(self) -> list[Any]:
+            raise RuntimeError("store unavailable")
+
+    with _running_server(tmp_path / "checkpoints.db", store=_FailingStore()) as server:
+        body = _get(_base(server) + "/waiting")
+
+    assert _WAITING_FAILED in body
+    assert "state-panel state-error" in body
+    assert "waiting-table" not in body
+
+
+def test_main_page_does_not_read_the_store(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """``GET /`` renders no waiting panel and touches no store (the offline desk)."""
+    with _running_server(tmp_path / "checkpoints.db", store=injected_store) as server:
+        body = _get(_base(server) + "/")
+
+    assert "waiting-room" not in body
+    assert injected_store.calls == [], injected_store.calls

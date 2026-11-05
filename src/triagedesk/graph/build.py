@@ -115,11 +115,6 @@ TRACER_NODES: tuple[str, ...] = (
     "escalate",
 )
 
-# The retry edge is bounded: after this many failed evidence checks the graph
-# stops rather than looping (T-03-05).
-_MAX_ATTEMPTS = 2
-
-
 def route_after_normalize(state: TriageState) -> str:
     """Choose the next node after ``normalize`` — recovery vs the scored path (ORCH-04).
 
@@ -179,16 +174,16 @@ def route_after_assess(state: TriageState) -> str:
 
 
 def route_after_verify(state: TriageState) -> str:
-    """Choose the next node after ``verify`` — the bounded retry edge (T-03-05).
+    """Choose the next node after ``verify`` — a failed check is terminal (T-03-05).
 
-    ``ok`` routes to the second look and then the gate; a failed check re-scores
-    while the attempt budget lasts, and otherwise stops (``END``) — a fail-closed
-    stop that never reaches the gate or the commit.
+    ``ok`` routes to the second look and then the gate. A failed check stops at
+    ``END``: the check is a structural invariant the deterministic scorer upholds by
+    construction, so re-running the same deterministic ``score`` on the same case
+    cannot change the outcome. The terminal is fail-closed — no gate, no commit, no
+    card.
     """
     if state.get("route") == "ok":
         return "recheck"
-    if int(state.get("attempt") or 0) < _MAX_ATTEMPTS:
-        return "score"
     return END
 
 
@@ -267,7 +262,7 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
     graph.add_conditional_edges(
         "verify",
         route_after_verify,
-        {"recheck": "recheck", "score": "score", END: END},
+        {"recheck": "recheck", END: END},
     )
     graph.add_edge("recheck", "assess")
     graph.add_conditional_edges(

@@ -43,6 +43,11 @@ def _model_must_not_run(*args: Any, **kwargs: Any) -> Any:
     raise AssertionError("the model must not be on the score path (ORCH-03, D-02)")
 
 
+async def _model_must_not_run_async(*args: Any, **kwargs: Any) -> Any:
+    """The async twin of :func:`_model_must_not_run` — both transport seams stay poisoned."""
+    raise AssertionError("the model must not be on the score path (ORCH-03, D-02)")
+
+
 def _extraction_must_not_run(inp: dict[str, Any]) -> Any:
     """An extraction stub that raises, standing in for an unavailable model."""
     raise RuntimeError("extraction tool unavailable (model off the path)")
@@ -57,6 +62,9 @@ async def test_score_node_returns_the_same_colour_with_the_model_stubbed_to_rais
     cannot change it.
     """
     monkeypatch.setattr("triagedesk.llm.client.extract", _model_must_not_run)
+    monkeypatch.setattr(
+        "triagedesk.llm.client.extract_async", _model_must_not_run_async
+    )
 
     node = nodes_module.make_nodes(build_graph_tools())["score"]
     update = await node({"case": COMPLETE_CASE, "matched_ids": []})

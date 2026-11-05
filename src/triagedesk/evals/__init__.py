@@ -21,7 +21,7 @@ from triagedesk.evals.report import (
 )
 from triagedesk.evals.runner import run_eval
 from triagedesk.evals.tools import ToolMap, build_tools, offline_tools, recorded_extract_seam
-from triagedesk.evals.usage import UsageRecorder, recorded_extract
+from triagedesk.evals.usage import UsageRecorder, recorded_extract_async
 
 __all__ = [
     "TERMINAL_OUTCOMES",
@@ -40,7 +40,7 @@ __all__ = [
     "declared_outcomes",
     "load_cases",
     "offline_tools",
-    "recorded_extract",
+    "recorded_extract_async",
     "recorded_extract_seam",
     "run_eval",
     "write_report",

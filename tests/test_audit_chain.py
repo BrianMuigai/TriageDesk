@@ -18,6 +18,7 @@ from typing import Any
 
 from mcp import Client
 
+from conftest import async_return
 from triagedesk.core.hashing import hash_value
 from triagedesk.core.schema import CaseInput, ExtractionResult
 from triagedesk.mcp import server as server_module
@@ -255,9 +256,11 @@ async def test_every_tool_call_appends_exactly_one_chained_record(
     """Every owned tool appends one record, forming a single unbroken chain (AUDIT-01/03)."""
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: ExtractionResult(
-            case=CaseInput(respiratory_rate=24), matched_discriminator_ids=[]
+        "extract_async",
+        async_return(
+            ExtractionResult(
+                case=CaseInput(respiratory_rate=24), matched_discriminator_ids=[]
+            )
         ),
     )
     case = _CASE

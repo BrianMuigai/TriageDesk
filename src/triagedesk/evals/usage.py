@@ -1,17 +1,17 @@
 """The ONE per-run token recorder (D-08, Pitfall 16).
 
 Token cost is read from the local model's OWN usage counters through the injectable
-``usage_sink`` seam on :func:`triagedesk.llm.client.extract` — the counts come from the
-SAME ``ollama.generate`` response the extraction already consumes. Accounting therefore
-never issues a second model call, and an offline run (no model) honestly records zero.
+``usage_sink`` seam on :func:`triagedesk.llm.client.extract_async` — the counts come from
+the SAME model response the extraction already consumes. Accounting therefore never issues
+a second model call, and an offline run (no model) honestly records zero.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from triagedesk.core.schema import ExtractionResult
-from triagedesk.llm.client import extract as _client_extract
+from triagedesk.llm.client import extract_async as _client_extract_async
 
 
 class UsageRecorder:
@@ -45,17 +45,19 @@ class UsageRecorder:
         )
 
 
-def recorded_extract(recorder: UsageRecorder) -> Callable[[str], ExtractionResult]:
-    """Return the real ``extract`` bound to *recorder*'s usage sink (no second call).
+def recorded_extract_async(
+    recorder: UsageRecorder,
+) -> Callable[[str], Awaitable[ExtractionResult]]:
+    """Return the real async ``extract`` bound to *recorder*'s usage sink (no second call).
 
-    The wrapper calls :func:`triagedesk.llm.client.extract` with the recorder as its
+    The wrapper awaits :func:`triagedesk.llm.client.extract_async` with the recorder as its
     ``usage_sink``, so the usage is read from the one response the extraction consumes.
     """
 
-    def extract(note: str) -> ExtractionResult:
-        return _client_extract(note, usage_sink=recorder.sink)
+    async def extract(note: str) -> ExtractionResult:
+        return await _client_extract_async(note, usage_sink=recorder.sink)
 
     return extract
 
 
-__all__ = ["UsageRecorder", "recorded_extract"]
+__all__ = ["UsageRecorder", "recorded_extract_async"]

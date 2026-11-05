@@ -32,6 +32,44 @@ def _closed_set(rules: DiscriminatorRules) -> set[str]:
     return {disc.id for disc in rules.discriminators}
 
 
+# Lay/OPD phrasing the nurse stress test logged as unmatched (report S2-1). Each phrase
+# must now reach the discriminator that declares *anchor_alias* — the declared alias
+# naming the same clinical finding. The id is never restated here: it is read from the
+# loaded substrate through ``_id_for_alias`` (CONVENTIONS §1).
+_LAY_PHRASING: tuple[tuple[str, str], ...] = (
+    ("can't catch my breath", "shortness of breath"),
+    ("can't catch his breath", "shortness of breath"),
+    ("can't catch her breath", "shortness of breath"),
+    ("hard to breathe", "shortness of breath"),
+    ("struggling to breathe", "shortness of breath"),
+    ("trouble breathing", "shortness of breath"),
+    ("tight chest", "chest pain"),
+    ("chest feels tight", "chest pain"),
+    ("heavy chest", "chest pain"),
+    ("heart attack", "chest pain"),
+    ("passed out", "reduced level of consciousness"),
+    ("fainted", "reduced level of consciousness"),
+    ("blacked out", "reduced level of consciousness"),
+    ("car crash", "high energy transfer"),
+    ("car accident", "high energy transfer"),
+    ("road traffic accident", "high energy transfer"),
+    ("rta", "high energy transfer"),
+    ("motorbike accident", "high energy transfer"),
+    ("motor vehicle crash", "high energy transfer"),
+    ("broken arm", "closed fracture"),
+    ("broken leg", "closed fracture"),
+    ("broken wrist", "closed fracture"),
+    ("broken ankle", "closed fracture"),
+    ("broken bone", "closed fracture"),
+    ("fractured arm", "closed fracture"),
+    ("fractured leg", "closed fracture"),
+    ("fractured wrist", "closed fracture"),
+    ("fractured ankle", "closed fracture"),
+    ("stomach ache", "abdominal pain"),
+    ("tummy ache", "abdominal pain"),
+)
+
+
 def test_known_alias_phrase_returns_its_id(rules: DiscriminatorRules) -> None:
     expected = _id_for_alias(rules, "chest pain")
     result = matcher.match_discriminators("Patient reports chest pain on exertion")
@@ -68,6 +106,89 @@ def test_short_alias_does_not_fire_inside_an_unrelated_word(
     assert result.no_match is True, (
         f"an unrelated-word complaint matched {result.matched_ids!r} — substring leakage"
     )
+
+
+@pytest.mark.parametrize(("phrase", "anchor_alias"), _LAY_PHRASING)
+def test_lay_phrasing_matches_its_declared_discriminator(
+    rules: DiscriminatorRules, phrase: str, anchor_alias: str
+) -> None:
+    """Lay/OPD phrasing reaches its discriminator instead of deferring (report S2-1).
+
+    Every phrase here returned ``no_match`` before this task; it now resolves to the
+    discriminator that declares *anchor_alias*.
+    """
+    expected = _id_for_alias(rules, anchor_alias)
+    result = matcher.match_discriminators(phrase)
+    assert result.no_match is False, f"{phrase!r} still defers"
+    assert expected in result.matched_ids, f"{phrase!r} did not reach {expected!r}"
+
+
+def test_every_declared_alias_matches_through_the_matcher(
+    rules: DiscriminatorRules,
+) -> None:
+    """Every declared alias still matches through the matcher (the expansion shadows none).
+
+    The sweep also pins aliases that begin with a negator (``no pulse``, ``not alert``):
+    the negation scope must keep admitting them as positive findings.
+    """
+    failures = [
+        f"{disc.id}: {alias!r} -> {matcher.match_discriminators(alias).matched_ids!r}"
+        for disc in rules.discriminators
+        for alias in disc.aliases
+        if disc.id not in matcher.match_discriminators(alias).matched_ids
+    ]
+    assert failures == [], "\n".join(failures)
+
+
+def test_a_negated_finding_does_not_match(rules: DiscriminatorRules) -> None:
+    """A denied symptom is not a positive finding (nurse stress test S1-1)."""
+    for complaint in (
+        "no chest pain",
+        "denies chest pain",
+        "patient denies any chest pain",
+        "not confused",
+        "no shortness of breath",
+    ):
+        result = matcher.match_discriminators(complaint)
+        assert result.matched_ids == [], (
+            f"{complaint!r} produced a positive match {result.matched_ids!r} from a denial"
+        )
+        assert result.no_match is True
+
+
+def test_negation_ends_at_a_contrast_or_conjunction(rules: DiscriminatorRules) -> None:
+    """A finding after ``but``/``and`` is positive even if an earlier finding was denied."""
+    breath = _id_for_alias(rules, "shortness of breath")
+    chest = _id_for_alias(rules, "chest pain")
+
+    after_but = matcher.match_discriminators("no fever but short of breath")
+    assert breath in after_but.matched_ids, "the contrast did not end the negation scope"
+
+    after_and = matcher.match_discriminators("no fever and chest pain")
+    assert chest in after_and.matched_ids, "the conjunction did not end the negation scope"
+
+
+def test_negation_continues_across_or(rules: DiscriminatorRules) -> None:
+    """``no chest pain or shortness of breath`` denies both findings."""
+    result = matcher.match_discriminators("no chest pain or shortness of breath")
+    assert result.matched_ids == []
+    assert result.no_match is True
+
+
+def test_a_positive_finding_next_to_a_denied_one_still_matches(
+    rules: DiscriminatorRules,
+) -> None:
+    chest = _id_for_alias(rules, "chest pain")
+    breath = _id_for_alias(rules, "shortness of breath")
+    result = matcher.match_discriminators("chest pain, no shortness of breath")
+    assert chest in result.matched_ids
+    assert breath not in result.matched_ids
+
+
+def test_not_only_is_not_a_negation(rules: DiscriminatorRules) -> None:
+    """``not only chest pain`` is an additive phrase, not a denial."""
+    chest = _id_for_alias(rules, "chest pain")
+    assert chest in matcher.match_discriminators("not only chest pain").matched_ids
 
 
 def test_unmatched_complaint_returns_the_declared_no_match(

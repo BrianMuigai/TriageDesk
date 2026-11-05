@@ -18,6 +18,7 @@ from typing import Any
 import ollama
 
 from triagedesk.core.schema import ExtractionResult
+from triagedesk.llm.notes import grounded_case
 from triagedesk.llm.prompts import EXTRACTION_PROMPT
 from triagedesk.observability import span
 
@@ -72,6 +73,54 @@ def _response_usage(response: Any) -> tuple[int, int]:
     return int(_get("prompt_eval_count") or 0), int(_get("eval_count") or 0)
 
 
+def _prompt_for(
+    note: str, discriminator_ids: list[str] | None
+) -> tuple[dict[str, Any], str]:
+    """Build the ONE grammar schema and prompt both transports send (DRY).
+
+    Returns ``(schema, prompt)``: the schema is sent as the constrained-decoding grammar
+    AND rendered into the prompt, so a caller cannot drift the two apart.
+    """
+    schema = ExtractionResult.model_json_schema()
+    prompt = EXTRACTION_PROMPT.format(
+        schema=schema,
+        discriminator_ids=", ".join(discriminator_ids or []) or "(none yet)",
+        note=note,
+    )
+    return schema, prompt
+
+
+def _usage_attrs(response: Any, attrs: dict[str, Any]) -> None:
+    """Copy the response's token counts into the open span's attributes.
+
+    :func:`_response_usage` stays the ONE reader of the counters; this only places them
+    where the span already looks, inside the span block so they are captured on exit.
+    """
+    attrs["tokens_in"], attrs["tokens_out"] = _response_usage(response)
+
+
+def _parsed(response: Any, note: str) -> ExtractionResult:
+    """Validate and ground one model response — the ONE parser both transports use.
+
+    Raises :class:`ExtractionError` on an empty or unparsable response, so neither
+    transport can return unvalidated data.
+    """
+    raw = _response_text(response)
+    if not raw.strip():
+        raise ExtractionError(
+            "model returned an empty response (is think=False set for this model?)"
+        )
+    try:
+        parsed = ExtractionResult.model_validate_json(raw)
+    except Exception as exc:  # noqa: BLE001 — re-raised as a typed error
+        raise ExtractionError(f"model returned unparsable or schema-invalid JSON: {exc}") from exc
+    # The model structures; it is not trusted to be complete or exact. The deterministic
+    # grounding step drops unstated values, takes the AFTER value of a serial reading,
+    # converts °F, and recovers a stated age/categorical the model dropped (SAFE-01,
+    # nurse stress test S1-2/S1-3).
+    return parsed.model_copy(update={"case": grounded_case(parsed.case, note)})
+
+
 def extract(
     note: str,
     *,
@@ -94,12 +143,7 @@ def extract(
     Raises :class:`ExtractionError` on an empty or unparsable response — it never
     returns unvalidated data.
     """
-    schema = ExtractionResult.model_json_schema()
-    prompt = EXTRACTION_PROMPT.format(
-        schema=schema,
-        discriminator_ids=", ".join(discriminator_ids or []) or "(none yet)",
-        note=note,
-    )
+    schema, prompt = _prompt_for(note, discriminator_ids)
     attrs: dict[str, Any] = {"model": model}
     with span("model", model, attributes=attrs):
         response = ollama.generate(
@@ -109,15 +153,64 @@ def extract(
             think=False,  # REQUIRED for qwen3.5:4b — else `response` is empty
             options=OPTIONS,
         )
-        attrs["tokens_in"], attrs["tokens_out"] = _response_usage(response)
+        _usage_attrs(response, attrs)
     if usage_sink is not None:
         usage_sink(attrs["tokens_in"], attrs["tokens_out"])
-    raw = _response_text(response)
-    if not raw.strip():
-        raise ExtractionError(
-            "model returned an empty response (is think=False set for this model?)"
-        )
-    try:
-        return ExtractionResult.model_validate_json(raw)
-    except Exception as exc:  # noqa: BLE001 — re-raised as a typed error
-        raise ExtractionError(f"model returned unparsable or schema-invalid JSON: {exc}") from exc
+    return _parsed(response, note)
+
+
+# The async client is built LAZILY on first use and reused afterwards. It is never
+# constructed at import time: ``desk.server`` imports this module, and the offline/harden
+# ordering assumes no client (and no network) is primed just by importing it.
+_ASYNC_CLIENT: ollama.AsyncClient | None = None
+
+
+def _async_client() -> ollama.AsyncClient:
+    """Return the ONE lazily-built async Ollama client (never at import time)."""
+    global _ASYNC_CLIENT
+    if _ASYNC_CLIENT is None:
+        _ASYNC_CLIENT = ollama.AsyncClient()
+    return _ASYNC_CLIENT
+
+
+async def _async_generate(*, model: str, prompt: str, schema: dict[str, Any]) -> Any:
+    """Await one async generation — the ONE patchable async transport seam.
+
+    The mirror of ``ollama.generate`` on the sync path: both transports differ only here,
+    so the prompt, parser, grounding and span rules stay in exactly one place (DRY).
+    """
+    return await _async_client().generate(
+        model=model,
+        prompt=prompt,
+        format=schema,  # grammar-constrained decoding
+        think=False,  # REQUIRED for qwen3.5:4b — else `response` is empty
+        options=OPTIONS,
+    )
+
+
+async def extract_async(
+    note: str,
+    *,
+    model: str = DEFAULT_MODEL,
+    discriminator_ids: list[str] | None = None,
+    usage_sink: UsageSink | None = None,
+) -> ExtractionResult:
+    """Await a validated :class:`ExtractionResult` — the async transport of :func:`extract`.
+
+    The ONE core serves both transports: :func:`_prompt_for` builds the same schema and
+    prompt, :func:`_parsed` applies the same validation and grounding, and the same
+    ``model`` span is emitted with the same minimal attributes (the model tag and token
+    counts only, never the note, the prompt or the completion — D7-08). No new dependency
+    is added: ``ollama.AsyncClient`` ships with the already-pinned ``ollama``.
+
+    Raises :class:`ExtractionError` on an empty or unparsable response — it never returns
+    unvalidated data.
+    """
+    schema, prompt = _prompt_for(note, discriminator_ids)
+    attrs: dict[str, Any] = {"model": model}
+    with span("model", model, attributes=attrs):
+        response = await _async_generate(model=model, prompt=prompt, schema=schema)
+        _usage_attrs(response, attrs)
+    if usage_sink is not None:
+        usage_sink(attrs["tokens_in"], attrs["tokens_out"])
+    return _parsed(response, note)

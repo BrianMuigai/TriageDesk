@@ -22,6 +22,8 @@ from types import ModuleType
 
 import pytest
 
+from triagedesk.skills import SKILL_NAME, skill_root
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 INSTALLER_PATH = REPO_ROOT / "scripts" / "install_mcp.py"
 
@@ -145,14 +147,24 @@ def test_write_merges_without_clobbering_and_is_idempotent(
     target = tmp_path / "opencode.json"
     target.write_text(json.dumps({"theme": "dark", "mcp": {"other": {"type": "local"}}}), "utf-8")
 
-    assert install_mcp.main(["--harness", "opencode", "--write", "--path", str(target)]) == 0
+    assert (
+        install_mcp.main(
+            ["--harness", "opencode", "--write", "--no-skill", "--path", str(target)]
+        )
+        == 0
+    )
     document = json.loads(target.read_text("utf-8"))
     assert document["theme"] == "dark"
     assert "other" in document["mcp"]
     assert document["mcp"]["triagedesk"]["type"] == "local"
 
     first = target.read_text("utf-8")
-    assert install_mcp.main(["--harness", "opencode", "--write", "--path", str(target)]) == 0
+    assert (
+        install_mcp.main(
+            ["--harness", "opencode", "--write", "--no-skill", "--path", str(target)]
+        )
+        == 0
+    )
     assert target.read_text("utf-8") == first
 
 
@@ -164,12 +176,27 @@ def test_write_refuses_a_conflicting_entry_unless_forced(
     conflicting = {"mcpServers": {"triagedesk": {"command": "something-else"}}}
     target.write_text(json.dumps(conflicting), "utf-8")
 
-    assert install_mcp.main(["--harness", "claude-code", "--write", "--path", str(target)]) == 1
+    assert (
+        install_mcp.main(
+            ["--harness", "claude-code", "--write", "--no-skill", "--path", str(target)]
+        )
+        == 1
+    )
     assert "already defines a different" in capsys.readouterr().err
     assert json.loads(target.read_text("utf-8")) == conflicting
 
     assert (
-        install_mcp.main(["--harness", "claude-code", "--write", "--force", "--path", str(target)])
+        install_mcp.main(
+            [
+                "--harness",
+                "claude-code",
+                "--write",
+                "--no-skill",
+                "--force",
+                "--path",
+                str(target),
+            ]
+        )
         == 0
     )
     assert json.loads(target.read_text("utf-8"))["mcpServers"]["triagedesk"]["type"] == "stdio"
@@ -182,14 +209,20 @@ def test_toml_write_appends_once_and_never_rewrites(
     target = tmp_path / "config.toml"
     target.write_text('model = "gpt-5"\n', "utf-8")
 
-    assert install_mcp.main(["--harness", "codex", "--write", "--path", str(target)]) == 0
+    assert (
+        install_mcp.main(["--harness", "codex", "--write", "--no-skill", "--path", str(target)])
+        == 0
+    )
     document = tomllib.loads(target.read_text("utf-8"))
     assert document["model"] == "gpt-5"
     assert document["mcp_servers"]["triagedesk"]["command"] == "uv"
     assert document["mcp_servers"]["triagedesk"]["tool_timeout_sec"] >= 60
 
     first = target.read_text("utf-8")
-    assert install_mcp.main(["--harness", "codex", "--write", "--path", str(target)]) == 0
+    assert (
+        install_mcp.main(["--harness", "codex", "--write", "--no-skill", "--path", str(target)])
+        == 0
+    )
     assert target.read_text("utf-8") == first
 
 
@@ -206,3 +239,142 @@ def test_unsupported_scope_is_rejected(
     """Asking for a scope a harness does not have is an error, not a silent fallback."""
     assert install_mcp.main(["--harness", "claude-desktop", "--scope", "project"]) == 2
     assert "has no project scope" in capsys.readouterr().err
+
+
+def test_the_skill_ships_with_the_package() -> None:
+    """The usage skill and its reference are package data, not repo-only files."""
+    root = skill_root()
+    assert root.joinpath("SKILL.md").is_file()
+    assert root.joinpath("references", "tool-contracts.md").is_file()
+
+
+def test_every_harness_gets_an_absolute_skill_target(install_mcp: ModuleType) -> None:
+    """Every harness resolves a skill directory inside the repo or the user's home."""
+    allowed_roots = (Path.home(), REPO_ROOT)
+    for harness in install_mcp.HARNESSES.values():
+        scope = "project" if "project" in harness.paths else "user"
+        target = install_mcp.skills_dir_for(harness, scope) / SKILL_NAME
+        assert target.is_absolute(), f"{harness.key} skill target is not absolute"
+        assert target.is_relative_to(allowed_roots[0]) or target.is_relative_to(allowed_roots[1]), (
+            f"{harness.key} skill target escapes home and repo: {target}"
+        )
+
+
+def test_write_installs_the_skill_alongside_the_config(
+    install_mcp: ModuleType, tmp_path: Path
+) -> None:
+    """``--write`` writes both the harness config and the full skill directory."""
+    target = tmp_path / "opencode.json"
+    skills = tmp_path / "skills"
+
+    assert (
+        install_mcp.main(
+            [
+                "--harness",
+                "opencode",
+                "--write",
+                "--path",
+                str(target),
+                "--skill-path",
+                str(skills),
+            ]
+        )
+        == 0
+    )
+    assert target.is_file()
+    skill = skills / SKILL_NAME
+    assert (skill / "SKILL.md").is_file()
+    assert (skill / "references" / "tool-contracts.md").is_file()
+
+    first = (skill / "SKILL.md").read_text("utf-8")
+    assert (
+        install_mcp.main(
+            [
+                "--harness",
+                "opencode",
+                "--write",
+                "--path",
+                str(target),
+                "--skill-path",
+                str(skills),
+            ]
+        )
+        == 0
+    )
+    assert (skill / "SKILL.md").read_text("utf-8") == first
+
+
+def test_skill_install_refuses_to_clobber_unless_forced(
+    install_mcp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A locally edited skill is never overwritten without ``--force``."""
+    target = tmp_path / "opencode.json"
+    skills = tmp_path / "skills"
+    skill = skills / SKILL_NAME
+    skill.mkdir(parents=True)
+    edited = "# local edit\n"
+    (skill / "SKILL.md").write_text(edited, "utf-8")
+
+    args = [
+        "--harness",
+        "opencode",
+        "--write",
+        "--path",
+        str(target),
+        "--skill-path",
+        str(skills),
+    ]
+    assert install_mcp.main(args) == 1
+    assert "already contains a different" in capsys.readouterr().err
+    assert (skill / "SKILL.md").read_text("utf-8") == edited
+
+    assert install_mcp.main([*args, "--force"]) == 0
+    assert (skill / "SKILL.md").read_text("utf-8") != edited
+
+
+def test_no_skill_installs_only_the_config(install_mcp: ModuleType, tmp_path: Path) -> None:
+    """``--no-skill`` is the escape hatch for a config-only install."""
+    target = tmp_path / "opencode.json"
+    skills = tmp_path / "skills"
+
+    assert (
+        install_mcp.main(
+            [
+                "--harness",
+                "opencode",
+                "--write",
+                "--no-skill",
+                "--path",
+                str(target),
+                "--skill-path",
+                str(skills),
+            ]
+        )
+        == 0
+    )
+    assert target.is_file()
+    assert not skills.exists()
+
+
+def test_skill_path_override_works_for_a_user_only_harness(
+    install_mcp: ModuleType, tmp_path: Path
+) -> None:
+    """``--skill-path`` installs the skill even for a harness with no native skill dir."""
+    target = tmp_path / "settings.json"
+    skills = tmp_path / "skills"
+
+    assert (
+        install_mcp.main(
+            [
+                "--harness",
+                "zed",
+                "--write",
+                "--path",
+                str(target),
+                "--skill-path",
+                str(skills),
+            ]
+        )
+        == 0
+    )
+    assert (skills / SKILL_NAME / "SKILL.md").is_file()

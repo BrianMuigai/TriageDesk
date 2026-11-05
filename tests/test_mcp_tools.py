@@ -16,14 +16,29 @@ from typing import Any
 
 from mcp import Client
 
-from triagedesk.core.rules import get_discriminators
-from triagedesk.core.schema import CaseInput, CommitResult, EvidenceResult, ExtractionResult
+from conftest import async_return
+from triagedesk.core.rules import get_discriminators, get_tews
+from triagedesk.core.schema import (
+    CaseInput,
+    CommitResult,
+    EvidenceResult,
+    ExtractionResult,
+    PriorityResult,
+)
 from triagedesk.mcp import server as server_module
 
 
 def _first_discriminator_id() -> str:
     """A known-good id from the closed set, read through the one loader (D-08)."""
     return get_discriminators().discriminators[0].id
+
+
+def _first_alias(discriminator_id: str) -> str:
+    """The first declared alias of *discriminator_id*, read through the one loader."""
+    for discriminator in get_discriminators().discriminators:
+        if discriminator.id == discriminator_id:
+            return discriminator.aliases[0]
+    raise AssertionError(f"{discriminator_id!r} is not a declared discriminator")
 
 
 def _extraction(ids: list[str], **case: Any) -> ExtractionResult:
@@ -46,12 +61,15 @@ async def test_normalize_case_drops_unknown_and_keeps_valid_ids(monkeypatch) -> 
     unknown = "not_a_declared_discriminator"
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: _extraction([valid, unknown], respiratory_rate=24),
+        "extract_async",
+        async_return(_extraction([valid, unknown], respiratory_rate=24)),
     )
+    # The note must evidence the kept id (Task 14-01-01): build it from the id's own
+    # declared alias, read through the loader, never a literal.
+    note = f"{_first_alias(valid)}. RR 24"
 
     async with Client(server_module.server) as client:
-        call = await client.call_tool("normalize_case", {"raw_note": "RR 24"})
+        call = await client.call_tool("normalize_case", {"raw_note": note})
 
     assert not call.is_error, f"owned tool errored: {call}"
     parsed = ExtractionResult.model_validate_json(call.content[0].text)
@@ -63,8 +81,8 @@ async def test_normalize_case_drops_unknown_and_keeps_valid_ids(monkeypatch) -> 
 async def test_normalize_case_leaves_a_missing_vital_none(monkeypatch) -> None:
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: _extraction([_first_discriminator_id()], respiratory_rate=24),
+        "extract_async",
+        async_return(_extraction([_first_discriminator_id()], respiratory_rate=24)),
     )
 
     async with Client(server_module.server) as client:
@@ -80,8 +98,8 @@ async def test_normalize_case_leaves_a_missing_vital_none(monkeypatch) -> None:
 async def test_normalize_case_reports_no_match_when_all_ids_are_unknown(monkeypatch) -> None:
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: _extraction(["bogus_one", "bogus_two"], heart_rate=80),
+        "extract_async",
+        async_return(_extraction(["bogus_one", "bogus_two"], heart_rate=80)),
     )
 
     async with Client(server_module.server) as client:
@@ -94,6 +112,25 @@ async def test_normalize_case_reports_no_match_when_all_ids_are_unknown(monkeypa
     assert parsed.no_discriminator_matched is True
 
 
+async def test_score_priority_refuses_an_incomplete_case() -> None:
+    """A raw MCP caller must not receive a GREEN with no citations (stress test S1-4)."""
+    async with Client(server_module.server) as client:
+        call = await client.call_tool(
+            "score_priority",
+            {"case": {"age_years": 30, "complaint": "routine review"}},
+        )
+
+    assert not call.is_error, f"score_priority errored instead of refusing: {call}"
+    parsed = PriorityResult.model_validate_json(call.content[0].text)
+    assert parsed.abstained is True
+    assert parsed.colour is None
+    assert parsed.tews is None
+    assert parsed.citations == []
+    assert parsed.triggered_rules == []
+    assert "temperature" in parsed.missing_vitals
+    assert "re-measure" in (parsed.reason or "")
+
+
 async def test_commit_priority_refuses_without_a_token() -> None:
     async with Client(server_module.server) as client:
         call = await client.call_tool(
@@ -104,6 +141,8 @@ async def test_commit_priority_refuses_without_a_token() -> None:
     parsed = CommitResult.model_validate_json(call.content[0].text)
     assert parsed.refused is True
     assert parsed.committed is False
+    assert parsed.colour is None
+    assert parsed.target is None
 
 
 async def test_commit_priority_refuses_a_malformed_token() -> None:
@@ -153,6 +192,11 @@ async def test_commit_priority_commits_once_through_the_injected_store(injected_
     assert repeat_result.committed is True
     assert first_result.position == 1
     assert repeat_result.position == first_result.position
+    # The target is the committed colour's substrate target, read back from the row.
+    expected_target = get_tews().target_times["RED"].target
+    assert first_result.target == expected_target
+    assert first_result.target == injected_store.rows[0].target
+    assert repeat_result.target == first_result.target
     assert len(injected_store.rows) == 1
 
 

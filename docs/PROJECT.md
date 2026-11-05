@@ -90,7 +90,7 @@ without a recorded human approval.
 - One **borrowed** MCP server (SQLite) for the case/queue store + audit log.
 - Open-weights **local** model orchestration (Qwen2.5 via Ollama), fully offline.
 - Sourced priorities with exact rule/vital citations.
-- **Deterioration re-check flag** from serial vitals / patient-reported change.
+- **Deterioration re-check flag** from serial vitals.
 - Named-approver **gate** on every irreversible action.
 - Full **tool-call audit log** (inputs, outputs, timestamps, approver).
 - **8+ evaluation cases** with pass/fail, run-to-run variation, and one honest unfixed failure.

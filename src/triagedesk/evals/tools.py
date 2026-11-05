@@ -9,12 +9,15 @@ deterministic matcher, scorer, recheck and the real gated commit — runs for re
 
 :func:`build_tools` serves the harness (a ``CaseSpec``); :func:`offline_tools` is the
 harness-free entry point for a caller that already has a structured ``CaseInput`` and no
-fixture (the desk submission and the durable resume). Both delegate to the ONE private
-``_tool_map`` core, so the mapping is assembled in exactly one place (DRY).
+fixture (the desk submission and the durable resume); :func:`online_tools` is the same
+harness-free entry point for a caller that has already resolved the complaint to an
+extraction (the desk's online mode). All three delegate to the ONE private ``_tool_map``
+core, so the mapping is assembled in exactly one place (DRY) and the seven tools and their
+order never drift.
 
 In real mode ``normalize_case`` drives the real owned server, whose module-level
-``extract`` is wrapped (via :func:`recorded_extract_seam`) with the run's usage sink, so
-token cost is read from the one model response (D-08, Pitfall 16).
+``extract_async`` is wrapped (via :func:`recorded_extract_seam`) with the run's usage sink,
+so token cost is read from the one model response (D-08, Pitfall 16).
 """
 
 from __future__ import annotations
@@ -25,7 +28,7 @@ from typing import Any
 
 from triagedesk.core.schema import CaseInput, ExtractionResult, PriorityResult
 from triagedesk.evals.case import CaseSpec, FaultInjection
-from triagedesk.evals.usage import UsageRecorder, recorded_extract
+from triagedesk.evals.usage import UsageRecorder, recorded_extract_async
 from triagedesk.mcp import server as server_module
 
 # The graph's injected tool interface: a name -> async callable taking a single mapping
@@ -35,24 +38,24 @@ ToolMap = Mapping[str, Callable[[Mapping[str, Any]], Awaitable[Any]]]
 
 @contextmanager
 def recorded_extract_seam(recorder: UsageRecorder) -> Iterator[None]:
-    """Patch the owned server's ``extract`` with the recorder for the duration of a run.
+    """Patch the owned server's ``extract_async`` with the recorder for the duration of a run.
 
-    The owned server imported ``extract`` into its own namespace; this swaps that name for
-    a wrapper carrying *recorder*'s usage sink, then restores it. So the real
+    The owned server imported ``extract_async`` into its own namespace; this swaps that name
+    for an async wrapper carrying *recorder*'s usage sink, then restores it. So the real
     ``normalize_case`` tool reports its token cost without a second model call, and the
     patch never leaks past the run (T-04-09).
 
-    ``extract`` is an imported re-export in the server module (not a declared attribute),
-    so the swap is applied through the module namespace dict — the same object attribute
-    lookup uses — keeping the patch explicit without a private-name import.
+    ``extract_async`` is an imported re-export in the server module (not a declared
+    attribute), so the swap is applied through the module namespace dict — the same object
+    attribute lookup uses — keeping the patch explicit without a private-name import.
     """
     namespace = vars(server_module)
-    original = namespace["extract"]
-    namespace["extract"] = recorded_extract(recorder)
+    original = namespace["extract_async"]
+    namespace["extract_async"] = recorded_extract_async(recorder)
     try:
         yield
     finally:
-        namespace["extract"] = original
+        namespace["extract_async"] = original
 
 
 def _injected_normalize(
@@ -85,6 +88,7 @@ def _tool_map(
     offline: bool,
     inject: FaultInjection | None,
     recorder: UsageRecorder,
+    extraction: ExtractionResult | None = None,
 ) -> dict[str, Any]:
     """Build the injected tool mapping from a resolved ``CaseInput`` and fault — the ONE core.
 
@@ -93,8 +97,13 @@ def _tool_map(
     assembled in exactly one place (DRY). Every tool is the real owned tool called in-process;
     only ``normalize_case`` is stubbed in offline mode (returning *case*'s own extraction with
     no model call). The injected ``recorder`` is unused here directly — the caller patches the
-    server's ``extract`` with it via :func:`recorded_extract_seam` — but it is threaded through
-    so the mapping is built from the same per-run recorder the seam uses.
+    server's ``extract_async`` with it via :func:`recorded_extract_seam` — but it is threaded
+    through so the mapping is built from the same per-run recorder the seam uses.
+
+    ``extraction`` is the third way to supply the normalize result (the desk's online mode):
+    when given, it is returned unchanged, so the caller's already-computed, already-merged
+    extraction is the case the graph scores. It is checked before the ``offline`` branch, so a
+    caller that supplies an extraction is never silently handed *case*'s own extraction.
 
     When ``inject`` is declared, the ``normalize_case`` callable is wrapped with the fault
     (T-04-09) so the graph's real bounded retry and deterministic fallback run.
@@ -104,6 +113,8 @@ def _tool_map(
     async def normalize_case(inp: Mapping[str, Any]) -> Any:
         # The graph's own ``parse_tool_result`` is the ONE parser of a tool payload, so
         # this callable returns the server's result unchanged and lets the graph coerce it.
+        if extraction is not None:
+            return extraction
         if offline:
             return ExtractionResult(case=case, matched_discriminator_ids=[])
         return await server_module.normalize_case(str(inp["raw_note"]))
@@ -177,4 +188,24 @@ def offline_tools(case: CaseInput, recorder: UsageRecorder) -> dict[str, Any]:
     return _tool_map(case, offline=True, inject=None, recorder=recorder)
 
 
-__all__ = ["ToolMap", "build_tools", "offline_tools", "recorded_extract_seam"]
+def online_tools(
+    case: CaseInput, extraction: ExtractionResult, recorder: UsageRecorder
+) -> dict[str, Any]:
+    """Build the tool mapping from a pre-computed extraction — the harness-free online entry.
+
+    The desk's online mode resolves the complaint to a real, closed-set-filtered extraction
+    and merges the nurse's form over it before calling here; this entry point hands that
+    extraction to the graph's ``normalize`` node unchanged, so the model call happened once
+    (in the background precompute or the submit path), never inside the graph run. The other
+    six tools are the same real owned tools :func:`offline_tools` returns (SOLID: L).
+    """
+    return _tool_map(case, offline=False, inject=None, recorder=recorder, extraction=extraction)
+
+
+__all__ = [
+    "ToolMap",
+    "build_tools",
+    "offline_tools",
+    "online_tools",
+    "recorded_extract_seam",
+]

@@ -28,7 +28,8 @@ from typing import Any
 from mcp.server import MCPServer
 from pydantic import BaseModel, ValidationError
 
-from triagedesk.core import confidence, matcher, recheck, retrieval, scorer
+from triagedesk.core import confidence, grounding, matcher, recheck, retrieval, scorer
+from triagedesk.core.approval import committed_colour, target_for_colour
 from triagedesk.core.schema import (
     ApprovalToken,
     CaseInput,
@@ -40,7 +41,7 @@ from triagedesk.core.schema import (
     PriorityResult,
     RecheckFlag,
 )
-from triagedesk.llm.client import extract
+from triagedesk.llm.client import extract_async
 from triagedesk.observability import current_trace_id, span
 from triagedesk.store import Store, default_store
 from triagedesk.store.audit import append
@@ -203,23 +204,25 @@ def audited(*, approval: bool = False) -> Callable[[Callable[..., Any]], Callabl
 
 @server.tool()
 @audited()
-def normalize_case(raw_note: str) -> ExtractionResult:
+async def normalize_case(raw_note: str) -> ExtractionResult:
     """Parse a triage note into the typed case schema. Read-only.
 
     Single-purpose and contract-typed: it returns the one shared
     ``ExtractionResult`` schema (D-14), so the server contract and the model
     contract cannot drift. Read-only — it never writes to the queue (D-06).
 
-    The model may only *structure* a note; it may not choose a discriminator
-    outside the closed set. Model-returned ids are therefore filtered to the
-    declared set (unknown ids dropped) and ``no_discriminator_matched`` is set
-    when nothing survives (T-02-11). Missing vitals stay ``None`` — never imputed.
+    The extraction is awaited through the async transport, so a slow model call no
+    longer pins the event loop. The contract, the read-only guarantee and the
+    closed-set filter are unchanged: the model may only *structure* a note and
+    *select* ids; it may not choose a discriminator outside the closed set, and an
+    id now also needs one of its declared aliases in the note. Model-returned ids
+    are therefore filtered to the declared set (unknown ids dropped) and grounded
+    against the note (unevidenced ids dropped), with ``no_discriminator_matched``
+    following what survives (T-02-11, T-14-01). Missing vitals stay ``None`` — never
+    imputed.
     """
-    result = extract(raw_note)
-    ids = matcher.validate_discriminator_ids(result.matched_discriminator_ids)
-    return result.model_copy(
-        update={"matched_discriminator_ids": ids, "no_discriminator_matched": not ids}
-    )
+    result = await extract_async(raw_note)
+    return grounding.ground_extraction(result, raw_note)
 
 
 @server.tool()
@@ -234,8 +237,30 @@ def score_priority(
     function (SOLID: S/D): it touches no model and cannot inject a colour. The
     returned ``PriorityResult`` carries the colour, TEWS total, target time and
     one citation per triggered rule.
+
+    The tool contract fails closed on an incomplete case: when a scored vital is
+    absent it returns ``abstained=True`` with no colour, no total and no citations,
+    naming the missing vitals in ``reason``. The shipped graph already routes on
+    ``missing_vitals``; this guard protects a caller that invokes the MCP tool
+    directly and would otherwise see a GREEN with no evidence (nurse stress test
+    S1-4, SAFE-01).
     """
-    return scorer.score_priority(case, matched_discriminator_ids)
+    priority = scorer.score_priority(case, matched_discriminator_ids)
+    if not priority.missing_vitals:
+        return priority
+    missing = ", ".join(priority.missing_vitals)
+    return priority.model_copy(
+        update={
+            "colour": None,
+            "tews": None,
+            "target": None,
+            "destination": None,
+            "triggered_rules": [],
+            "citations": [],
+            "abstained": True,
+            "reason": f"missing scored vitals: {missing}; re-measure before scoring",
+        }
+    )
 
 
 @server.tool()
@@ -318,7 +343,10 @@ async def commit_priority(
     row is superseded in place rather than duplicated (D6-04, D6-06). The committed
     colour is the clinician's ``final_colour`` for an ``edit`` and the scored ``colour``
     for an ``approve`` (D-05). The typed ``case`` is validated by the ONE schema module
-    (T-06-02); no dict passthrough enters the key.
+    (T-06-02); no dict passthrough enters the key. The returned ``colour`` and ``target``
+    report what the queue row actually holds — the target derived from the committed
+    colour through the loaded substrate, never the pre-approval priority's — so a reader
+    never re-derives either field.
     """
     if approval_token is None:
         return CommitResult(refused=True, reason="no approval token supplied; refusing to commit")
@@ -331,19 +359,22 @@ async def commit_priority(
             refused=True, reason="clinician dismissed the priority; refusing to commit"
         )
 
-    committed_colour = token.final_colour if token.decision == "edit" else colour
     store = await resolve_store()
+    committed = committed_colour(token, colour)
     row, created = await commit_to_queue(
         store,
         case_id=case_id,
-        colour=committed_colour,
+        colour=committed,
         content=case,
+        target=target_for_colour(committed),
     )
     verb = "committed" if created else "already committed"
     return CommitResult(
         committed=True,
         reason=f"{verb} case {row.case_id} at queue position {row.position} ({row.colour})",
         position=row.position,
+        colour=row.colour,
+        target=row.target,
     )
 
 

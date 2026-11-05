@@ -22,6 +22,7 @@ import argparse
 import asyncio
 import sqlite3
 import sys
+from pathlib import Path
 
 from triagedesk.observability.offline import harden_offline
 
@@ -150,6 +151,31 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="checkpoint file (default: checkpoints.db)",
     )
+    desk_parser.add_argument(
+        "--online",
+        action="store_true",
+        help="run the real local model on the free-text complaint (default: offline)",
+    )
+
+    skill_parser = subcommands.add_parser(
+        "skill", help="install or locate the packaged usage skill"
+    )
+    skill_sub = skill_parser.add_subparsers(dest="skill_command", required=True)
+    skill_install = skill_sub.add_parser(
+        "install", help="copy the usage skill into a skills directory"
+    )
+    skill_install.add_argument(
+        "--path",
+        type=Path,
+        required=True,
+        help="skills directory (creates <path>/triagedesk-triage)",
+    )
+    skill_install.add_argument(
+        "--force",
+        action="store_true",
+        help="replace a differing installed skill",
+    )
+    skill_sub.add_parser("path", help="print the packaged skill directory")
     return parser
 
 
@@ -159,13 +185,32 @@ def main(argv: list[str] | None = None) -> int:
     # prime a tracer from the environment at import time (D7-03, WR-06). The handlers are
     # imported lazily below this line, never at module import.
     harden_offline()
+    args = _build_parser().parse_args(argv)
+    if args.command == "skill":
+        # Imported LAZILY inside ``main``, after ``harden_offline()`` has already run,
+        # so the package-resource read cannot prime a tracer from the environment.
+        from triagedesk.skills import install_skill, skill_root
+
+        if args.skill_command == "path":
+            print(skill_root())
+            return 0
+        try:
+            print(install_skill(args.path, force=args.force))
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        return 0
+
+    # The heavy command handlers are imported only after the lightweight ``skill``
+    # command has returned, so a package-only install can locate/install the skill
+    # without the full graph/model stack. They are still imported after
+    # ``harden_offline()``, never at module import (D7-03, WR-06).
     from triagedesk.demo.run import list_beats, run_demo
     from triagedesk.durable import approval_decision, resume_thread
     from triagedesk.evals.runner import run_eval
     from triagedesk.graph.build import CHECKPOINTS_DB_PATH
     from triagedesk.replay import replay_case
 
-    args = _build_parser().parse_args(argv)
     if args.command == "eval":
         return asyncio.run(
             run_eval(
@@ -245,7 +290,12 @@ def main(argv: list[str] | None = None) -> int:
         from triagedesk.desk.server import serve
 
         try:
-            serve(host=args.host, port=args.port, db_path=args.db or CHECKPOINTS_DB_PATH)
+            serve(
+                host=args.host,
+                port=args.port,
+                db_path=args.db or CHECKPOINTS_DB_PATH,
+                online=args.online,
+            )
         except (ValueError, RuntimeError, sqlite3.Error, ExceptionGroup) as exc:
             # A bind failure, a bad ``--db`` or an unexpected runtime error is reported cleanly
             # with a non-zero exit rather than a raw traceback (WR-04). The surface commits

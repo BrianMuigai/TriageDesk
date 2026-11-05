@@ -18,23 +18,26 @@ _TRUTHY = frozenset({"true", "on", "1"})
 # server on ``GET /`` and required on every POST, so a cross-origin page cannot satisfy it.
 _CSRF_FIELD = "csrf_token"
 
-# The vitals form's field order and human labels (presentation only). Each control's kind,
-# plausible range and select options are read from the ONE ``CaseInput`` schema at render
-# time, so the form can never offer a range or an option the schema would reject and no
-# bound is restated (CONVENTIONS §1, D10-13).
+# The vitals form's field order and human labels (presentation only). The order is the
+# CLINICAL reading order: the context block first, then the scored vitals from head to toe,
+# then the complaint. Because the DOM order IS the tab order, the nurse can drive the whole
+# form from the keyboard without a ``tabindex``. Each control's kind, plausible range and
+# select options are read from the ONE ``CaseInput`` schema at render time, so the form can
+# never offer a range or an option the schema would reject and no bound is restated
+# (CONVENTIONS §1, D10-13).
 _VITALS_LAYOUT: tuple[tuple[str, str], ...] = (
     ("age_years", "Age (years)"),
     ("age_months", "Age (months)"),
     ("age_ambiguous", "Age unclear"),
     ("height_cm", "Height (cm)"),
+    ("avpu", "Alertness (AVPU)"),
     ("respiratory_rate", "Breathing rate"),
+    ("spo2", "Oxygen saturation"),
     ("heart_rate", "Heart rate"),
     ("systolic_bp", "Systolic BP"),
     ("diastolic_bp", "Diastolic BP"),
     ("temperature_c", "Temperature (°C)"),
-    ("spo2", "Oxygen saturation"),
     ("mobility", "Mobility"),
-    ("avpu", "Alertness (AVPU)"),
     ("trauma", "Trauma"),
     ("complaint", "Complaint"),
 )
@@ -149,6 +152,7 @@ def _vitals_field(
     label: str,
     form: Mapping[str, str],
     field_error: tuple[str, str] | None = None,
+    autofocus: bool = False,
 ) -> str:
     """Render one vitals field, repopulated from *form* and bounded by the schema (D10-13).
 
@@ -156,6 +160,12 @@ def _vitals_field(
     ``max`` come from its own ``FieldInfo`` bounds and a select's options from its ``Literal``,
     so no range or option is restated in markup and the form can never offer a value the schema
     would reject.
+
+    ``autofocus`` and ``enterkeyhint`` are PRESENTATION attributes only (Plan 13-03): they move
+    the caret and the on-screen keyboard, never a field name, value, bound or the submission.
+    ``autofocus`` is applied to the numeric/select/text control only — never to the checkbox or
+    its hidden companion — and ``enterkeyhint`` lets the keyboard advance on a numeric entry and
+    submit on the complaint.
 
     When *field_error* names this field, the control is marked ``aria-invalid`` and the ONE
     schema's own rejection renders inside this ``.field`` — the UI-SPEC ``## UI Considerations``
@@ -165,6 +175,7 @@ def _vitals_field(
     kind = _annotation_kind(name)
     raw = str(form.get(name, ""))
     checked_layout = kind == "checkbox"
+    focus = " autofocus" if autofocus else ""
     if kind in ("int", "float"):
         low, high = _bounds(name)
         step = "1" if kind == "int" else "0.1"
@@ -172,7 +183,7 @@ def _vitals_field(
         control = (
             f'<input id="{name}" name="{name}" type="number"{mode} step="{step}" '
             f'min="{_escaped(_fmt_bound(low))}" max="{_escaped(_fmt_bound(high))}" '
-            f'value="{_escaped(raw.strip())}">'
+            f'enterkeyhint="next"{focus} value="{_escaped(raw.strip())}">'
         )
     elif kind == "checkbox":
         checked = " checked" if raw.strip().lower() in _TRUTHY else ""
@@ -196,11 +207,14 @@ def _vitals_field(
             for value in _enum_values(name)
         )
         control = (
-            f'<select id="{name}" name="{name}">'
+            f'<select id="{name}" name="{name}"{focus}>'
             f'<option value="">—</option>{options}</select>'
         )
     else:
-        control = f'<textarea id="{name}" name="{name}" rows="3">{_escaped(raw)}</textarea>'
+        control = (
+            f'<textarea id="{name}" name="{name}" rows="3" '
+            f'enterkeyhint="enter"{focus}>{_escaped(raw)}</textarea>'
+        )
 
     label_html = f'<label for="{name}">{_escaped(label)}</label>'
     classes = "field field-check" if checked_layout else "field"
@@ -226,8 +240,11 @@ def _vitals_fields(form: Mapping[str, str], field_error: tuple[str, str] | None 
     from its ``Literal``, so no range or option is restated in markup and the form can
     never offer a value the schema would reject. The submitted values are rendered back,
     so a rejected submission never discards what the nurse typed. *field_error* names the
-    offending field so its message renders beside it (never only below the form).
+    offending field so its message renders beside it (never only below the form). The first
+    control in the clinical layout is autofocused, so the keyboard starts where the reading
+    starts (Plan 13-03).
     """
     return "".join(
-        _vitals_field(name, label, form, field_error) for name, label in _VITALS_LAYOUT
+        _vitals_field(name, label, form, field_error, autofocus=(index == 0))
+        for index, (name, label) in enumerate(_VITALS_LAYOUT)
     )

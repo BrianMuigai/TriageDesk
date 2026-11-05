@@ -23,3 +23,6 @@ spans.jsonl
 
 # Deterministic CI gate artefact (a stubbed-model run; never the measured report)
 evals/results/report.ci.json
+
+# Local harness config (written by scripts/install_mcp.py --write)
+.opencode/
