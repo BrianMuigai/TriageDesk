@@ -33,6 +33,14 @@ def _first_discriminator_id() -> str:
     return get_discriminators().discriminators[0].id
 
 
+def _first_alias(discriminator_id: str) -> str:
+    """The first declared alias of *discriminator_id*, read through the one loader."""
+    for discriminator in get_discriminators().discriminators:
+        if discriminator.id == discriminator_id:
+            return discriminator.aliases[0]
+    raise AssertionError(f"{discriminator_id!r} is not a declared discriminator")
+
+
 def _extraction(ids: list[str], **case: Any) -> ExtractionResult:
     """A fixed typed extraction, so the tests never depend on the model."""
     return ExtractionResult(case=CaseInput(**case), matched_discriminator_ids=ids)
@@ -56,9 +64,12 @@ async def test_normalize_case_drops_unknown_and_keeps_valid_ids(monkeypatch) -> 
         "extract_async",
         async_return(_extraction([valid, unknown], respiratory_rate=24)),
     )
+    # The note must evidence the kept id (Task 14-01-01): build it from the id's own
+    # declared alias, read through the loader, never a literal.
+    note = f"{_first_alias(valid)}. RR 24"
 
     async with Client(server_module.server) as client:
-        call = await client.call_tool("normalize_case", {"raw_note": "RR 24"})
+        call = await client.call_tool("normalize_case", {"raw_note": note})
 
     assert not call.is_error, f"owned tool errored: {call}"
     parsed = ExtractionResult.model_validate_json(call.content[0].text)

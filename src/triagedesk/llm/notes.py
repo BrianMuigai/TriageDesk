@@ -10,7 +10,7 @@ module applies the deterministic checks the nurse stress test showed are needed:
 
 Every helper is pure and total: an invalid override is skipped, never raised, so a bad
 note can only make the case *less* complete (which routes to recovery), never unsafe.
-This module imports only the ONE schema and Python's stdlib.
+This module imports only the core package and Python's stdlib.
 """
 
 from __future__ import annotations
@@ -19,11 +19,9 @@ import re
 
 from pydantic import ValidationError
 
+from triagedesk.core.grounding import NUMERIC_CASE_FIELDS, stated_numbers, value_is_stated
 from triagedesk.core.rules import get_text_terms
 from triagedesk.core.schema import CaseInput
-
-# Numeric tokens, with a comma decimal accepted as the desk writes it.
-_NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
 
 # Serial readings. The label is the only place the parameter is named; the values come
 # from the note. BP is handled as a pair so the diastolic AFTER value is not lost.
@@ -75,25 +73,6 @@ _AGE_MONTHS = re.compile(r"\b(\d+)\s*(?:-\s*)?months?\s*old\b", re.IGNORECASE)
 _AGE_YEARS = re.compile(r"\b(\d+)\s*(?:-\s*)?(?:year|yr)s?\s*old\b", re.IGNORECASE)
 _AGE_ALT = re.compile(r"\b(?:aged?|age)\s*(\d+)\b|\b(\d+)\s*(?:yo|y/o)\b", re.IGNORECASE)
 
-def _numbers(note: str) -> set[str]:
-    """Every numeric token in *note*, comma decimals normalised to a dot."""
-    return {match.group(0).replace(",", ".") for match in _NUMBER.finditer(note)}
-
-
-def _is_stated(value: object, numbers: set[str]) -> bool:
-    """True when a numeric *value* literally appears in the note.
-
-    Booleans and non-numerics are not this guard's concern. A float is checked in both
-    its compact and its plain form so ``38.9`` and ``38.90`` both pass.
-    """
-    if value is None or isinstance(value, bool):
-        return True
-    if isinstance(value, int):
-        return str(value) in numbers
-    if isinstance(value, float):
-        return f"{value:g}" in numbers or str(value) in numbers
-    return True
-
 
 def _apply(case: CaseInput, updates: dict[str, object]) -> CaseInput:
     """Apply each update independently, skipping any that the schema rejects.
@@ -111,21 +90,11 @@ def _apply(case: CaseInput, updates: dict[str, object]) -> CaseInput:
 
 def _drop_unstated(case: CaseInput, note: str) -> CaseInput:
     """Null every numeric/categorical value the note does not state (never impute)."""
-    numbers = _numbers(note)
+    numbers = stated_numbers(note)
     updates: dict[str, object] = {}
-    for field in (
-        "age_years",
-        "age_months",
-        "height_cm",
-        "respiratory_rate",
-        "heart_rate",
-        "systolic_bp",
-        "diastolic_bp",
-        "temperature_c",
-        "spo2",
-    ):
+    for field in NUMERIC_CASE_FIELDS:
         value = getattr(case, field)
-        if value is not None and not _is_stated(value, numbers):
+        if value is not None and not value_is_stated(value, numbers):
             updates[field] = None
 
     terms = get_text_terms()

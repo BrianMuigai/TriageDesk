@@ -84,3 +84,57 @@ def test_grounded_ids_are_a_subset_of_the_closed_set_filter() -> None:
 
     assert set(grounded.matched_discriminator_ids) <= set(filtered.matched_discriminator_ids)
     assert grounded.matched_discriminator_ids == [evidenced]
+
+
+def test_a_hallucinated_vital_is_nulled_not_imputed() -> None:
+    """HR 140 is not supported by a note whose only number is RR 14."""
+    extraction = ExtractionResult(case=CaseInput(respiratory_rate=14, heart_rate=140))
+
+    grounded = grounding.ground_extraction(extraction, "RR 14")
+
+    assert grounded.case.heart_rate is None
+    assert grounded.case.respiratory_rate == 14
+
+
+def test_a_vital_stated_in_prose_is_kept() -> None:
+    """The real-mode extraction shape is not weakened: prose-stated vitals survive."""
+    case = CaseInput(
+        age_years=60,
+        respiratory_rate=20,
+        heart_rate=90,
+        systolic_bp=130,
+        diastolic_bp=80,
+        temperature_c=37.0,
+        mobility="walking",
+        avpu="alert",
+        trauma=False,
+        complaint="chest pain",
+    )
+    note = (
+        "60 year old man, walking, alert, no trauma. RR 20, HR 90, BP 130/80, "
+        "temperature 37.0. Complaint: chest pain."
+    )
+
+    grounded = grounding.ground_extraction(ExtractionResult(case=case), note)
+
+    assert grounded.case == case
+
+
+def test_a_comma_decimal_temperature_is_stated() -> None:
+    """The desk writes comma decimals; 36,8 supports 36.8."""
+    extraction = ExtractionResult(case=CaseInput(temperature_c=36.8))
+
+    grounded = grounding.ground_extraction(extraction, "temp 36,8")
+
+    assert grounded.case.temperature_c == 36.8
+
+
+def test_an_unstated_categorical_is_not_touched_by_this_step() -> None:
+    """Mobility/AVPU/trauma are outside this module's numeric rule."""
+    case = CaseInput(mobility="walking", avpu="alert", trauma=False)
+
+    grounded = grounding.ground_extraction(ExtractionResult(case=case), "no vitals stated")
+
+    assert grounded.case.mobility == "walking"
+    assert grounded.case.avpu == "alert"
+    assert grounded.case.trauma is False
