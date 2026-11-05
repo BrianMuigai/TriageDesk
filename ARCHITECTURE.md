@@ -23,7 +23,7 @@ offline, gated by a clinician.
 | `retrieve` | tool | `match_discriminators`. |
 | `score` | tool | `score_priority` — TEWS + override → colour + citations. |
 | `ground` | tool | `retrieve_evidence` (no colour). |
-| `verify` | critic + deterministic | Reject uncited; retry once, else fail safe. |
+| `verify` | deterministic | Reject uncited; fail-closed terminal (no gate/commit/card). |
 | `recheck` | tool | `raise_recheck_flag` — serial vitals → second-look. |
 | `assess` | deterministic | Coverage/deferral → a terminal. |
 | `approval_gate` | `interrupt()` | Pause for a **named** clinician. |
@@ -31,7 +31,7 @@ offline, gated by a clinician.
 | `handover` | deterministic | Render the sourced case card. |
 | `request_missing_info` · `escalate` | terminal | Abstain / escalate. |
 
-**Edges:** missing vitals → recover · `out_of_scope` → abstain · uncited → retry · deterioration →
+**Edges:** missing vitals → recover · `out_of_scope` → abstain · uncited → `END` · deterioration →
 `recheck`. **Why not ReAct:** a small CPU model is an unreliable free agent; a bounded plan is
 reproducible (JC-1).
 
