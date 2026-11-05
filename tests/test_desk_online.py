@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from conftest import COMPLETE_CASE, async_return
+from triagedesk.core.hashing import hash_value
 from triagedesk.core.rules import get_discriminators
 from triagedesk.core.schema import CaseInput, ExtractionResult
 from triagedesk.desk import extraction as extraction_module
@@ -114,3 +115,98 @@ def test_offline_submit_calls_no_model(tmp_path: Path, monkeypatch: Any) -> None
     assert paused.paused and paused.payload is not None
     assert paused.payload["colour"]
     assert paused.payload["citations"]
+
+
+# ------------------------------------------------ Task 2: the precompute cache
+
+
+def _counting_stub(calls: list[str]) -> Any:
+    """An async model stub that records each complaint it is asked to extract."""
+
+    async def stub(complaint: str, **kwargs: Any) -> ExtractionResult:
+        calls.append(complaint)
+        return _extraction(ids=[])
+
+    return stub
+
+
+def test_precompute_hit_makes_one_model_call(monkeypatch: Any) -> None:
+    """A started complaint is extracted once and reused; the second take is a miss (T-13-07)."""
+    calls: list[str] = []
+    monkeypatch.setattr(extraction_module, "extract_async", _counting_stub(calls))
+    cache = extraction_module.PrecomputeCache()
+
+    async def scenario() -> tuple[ExtractionResult | None, ExtractionResult | None]:
+        await cache.start("chest pain")
+        first = await cache.take("chest pain")
+        second = await cache.take("chest pain")
+        return first, second
+
+    first, second = asyncio.run(scenario())
+
+    assert calls == ["chest pain"]
+    assert first is not None
+    assert second is None
+
+
+def test_cache_miss_returns_none_without_a_model_call(monkeypatch: Any) -> None:
+    """A complaint that was never precomputed costs no model call and degrades to ``None``."""
+    calls: list[str] = []
+    monkeypatch.setattr(extraction_module, "extract_async", _counting_stub(calls))
+    cache = extraction_module.PrecomputeCache()
+
+    assert asyncio.run(cache.take("never started")) is None
+    assert calls == []
+
+
+def test_precompute_failure_degrades(tmp_path: Path, monkeypatch: Any) -> None:
+    """A failed precompute returns ``None`` (no exception) and the normal path still scores."""
+
+    async def failing(complaint: str, **kwargs: Any) -> ExtractionResult:
+        raise RuntimeError("the local model is unavailable")
+
+    monkeypatch.setattr(extraction_module, "extract_async", failing)
+    cache = extraction_module.PrecomputeCache()
+
+    async def scenario() -> ExtractionResult | None:
+        await cache.start("chest pain")
+        return await cache.take("chest pain")
+
+    assert asyncio.run(scenario()) is None
+
+    paused = asyncio.run(submit_case(COMPLETE_CASE, tmp_path / "fallback.db"))
+    assert paused.paused and paused.payload is not None
+    assert paused.payload["colour"]
+    assert paused.payload["citations"]
+
+
+def test_cache_is_bounded(monkeypatch: Any) -> None:
+    """At most ``_MAX_ENTRIES`` precomputes are held; the oldest is cancelled and dropped."""
+    cancelled: list[str] = []
+
+    async def never(complaint: str, **kwargs: Any) -> ExtractionResult:
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled.append(complaint)
+            raise
+
+    monkeypatch.setattr(extraction_module, "extract_async", never)
+    cache = extraction_module.PrecomputeCache()
+
+    async def scenario() -> int:
+        for index in range(extraction_module._MAX_ENTRIES + 1):
+            await cache.start(f"complaint {index}")
+            await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        return len(cache)
+
+    assert asyncio.run(scenario()) == extraction_module._MAX_ENTRIES
+    assert "complaint 0" in cancelled, "the oldest inserted entry was not cancelled"
+
+
+def test_key_is_content_derived() -> None:
+    """The key is the ONE hashing helper over the complaint text — no second hash scheme."""
+    assert extraction_module.complaint_key("a") == extraction_module.complaint_key("a")
+    assert extraction_module.complaint_key("a") != extraction_module.complaint_key("b")
+    assert extraction_module.complaint_key("a") == hash_value({"complaint": "a"})
