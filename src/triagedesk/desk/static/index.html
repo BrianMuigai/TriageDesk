@@ -9,6 +9,7 @@
 <body>
 <main>
 <h1>TriageDesk — triage desk</h1>
+<p class="mode-label">$mode_label</p>
 
 <section class="quickstart-panel" aria-labelledby="quickstart-heading">
   <h2 id="quickstart-heading">Start here</h2>
@@ -34,6 +35,19 @@ $gate
 (function () {
   var form = document.getElementById('vitals-form');
   if (form) {
+    // Precompute: when the complaint text changes, ask the server to start the online
+    // extraction in the background while the nurse finishes the vitals. Same-origin,
+    // relative path, the form's own fields (including the CSRF token), and failures are
+    // ignored — the endpoint is a no-op offline, and a submit still works without it.
+    var complaint = document.getElementById('complaint');
+    if (complaint) {
+      complaint.addEventListener('change', function () {
+        fetch('/precompute', {
+          method: 'POST',
+          body: new URLSearchParams(new FormData(form))
+        }).catch(function () {});
+      });
+    }
     form.addEventListener('submit', function () {
       var button = document.getElementById('submit-vitals');
       if (!button) { return; }

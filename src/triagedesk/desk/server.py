@@ -33,8 +33,16 @@ from urllib.parse import parse_qs
 
 from pydantic import ValidationError
 
+from triagedesk.core.schema import ExtractionResult
 from triagedesk.desk.assets import _ASSETS, STATIC_DIR
-from triagedesk.desk.copy import _FAILURE_COPY, _NO_THREAD_COPY, _SCHEMA_HINT
+from triagedesk.desk.copy import (
+    _FAILURE_COPY,
+    _MODE_OFFLINE,
+    _MODE_ONLINE,
+    _NO_THREAD_COPY,
+    _SCHEMA_HINT,
+)
+from triagedesk.desk.extraction import PrecomputeCache, extract_complaint
 from triagedesk.desk.forms import _CSRF_FIELD, form_to_case
 from triagedesk.desk.gate import editable_colours
 from triagedesk.desk.loop import DeskLoop
@@ -72,6 +80,8 @@ class DeskServer(ThreadingHTTPServer):
     csrf_token: str
     loop: DeskLoop
     db_lock: asyncio.Lock
+    online: bool
+    extraction: PrecomputeCache
 
     def __init__(
         self,
@@ -89,6 +99,11 @@ class DeskServer(ThreadingHTTPServer):
         # One token per server lifetime: minted before any request, so ``GET /`` always
         # renders the token the surface will require on the next POST (WR-01).
         self.csrf_token = secrets.token_urlsafe(32)
+        # The extraction mode and its ONE precompute cache (Plan 13-02). The default is
+        # offline, so a direct construction never calls the model; ``make_server``/``serve``
+        # forward the caller's choice. The cache is only ever touched on ``self.loop``.
+        self.online = False
+        self.extraction = PrecomputeCache()
         # ONE event loop for the server's lifetime: a request never builds and destroys a
         # loop, and an ``await`` leaves the loop free to run another request's coroutine.
         self.loop = DeskLoop()
@@ -157,9 +172,19 @@ class DeskHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _send_empty(self, status: HTTPStatus) -> None:
+        """Send *status* with an empty body (the precompute route's 204)."""
+        self.send_response(status)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def _page(self, **kwargs: Any) -> str:
-        """Render a state with the per-server CSRF token threaded into the forms (WR-01)."""
-        return render_state(csrf_token=self.server.csrf_token, **kwargs)
+        """Render a state with the per-server CSRF token and live mode threaded in."""
+        return render_state(
+            csrf_token=self.server.csrf_token,
+            mode_label=_MODE_ONLINE if self.server.online else _MODE_OFFLINE,
+            **kwargs,
+        )
 
     def _host_ok(self) -> bool:
         """True only for a loopback ``Host`` header (WR-02).
@@ -227,7 +252,7 @@ class DeskHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self) -> None:  # noqa: N802 (stdlib naming)
-        """Dispatch ``/case`` and ``/decision`` over the ONE pause/resume plumbing.
+        """Dispatch ``/case``, ``/decision`` and ``/precompute`` over the ONE plumbing.
 
         Three defences run before dispatch: a non-loopback ``Host`` renders the documented
         failure panel (WR-02), so a DNS-rebinding page cannot satisfy the origin check with a
@@ -237,6 +262,9 @@ class DeskHandler(BaseHTTPRequestHandler):
         or above ``_MAX_BODY_BYTES``) or a body that is not valid UTF-8 renders that panel rather
         than crashing the handler, dropping the connection, or pinning the thread on a body that
         never arrives (IN-01).
+
+        ``/precompute`` sits behind the same preamble as ``/case`` and ``/decision`` (T-13-06),
+        so a cross-origin page cannot trigger a model call: it cannot read the per-server token.
         """
         if not self._host_ok():
             self._send_html(self._page(error=_FAILURE_COPY))
@@ -264,8 +292,43 @@ class DeskHandler(BaseHTTPRequestHandler):
             self._send_html(self._handle_case(form))
         elif path == "/decision":
             self._send_html(self._handle_decision(form))
+        elif path == "/precompute":
+            self._handle_precompute(form)
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
+
+    def _handle_precompute(self, form: Mapping[str, str]) -> None:
+        """Start the background extraction for the posted complaint, or no-op (T-13-07).
+
+        Offline (the default), blank complaint, or an already-precomputed key is a no-op: the
+        route returns 204 without awaiting the model. Otherwise the extraction is started on
+        the ONE desk loop and the request returns immediately — the nurse keeps typing while
+        the model works.
+        """
+        if not self.server.online:
+            self._send_empty(HTTPStatus.NO_CONTENT)
+            return
+        complaint = str(form.get("complaint", ""))
+        if not complaint.strip():
+            self._send_empty(HTTPStatus.NO_CONTENT)
+            return
+        self.server.loop.run(self.server.extraction.start(complaint))
+        self._send_empty(HTTPStatus.NO_CONTENT)
+
+    async def _online_extraction(self, complaint: str) -> ExtractionResult | None:
+        """Resolve the complaint to an extraction: a cache hit, else one in-path call.
+
+        A miss runs exactly one :func:`extract_complaint`; a failure returns ``None`` so the
+        caller takes the normal (offline) path, which yields the same cited colour and never
+        an uncited priority. It runs on the desk loop and never takes the write lock.
+        """
+        cached = await self.server.extraction.take(complaint)
+        if cached is not None:
+            return cached
+        try:
+            return await extract_complaint(complaint)
+        except Exception:  # noqa: BLE001 — a failed extraction degrades to the normal path
+            return None
 
     def _handle_case(self, form: Mapping[str, str]) -> str:
         try:
@@ -286,11 +349,21 @@ class DeskHandler(BaseHTTPRequestHandler):
             # validator is still reported, never an approve (the surface's stated contract).
             return self._page(error=_FAILURE_COPY, form_values=form)
         try:
+            if self.server.online:
+                # Resolve the extraction FIRST, outside the write lock: a cache hit is free,
+                # a miss is one in-path model call, and a failure degrades to None (the normal
+                # offline path). Offline mode passes nothing and calls no model.
+                extraction = self.server.loop.run(
+                    self._online_extraction(case.complaint)
+                )
+                pending = submit_case(
+                    case, self.server.db_path, extraction=extraction
+                )
+            else:
+                pending = submit_case(case, self.server.db_path)
             # ONE loop, one in-loop write lock: the checkpoint file still needs one writer
             # at a time, but the waiting happens inside the loop (IN-03).
-            paused = self.server.loop.run(
-                self.server.serialised(submit_case(case, self.server.db_path))
-            )
+            paused = self.server.loop.run(self.server.serialised(pending))
         except Exception:  # noqa: BLE001 - any failure is reported, never an approve
             return self._page(error=_FAILURE_COPY, form_values=form)
         return self._page(paused=paused, form_values=form)
@@ -358,18 +431,21 @@ def make_server(
     db_path: str | Path,
     *,
     allow_non_loopback: bool = False,
+    online: bool = False,
 ) -> DeskServer:
     """Construct the desk bridge bound to *host* (loopback only — D10-03) over *db_path*.
 
     A non-loopback *host* is refused unless the caller passes ``allow_non_loopback=True``
     explicitly — the surface is an unauthenticated local prototype, so binding a wildcard
     is never the default (WR-02). The refusal lives in :class:`DeskServer` itself (IN-04), so
-    this factory and a direct construction are protected identically.
+    this factory and a direct construction are protected identically. *online* selects the
+    real local extraction on the complaint; the default stays offline (no model call).
     """
     server = DeskServer(
         (host, port), DeskHandler, allow_non_loopback=allow_non_loopback
     )
     server.db_path = Path(db_path)
+    server.online = online
     return server
 
 
@@ -379,13 +455,17 @@ def serve(
     port: int = 8765,
     db_path: str | Path = CHECKPOINTS_DB_PATH,
     allow_non_loopback: bool = False,
+    online: bool = False,
 ) -> None:
     """Serve the desk surface until interrupted (loopback only — D10-03).
 
     A non-loopback *host* is refused unless ``allow_non_loopback=True`` is passed (WR-02).
     The owned event loop is always stopped and joined, even when ``serve_forever`` raises.
+    *online* runs the real local extraction on the complaint; the default is offline.
     """
-    server = make_server(host, port, db_path, allow_non_loopback=allow_non_loopback)
+    server = make_server(
+        host, port, db_path, allow_non_loopback=allow_non_loopback, online=online
+    )
     try:
         server.serve_forever()
     finally:

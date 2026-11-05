@@ -20,6 +20,7 @@ from triagedesk.desk.copy import (
     _EMPTY_HEADING,
     _ESCALATED_COPY,
     _FAILURE_COPY,
+    _MODE_OFFLINE,
     _UNREACHED_COPY,
     recovery_copy,
 )
@@ -235,6 +236,7 @@ def _render(
     form: Mapping[str, str],
     csrf_token: str | None = None,
     field_error: tuple[str, str] | None = None,
+    mode_label: str = _MODE_OFFLINE,
 ) -> str:
     """Substitute the server-rendered regions into the hand-authored page (string.Template).
 
@@ -243,11 +245,14 @@ def _render(
     from *form* (the submitted values), so a rejected submission repopulates the form and — when
     *field_error* names the offending field — renders the schema's own message beside it. The
     ``csrf_field`` region carries the per-server token into the vitals form (WR-01).
+    ``mode_label`` names the live extraction mode (Plan 13-02); it defaults to the offline
+    label, so a direct render states the default truthfully.
     """
     template = string.Template((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
     return template.substitute(
         vitals_fields=_vitals_fields(form, field_error),
         csrf_field=_csrf_field(csrf_token),
+        mode_label=mode_label,
         state_panel=view["state_panel"],
         banner=view["banner"],
         card=view["card"],
@@ -263,6 +268,7 @@ def render_state(
     field_error: tuple[str, str] | None = None,
     form_values: Mapping[str, str] | None = None,
     csrf_token: str | None = None,
+    mode_label: str = _MODE_OFFLINE,
 ) -> str:
     """Render the page for one state: empty, paused card+gate, terminal, decision, or error.
 
@@ -274,13 +280,16 @@ def render_state(
     and renders beside the offending field instead, so the mandated "Check the highlighted field"
     copy is literally true (the UI-SPEC ``## UI Considerations`` ``error | vitals-form`` row).
     *csrf_token* is the per-server secret the rendered forms carry (WR-01); it is optional so a
-    direct (non-request) render — a test or a proof — needs no server.
+    direct (non-request) render — a test or a proof — needs no server. *mode_label* names the
+    live extraction mode (Plan 13-02); a direct render therefore labels the offline default.
     """
     form = form_values or {}
     if result is not None:
-        return _render(_decision_view(result, form), form, csrf_token)
+        return _render(
+            _decision_view(result, form), form, csrf_token, mode_label=mode_label
+        )
     if paused is not None:
-        return _render(_paused_view(paused, csrf_token), form, csrf_token)
+        return _render(_paused_view(paused, csrf_token), form, csrf_token, mode_label=mode_label)
     if error is not None:
         return _render(
             {
@@ -291,6 +300,7 @@ def render_state(
             },
             form,
             csrf_token,
+            mode_label=mode_label,
         )
     if field_error is not None:
         return _render(
@@ -298,5 +308,6 @@ def render_state(
             form,
             csrf_token,
             field_error,
+            mode_label=mode_label,
         )
-    return _render(_empty_view(), form, csrf_token)
+    return _render(_empty_view(), form, csrf_token, mode_label=mode_label)

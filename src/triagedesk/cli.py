@@ -150,6 +150,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="checkpoint file (default: checkpoints.db)",
     )
+    desk_parser.add_argument(
+        "--online",
+        action="store_true",
+        help="run the real local model on the free-text complaint (default: offline)",
+    )
     return parser
 
 
@@ -245,7 +250,12 @@ def main(argv: list[str] | None = None) -> int:
         from triagedesk.desk.server import serve
 
         try:
-            serve(host=args.host, port=args.port, db_path=args.db or CHECKPOINTS_DB_PATH)
+            serve(
+                host=args.host,
+                port=args.port,
+                db_path=args.db or CHECKPOINTS_DB_PATH,
+                online=args.online,
+            )
         except (ValueError, RuntimeError, sqlite3.Error, ExceptionGroup) as exc:
             # A bind failure, a bad ``--db`` or an unexpected runtime error is reported cleanly
             # with a non-zero exit rather than a raw traceback (WR-04). The surface commits

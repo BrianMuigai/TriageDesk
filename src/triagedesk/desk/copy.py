@@ -18,6 +18,16 @@ _BANNER_LOW_CONFIDENCE_BODY = (
 _EMPTY_HEADING = "No case yet"
 _EMPTY_BODY = "Enter the patient's vitals and complaint, then choose Get suggested priority."
 _CARD_FRAMING = "This is a suggestion, not a decision. You confirm the priority."
+# The mode label the page always shows (Plan 13-02): which extraction path is live, and the
+# one fact that never changes — the deterministic scorer decides the colour in both modes.
+_MODE_OFFLINE = (
+    "Offline mode: the desk uses the vitals you enter, and no model is called. "
+    "The deterministic scorer decides the colour."
+)
+_MODE_ONLINE = (
+    "Online mode: the local model reads the complaint text you type. "
+    "The deterministic scorer still decides the colour."
+)
 _READ_ONLY_FRAMING = (
     "Not confirmed and not queued — this is what the system computed from the vitals alone."
 )
