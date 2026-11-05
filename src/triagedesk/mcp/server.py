@@ -41,7 +41,7 @@ from triagedesk.core.schema import (
     PriorityResult,
     RecheckFlag,
 )
-from triagedesk.llm.client import extract
+from triagedesk.llm.client import extract_async
 from triagedesk.observability import current_trace_id, span
 from triagedesk.store import Store, default_store
 from triagedesk.store.audit import append
@@ -204,19 +204,22 @@ def audited(*, approval: bool = False) -> Callable[[Callable[..., Any]], Callabl
 
 @server.tool()
 @audited()
-def normalize_case(raw_note: str) -> ExtractionResult:
+async def normalize_case(raw_note: str) -> ExtractionResult:
     """Parse a triage note into the typed case schema. Read-only.
 
     Single-purpose and contract-typed: it returns the one shared
     ``ExtractionResult`` schema (D-14), so the server contract and the model
     contract cannot drift. Read-only — it never writes to the queue (D-06).
 
-    The model may only *structure* a note; it may not choose a discriminator
-    outside the closed set. Model-returned ids are therefore filtered to the
-    declared set (unknown ids dropped) and ``no_discriminator_matched`` is set
-    when nothing survives (T-02-11). Missing vitals stay ``None`` — never imputed.
+    The extraction is awaited through the async transport, so a slow model call no
+    longer pins the event loop. The contract, the read-only guarantee and the
+    closed-set filter are unchanged: the model may only *structure* a note; it may
+    not choose a discriminator outside the closed set. Model-returned ids are
+    therefore filtered to the declared set (unknown ids dropped) and
+    ``no_discriminator_matched`` is set when nothing survives (T-02-11). Missing
+    vitals stay ``None`` — never imputed.
     """
-    result = extract(raw_note)
+    result = await extract_async(raw_note)
     ids = matcher.validate_discriminator_ids(result.matched_discriminator_ids)
     return result.model_copy(
         update={"matched_discriminator_ids": ids, "no_discriminator_matched": not ids}

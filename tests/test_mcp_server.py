@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from mcp import Client
 
+from conftest import async_return
 from triagedesk.core.schema import CaseInput, ExtractionResult
 from triagedesk.mcp import server as server_module
 
@@ -40,7 +41,7 @@ async def test_owned_server_lists_normalize_case_and_grows_its_tool_surface() ->
 
 
 async def test_owned_server_call_returns_the_shared_schema(monkeypatch) -> None:
-    monkeypatch.setattr(server_module, "extract", lambda note: _stub_result())
+    monkeypatch.setattr(server_module, "extract_async", async_return(_stub_result()))
     async with Client(server_module.server) as client:
         result = await client.call_tool("normalize_case", {"raw_note": "RR 24, alert"})
     assert not result.is_error, f"owned tool errored: {result}"

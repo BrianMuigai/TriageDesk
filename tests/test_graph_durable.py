@@ -11,7 +11,7 @@ checkpointer:
    and the checkpoint file.
 
 The tools are the real owned tools called in-process (only the model is stubbed, via the
-one ``extract`` seam), and the store is the shared in-memory double — so the suite
+one ``extract_async`` seam), and the store is the shared in-memory double — so the suite
 launches no borrowed ``npx mcp-sqlite`` subprocess and no model.
 """
 
@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 from langgraph.types import Command
 
+from conftest import async_return
 from triagedesk.core.schema import ExtractionResult
 from triagedesk.durable import (
     DurableError,
@@ -66,12 +67,12 @@ async def test_restart_resumes_to_one_row_and_one_commit_audit(
 ) -> None:
     """A paused case survives a restart: one queue row, one audit record per tool (D6-12)."""
     case = _case("E-02")
-    # The model is stubbed through the ONE owned ``extract`` seam, so ``normalize_case``
+    # The model is stubbed through the ONE owned ``extract_async`` seam, so ``normalize_case``
     # runs as the real audited owned tool with no model call (offline, deterministic).
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: ExtractionResult(case=case.case, matched_discriminator_ids=[]),
+        "extract_async",
+        async_return(ExtractionResult(case=case.case, matched_discriminator_ids=[])),
     )
     tools = build_tools(case, offline=False, recorder=UsageRecorder())
     thread_id = derive_thread_id(case.note)
@@ -146,8 +147,8 @@ async def test_edit_resume_supersedes_on_the_durable_path(
     case = _case("E-02")
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: ExtractionResult(case=case.case, matched_discriminator_ids=[]),
+        "extract_async",
+        async_return(ExtractionResult(case=case.case, matched_discriminator_ids=[])),
     )
     tools = build_tools(case, offline=False, recorder=UsageRecorder())
     thread_id = derive_thread_id(case.note)

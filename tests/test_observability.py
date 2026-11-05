@@ -26,6 +26,7 @@ from typing import Any
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 
+from conftest import async_return
 from triagedesk.core.schema import CaseInput, ExtractionResult
 from triagedesk.durable import derive_thread_id
 from triagedesk.evals.case import CaseSpec, load_cases
@@ -156,8 +157,8 @@ async def test_audit_trace_id_round_trips_through_the_borrowed_store(
     await store.ensure_schema()
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: ExtractionResult(case=CaseInput(), matched_discriminator_ids=[]),
+        "extract_async",
+        async_return(ExtractionResult(case=CaseInput(), matched_discriminator_ids=[])),
     )
 
     server_module.set_store(store)
@@ -191,8 +192,8 @@ async def test_a_span_sink_failure_never_breaks_the_tool_or_its_audit_record(
     (tmp_path / SPANS_PATH.name).mkdir()  # the fixture's sink path is now a directory
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: ExtractionResult(case=CaseInput(), matched_discriminator_ids=[]),
+        "extract_async",
+        async_return(ExtractionResult(case=CaseInput(), matched_discriminator_ids=[])),
     )
 
     bind_trace("tr-sink-fail")
@@ -222,8 +223,8 @@ async def test_an_owned_tool_without_a_bound_trace_records_an_empty_trace_id(
     bind_trace("")  # what a fresh process — the owned stdio subprocess — sees
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: ExtractionResult(case=CaseInput(), matched_discriminator_ids=[]),
+        "extract_async",
+        async_return(ExtractionResult(case=CaseInput(), matched_discriminator_ids=[])),
     )
 
     await server_module.normalize_case("chest pain")
@@ -273,8 +274,8 @@ async def test_node_spans_carry_the_content_trace_id(
     case = _case("E-02")
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: ExtractionResult(case=case.case, matched_discriminator_ids=[]),
+        "extract_async",
+        async_return(ExtractionResult(case=case.case, matched_discriminator_ids=[])),
     )
     tools = build_tools(case, offline=False, recorder=UsageRecorder())
     graph = build_graph(tools, checkpointer=InMemorySaver())
@@ -339,8 +340,8 @@ async def test_offline_run_emits_no_model_span(
     case = _case("E-02")
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: ExtractionResult(case=case.case, matched_discriminator_ids=[]),
+        "extract_async",
+        async_return(ExtractionResult(case=case.case, matched_discriminator_ids=[])),
     )
     tools = build_tools(case, offline=False, recorder=UsageRecorder())
     graph = build_graph(tools, checkpointer=InMemorySaver())

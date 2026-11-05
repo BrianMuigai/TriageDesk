@@ -16,6 +16,7 @@ from typing import Any
 
 from mcp import Client
 
+from conftest import async_return
 from triagedesk.core.rules import get_discriminators
 from triagedesk.core.schema import (
     CaseInput,
@@ -52,8 +53,8 @@ async def test_normalize_case_drops_unknown_and_keeps_valid_ids(monkeypatch) -> 
     unknown = "not_a_declared_discriminator"
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: _extraction([valid, unknown], respiratory_rate=24),
+        "extract_async",
+        async_return(_extraction([valid, unknown], respiratory_rate=24)),
     )
 
     async with Client(server_module.server) as client:
@@ -69,8 +70,8 @@ async def test_normalize_case_drops_unknown_and_keeps_valid_ids(monkeypatch) -> 
 async def test_normalize_case_leaves_a_missing_vital_none(monkeypatch) -> None:
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: _extraction([_first_discriminator_id()], respiratory_rate=24),
+        "extract_async",
+        async_return(_extraction([_first_discriminator_id()], respiratory_rate=24)),
     )
 
     async with Client(server_module.server) as client:
@@ -86,8 +87,8 @@ async def test_normalize_case_leaves_a_missing_vital_none(monkeypatch) -> None:
 async def test_normalize_case_reports_no_match_when_all_ids_are_unknown(monkeypatch) -> None:
     monkeypatch.setattr(
         server_module,
-        "extract",
-        lambda note: _extraction(["bogus_one", "bogus_two"], heart_rate=80),
+        "extract_async",
+        async_return(_extraction(["bogus_one", "bogus_two"], heart_rate=80)),
     )
 
     async with Client(server_module.server) as client:

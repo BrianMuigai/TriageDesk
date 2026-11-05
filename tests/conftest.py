@@ -10,7 +10,7 @@ exercised against the fake rather than the borrowed default.
 from __future__ import annotations
 
 import ast
-from collections.abc import Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -196,6 +196,41 @@ def injected_store(memory_store: RecordingStore) -> Iterator[RecordingStore]:
         yield memory_store
     finally:
         server_module.set_store(None)
+
+
+def async_return(value: Any) -> Callable[..., Awaitable[Any]]:
+    """An async stub returning *value* — the ONE shape for stubbing the async model seam.
+
+    ``normalize_case`` now awaits ``extract_async``, so a test that stubs the model must
+    hand it a coroutine (not the old sync lambda). This keeps the stub's returned value
+    explicit and identical to what the sync seam used to return.
+    """
+
+    async def stub(*args: Any, **kwargs: Any) -> Any:
+        return value
+
+    return stub
+
+
+@pytest.fixture(autouse=True)
+def _model_seam_is_stubbed() -> Iterator[None]:
+    """Fail loudly when a test forgets to stub the async model call.
+
+    ``normalize_case`` awaits ``server_module.extract_async``; this autouse fixture
+    replaces it with a stub that raises, so a missed patch site fails the test instead of
+    reaching Ollama. A test's own ``monkeypatch.setattr`` runs after this fixture and
+    therefore wins.
+    """
+    original = server_module.extract_async
+
+    async def unpatched(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("unpatched model call")
+
+    server_module.extract_async = unpatched
+    try:
+        yield
+    finally:
+        server_module.extract_async = original
 
 
 @pytest.fixture(autouse=True)
