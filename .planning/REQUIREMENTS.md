@@ -44,7 +44,7 @@
 
 ### Adaptive investigation
 
-- [ ] **ADAPT-01**: The graph has a `plan` node that, before scoring, chooses exactly one next action from
+- [x] **ADAPT-01**: The graph has a `plan` node that, before scoring, chooses exactly one next action from
   a **closed, typed** set — `gather_evidence`, `ask_question`, `re_extract`, `finish_investigation`. The
   action set and its admissibility rules are declared once; no node inlines a second copy.
 
@@ -54,7 +54,7 @@
   malformed, unparseable, or the budget is spent. The model is never the authority, and a bad proposal can
   never widen what the graph is able to do.
 
-- [ ] **ADAPT-03**: The safety kernel is a **non-skippable suffix**: `finish_investigation` is the only edge
+- [x] **ADAPT-03**: The safety kernel is a **non-skippable suffix**: `finish_investigation` is the only edge
   into `score`, and `score → ground → verify → recheck → assess → approval_gate → commit → handover` is
   unchanged. A structural test proves by graph inspection that no investigation node reaches `score`,
   `approval_gate` or `commit`, and that `commit` still has exactly one inbound edge.
@@ -64,7 +64,7 @@
   nurse answer, a re-extraction hint). No investigation action writes `priority`, `commit_result`, or a
   queue row, and none may emit a colour.
 
-- [ ] **ADAPT-05**: Each planner decision is a typed contract recorded in the audit trail and the span
+- [x] **ADAPT-05**: Each planner decision is a typed contract recorded in the audit trail and the span
   stream — action, rationale, the signals it used, and the step index — so an auditor can answer
   "why did it do that next?" from the record alone, without re-running the case.
 
@@ -74,7 +74,7 @@
   unresolved case that exhausts its budget still cannot deliver on a guess — the deterministic `assess`
   decides, and an ambiguous case defers.
 
-- [ ] **ADAPT-07**: `re_extract` is **monotone**: it may fill a field that is missing, and it never
+- [x] **ADAPT-07**: `re_extract` is **monotone**: it may fill a field that is missing, and it never
   overwrites a recorded vital, the original note, or a nurse's answer. A stated value always wins over a
   re-read value.
 

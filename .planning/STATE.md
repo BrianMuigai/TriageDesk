@@ -2,19 +2,19 @@
 gsd_state_version: "1.0"
 milestone: v1.3
 milestone_name: Adaptive Triage
-current_phase: 23
-current_phase_name: Adaptive graph — the `plan` node, the bounded loop, and the frozen-kernel proof
+current_phase: 24
+current_phase_name: Measure the adaptivity, publish it honestly, and answer the reviewer
 status: planning
-stopped_at: Phase 22 complete (2/2 plans), ready to plan Phase 23
-last_updated: "2026-11-13T22:31:08.688Z"
+stopped_at: Phase 23 complete, ready to plan Phase 24
+last_updated: "2026-11-13T23:18:25.632Z"
 last_activity: 2026-11-14
-last_activity_desc: Phase 22 complete, transitioned to Phase 23
-state_head: beb836fd60dd5be4f15c216eb43021d01fc6c383
+last_activity_desc: Phase 23 complete, transitioned to Phase 24
+state_head: 903b471464d72324a6b44c6f2f2b914034cfefd2
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 8
-  completed_plans: 10
+  total_plans: 11
+  completed_plans: 11
   percent: 67
 ---
 
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 
 ## Current Position
 
-Phase: 23 — Adaptive graph — the `plan` node, the bounded loop, and the frozen-kernel proof
+Phase: 24 — Measure the adaptivity, publish it honestly, and answer the reviewer
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-11-14 — Phase 22 complete, transitioned to Phase 23
+Last activity: 2026-11-14 — Phase 23 complete, transitioned to Phase 24
 
 ## Reviewer Challenge (drives this milestone)
 
@@ -78,6 +78,7 @@ and **no MCP elicitation (G7)**. v1.3 answers with behaviour + a structural proo
 | 20 | 4 | - | - |
 | 21 | 3 | - | - |
 | 22 | 3 | - | - |
+| 23 | 4 | - | - |
 
 **Recent Trend:**
 
@@ -263,7 +264,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-14T00:00:00.000Z
-Stopped at: Phase 22 complete, ready to plan Phase 23
+Stopped at: Phase 23 complete, ready to plan Phase 24
 Resume file: None
 
 ## Operator Next Steps

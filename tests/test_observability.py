@@ -26,7 +26,7 @@ from typing import Any
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 
-from conftest import async_return
+from conftest import async_return, stub_planner_seam
 from triagedesk.core.schema import CaseInput, ExtractionResult
 from triagedesk.durable import derive_thread_id
 from triagedesk.evals.case import CaseSpec, load_cases
@@ -277,6 +277,7 @@ async def test_node_spans_carry_the_content_trace_id(
         "extract_async",
         async_return(ExtractionResult(case=case.case, matched_discriminator_ids=[])),
     )
+    stub_planner_seam(monkeypatch)
     tools = build_tools(case, offline=False, recorder=UsageRecorder())
     graph = build_graph(tools, checkpointer=InMemorySaver())
     thread_id = derive_thread_id(case.note)
@@ -343,6 +344,7 @@ async def test_offline_run_emits_no_model_span(
         "extract_async",
         async_return(ExtractionResult(case=case.case, matched_discriminator_ids=[])),
     )
+    stub_planner_seam(monkeypatch)
     tools = build_tools(case, offline=False, recorder=UsageRecorder())
     graph = build_graph(tools, checkpointer=InMemorySaver())
 

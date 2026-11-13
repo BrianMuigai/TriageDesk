@@ -154,13 +154,13 @@ Plans:
 **Goal:** The graph investigates adaptively before it scores — `plan → action → plan … → finish_investigation` inside a hard budget — and a structural test proves no investigation node can reach `score`, the gate or the commit, with every decision audited and re-extraction monotone.
 **Requirements**: ADAPT-01, ADAPT-03, ADAPT-05, ADAPT-07
 **Depends on:** Phase 22
-**Plans:** 0/3 plans complete
+**Plans:** 4/3 plans complete
 
 Plans:
 
-- [ ] 23-01-PLAN.md — `plan` node + `gather_evidence` / `ask_question` / `re_extract` / `finish_investigation`; loop back through `retrieve`; monotone merge; TRACER_NODES updated
-- [ ] 23-02-PLAN.md — Structural proof: `finish_investigation` is the only edge into `score`; `commit` keeps one inbound edge; no investigation node writes `priority`/`commit_result`
-- [ ] 23-03-PLAN.md — Decision audit + span facts (action, rationale, signals, step index) and a replayable "why next?" record
+- [x] 23-01-PLAN.md — `plan` node + `gather_evidence` / `ask_question` / `re_extract` / `finish_investigation`; loop back through `retrieve`; monotone merge; TRACER_NODES updated
+- [x] 23-02-PLAN.md — Structural proof: `finish_investigation` is the only edge into `score`; `commit` keeps one inbound edge; no investigation node writes `priority`/`commit_result`
+- [x] 23-03-PLAN.md — Decision audit + span facts (action, rationale, signals, step index) and a replayable "why next?" record
 
 ### Phase 24: Measure the adaptivity, publish it honestly, and answer the reviewer
 
