@@ -187,6 +187,8 @@ def test_topology_has_the_pre_check_and_both_arms() -> None:
     assert ("ingest", "emergency_check") in edges
     assert ("emergency_check", "retrieve") in edges
     assert ("emergency_check", "normalize") in edges
-    # The fast arm rejoins the unchanged kernel; nothing downstream was rewired.
-    assert ("retrieve", "score") in edges
+    # The fast arm rejoins the kernel through the ONE door; nothing downstream was rewired.
+    assert ("retrieve", "finish_investigation") in edges
+    assert ("retrieve", "plan") in edges
+    assert ("finish_investigation", "score") in edges
     assert ("normalize", "retrieve") in edges

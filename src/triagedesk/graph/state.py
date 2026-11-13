@@ -20,6 +20,8 @@ from triagedesk.core.schema import (
     Escalation,
     EvidenceResult,
     HandoverCard,
+    InvestigationFacts,
+    PlanDecision,
     PriorityResult,
     RecheckFlag,
     RecoveryRequest,
@@ -81,3 +83,13 @@ class TriageState(TypedDict, total=False):
     # needs no reducer: ``ground`` is the only writer and its value is a pure function of
     # the complaint (last-write-wins is correct).
     evidence: EvidenceResult | None
+    # The bounded investigation loop (ADAPT-01/06). ``plan`` is the current decision and
+    # ``investigation`` the typed accumulator; both have exactly ONE writer — the ``plan``
+    # node — so the step counter and the action history cannot be advanced twice. The
+    # emergency arm skips ``plan`` entirely, so both stay unset on that path.
+    plan: PlanDecision | None
+    investigation: InvestigationFacts
+    # The nurse's accepted clarification answers (ELICIT-08): observations appended to the
+    # case facts, never an approval and never a colour. ONE writer (``ask_question``); the
+    # ``retrieve`` node re-matches against the note plus these answers.
+    nurse_answers: list[str]

@@ -36,12 +36,16 @@ from triagedesk.observability.spans import read_spans
 NOTE = "44 year old, walking, alert. RR 30, HR 130, systolic BP 70, temperature 37.0, no trauma."
 
 # The executed node order each arm must have. The fast arm is the normal arm minus the
-# ONE node it skips; nothing else may differ (EMERG-01, EMERG-04).
+# TWO nodes it skips — extraction and the planner: a fired verdict never asks the model
+# for a next step (EMERG-01, EMERG-04, ADAPT-03). Both arms enter the kernel through
+# `finish_investigation`, so nothing downstream differs.
 NORMAL_ORDER = [
     "ingest",
     "emergency_check",
     "normalize",
     "retrieve",
+    "plan",
+    "finish_investigation",
     "score",
     "ground",
     "verify",
@@ -49,7 +53,7 @@ NORMAL_ORDER = [
     "assess",
     "approval_gate",
 ]
-FAST_ORDER = [name for name in NORMAL_ORDER if name != "normalize"]
+FAST_ORDER = [name for name in NORMAL_ORDER if name not in ("normalize", "plan")]
 
 _KERNEL_TOOLS = (
     "match_discriminators",
@@ -161,7 +165,7 @@ async def test_emergency_check_emits_one_span_with_the_trace_id() -> None:
 
 
 async def test_normal_arm_runs_the_unchanged_sequence() -> None:
-    """The normal arm extracts and keeps today's node order plus the pre-check (EMERG-04)."""
+    """The normal arm extracts and keeps today's node order plus the pre-check and the loop."""
     calls: list[tuple[str, Any]] = []
     app = build_graph(
         build_graph_tools(case=COMPLETE_CASE, calls=calls),

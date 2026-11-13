@@ -27,7 +27,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
-from conftest import async_return
+from conftest import async_return, stub_planner_seam
 from triagedesk.core.rules import get_tews
 from triagedesk.core.schema import ExtractionResult, InterruptType
 from triagedesk.durable import (
@@ -82,6 +82,7 @@ async def test_restart_resumes_to_one_row_and_one_commit_audit(
         "extract_async",
         async_return(ExtractionResult(case=case.case, matched_discriminator_ids=[])),
     )
+    stub_planner_seam(monkeypatch)
     tools = build_tools(case, offline=False, recorder=UsageRecorder())
     thread_id = derive_thread_id(case.note)
     config = {"configurable": {"thread_id": thread_id}}
@@ -158,6 +159,7 @@ async def test_edit_resume_supersedes_on_the_durable_path(
         "extract_async",
         async_return(ExtractionResult(case=case.case, matched_discriminator_ids=[])),
     )
+    stub_planner_seam(monkeypatch)
     tools = build_tools(case, offline=False, recorder=UsageRecorder())
     thread_id = derive_thread_id(case.note)
     approver, role = "Dr A. Nurse", "triage clinician"

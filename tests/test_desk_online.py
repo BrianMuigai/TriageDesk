@@ -21,7 +21,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from conftest import COMPLETE_CASE, async_return
+from conftest import COMPLETE_CASE, async_return, stub_planner_seam
 from test_desk import (
     _base,
     _csrf_token,
@@ -71,6 +71,7 @@ def test_online_and_offline_yield_the_same_colour_and_citations(
 
     stub = _extraction(CaseInput(spo2=88, diastolic_bp=50, complaint="central chest pain"))
     monkeypatch.setattr(extraction_module, "extract_async", async_return(stub))
+    stub_planner_seam(monkeypatch)
     extracted = asyncio.run(extract_complaint(COMPLETE_CASE.complaint))
     online = asyncio.run(submit_case(COMPLETE_CASE, tmp_path / "online.db", extraction=extracted))
 
@@ -308,6 +309,7 @@ def test_precompute_starts_one_background_extraction(
         return _extraction(ids=[])
 
     monkeypatch.setattr(extraction_module, "extract_complaint", counting)
+    stub_planner_seam(monkeypatch)
 
     with _running_server(tmp_path / "checkpoints.db", online=True) as server:
         base = _base(server)
@@ -330,6 +332,7 @@ def test_precompute_is_a_no_op_offline(tmp_path: Path, monkeypatch: Any) -> None
         return _extraction(ids=[])
 
     monkeypatch.setattr(extraction_module, "extract_complaint", counting)
+    stub_planner_seam(monkeypatch)
 
     with _running_server(tmp_path / "checkpoints.db") as server:
         status, body = _post_status(
@@ -352,6 +355,7 @@ def test_online_case_submit_reuses_the_precomputed_extraction(
         return _extraction(ids=[])
 
     monkeypatch.setattr(extraction_module, "extract_complaint", counting)
+    stub_planner_seam(monkeypatch)
 
     with _running_server(tmp_path / "checkpoints.db", online=True) as server:
         base = _base(server)

@@ -493,6 +493,28 @@ class PlanDecision(BaseModel):
     override_reason: str | None = None
 
 
+class InvestigationFacts(BaseModel):
+    """The investigation accumulator the graph carries across the bounded loop (ADAPT-01/06).
+
+    ``steps`` is the number of plan decisions already taken — the ONE counter the next
+    ``InvestigationState`` derives its ``step`` and ``budget_left`` from, so the budget cannot
+    be reset by a node that forgets to decrement it. ``history`` is the ordered list of chosen
+    actions (the policy never offers an action twice); ``answers`` are the nurse's accepted
+    clarifications (observations, never a decision); ``guard_overrides`` counts how often the
+    deterministic guard replaced the model's proposal — the measured cost of a weak model.
+
+    Like :class:`PlanDecision` it carries no colour, priority, approval, queue or commit field,
+    so an investigation fact is *unable* to express a clinical decision (ADAPT-04). It lives in
+    the ONE schema module, which is also where ``graph/build`` derives the checkpointer's
+    state-type allowlist, so a paused investigation round-trips with no second list to maintain.
+    """
+
+    steps: int = Field(default=0, ge=0)
+    history: list[PlanAction] = Field(default_factory=list)
+    answers: list[str] = Field(default_factory=list)
+    guard_overrides: int = Field(default=0, ge=0)
+
+
 class ApprovalToken(BaseModel):
     """The named-clinician approval the queue-affecting gate requires (D-05, TOOL-05).
 

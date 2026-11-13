@@ -22,6 +22,7 @@ import functools
 import inspect
 from collections.abc import AsyncIterator, Iterable, Mapping
 from contextlib import asynccontextmanager
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -33,7 +34,7 @@ from pydantic import BaseModel
 
 from triagedesk.core import emergency as emergency_module
 from triagedesk.core import schema as schema_module
-from triagedesk.core.schema import CaseInput
+from triagedesk.core.schema import CaseInput, PlanAction, PlanDecision
 from triagedesk.graph.nodes import NodeFn, ToolMap, case_id_for_note, make_nodes
 from triagedesk.graph.state import TriageState
 from triagedesk.observability import bind_trace, span
@@ -57,6 +58,8 @@ __all__ = [
     "open_checkpointer",
     "route_after_emergency",
     "route_after_normalize",
+    "route_after_plan",
+    "route_after_retrieve",
     "route_after_score",
     "route_after_assess",
     "route_after_verify",
@@ -69,9 +72,9 @@ __all__ = [
 # capabilities the agent can reach (T-03-23). The owned surface is nine tools; the
 # same nine-name set is mirrored at the harness, the test fake and the exact-set
 # assertion, which must move together or composition raises (D9-05).
-# ``plan_next_step`` and ``request_clarification`` are the v1.3 substrate tools: they are
-# allowlisted and callable, but NO node calls them yet — the graph topology is unchanged
-# until Phase 23 wires the ``plan`` node.
+# ``plan_next_step`` and ``request_clarification`` are the v1.3 investigation tools: the
+# ``plan`` node and the ``ask_question`` node call them (Phase 23), so all nine names are
+# on the shipped path and the allowlist is exactly the callable surface.
 OWNED_TOOL_ALLOWLIST: tuple[str, ...] = (
     "normalize_case",
     "match_discriminators",
@@ -111,6 +114,14 @@ TRACER_NODES: tuple[str, ...] = (
     "emergency_check",
     "normalize",
     "retrieve",
+    # The bounded investigation loop (ADAPT-01): `retrieve -> plan -> action -> plan …` and
+    # `finish_investigation` as the ONE door into the kernel. The emergency arm skips `plan`
+    # and enters `finish_investigation` directly, so the kernel's inbound edge is exact.
+    "plan",
+    "gather_evidence",
+    "ask_question",
+    "re_extract",
+    "finish_investigation",
     "score",
     "ground",
     "verify",
@@ -148,6 +159,40 @@ def route_after_normalize(state: TriageState) -> str:
     if state.get("route") == "escalate":
         return "escalate"
     return "retrieve"
+
+
+def route_after_retrieve(state: TriageState) -> str:
+    """Choose the next node after ``retrieve`` — the emergency bypass or the planner (ADAPT-01).
+
+    A fired emergency verdict goes straight to ``finish_investigation``: the vitals already
+    carry the answer, so the model does not get a turn to delay the patient (EMERG-01/03).
+    Every other case enters the bounded investigation loop at ``plan``.
+
+    Both arms enter the kernel through ``finish_investigation``, which is what keeps
+    ``predecessors("score") == {"finish_investigation"}`` exact rather than approximate
+    (ADAPT-03).
+    """
+    verdict = state.get("emergency_verdict")
+    if verdict is not None and verdict.fired:
+        return "finish_investigation"
+    return "plan"
+
+
+def route_after_plan(state: TriageState) -> str:
+    """Choose the next node from the decision the guard honoured (ADAPT-01, ADAPT-03).
+
+    The returned token is the decision's own ``PlanAction`` value, which is also the node
+    name for that action — so the closed set of actions and the set of reachable nodes are
+    one declaration (``core.schema.PlanAction``), and a new action cannot be routed in one
+    place and forgotten in another (DRY).
+
+    ``finish_investigation`` is the only value that reaches ``score``. A plan that is absent
+    (an impossible state on this arm) degrades to the exit, so the kernel still runs.
+    """
+    decision = state.get("plan")
+    if isinstance(decision, PlanDecision):
+        return decision.action.value
+    return PlanAction.FINISH_INVESTIGATION.value
 
 
 def route_after_score(state: TriageState) -> str:
@@ -247,13 +292,18 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
     """Compile the tracer graph over the injected ``tools`` mapping (D-01, D-13).
 
     ``START -> ingest -> emergency_check -> (fast: retrieve | normal: normalize) ->
-    (retrieve -> score | escalate) -> (score: escalate | request_missing_info | ground) ->
-    (ground -> verify) -> (verify -> recheck) -> assess -> (approval_gate -> commit ->
-    handover | escalate | request_missing_info) -> END``. The ``emergency_check``,
-    ``normalize``, ``score``, ``verify`` and ``assess`` edges are conditional; the fast arm
-    skips ``normalize`` ONLY (EMERG-01) and rejoins the kernel at ``retrieve``. The
-    recovery/abstention terminals have no edge to ``commit``, and a deferral from
-    ``assess`` only reaches those terminals (D8-12).
+    (retrieve -> finish_investigation | plan) -> (plan -> gather_evidence | ask_question |
+    re_extract | finish_investigation) -> finish_investigation -> score -> (score: escalate |
+    request_missing_info | ground) -> (ground -> verify) -> (verify -> recheck) -> assess ->
+    (approval_gate -> commit -> handover | escalate | request_missing_info) -> END``.
+
+    The ``emergency_check``, ``normalize``, ``retrieve``, ``plan``, ``score``, ``verify`` and
+    ``assess`` edges are conditional. The fast arm skips ``normalize`` ONLY (EMERG-01) and
+    rejoins the kernel at ``finish_investigation``; the investigation loop runs between
+    ``retrieve`` and ``finish_investigation`` and every one of its actions loops back to the
+    planner (or to retrieval) — none of them has an edge to ``score`` (ADAPT-03). The
+    recovery/abstention terminals have no edge to ``commit``, and a deferral from ``assess``
+    only reaches those terminals (D8-12).
     ``ground`` sits between ``score`` and ``verify`` and is ROUTING-NEUTRAL (D9-07/D9-08):
     it writes only its own ``evidence`` channel and is wired by a plain edge, so no router
     reads it and the path taken is unchanged. ``checkpointer`` is injected so the same
@@ -281,7 +331,28 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
         route_after_normalize,
         {"escalate": "escalate", "retrieve": "retrieve"},
     )
-    graph.add_edge("retrieve", "score")
+    # ``retrieve`` is the fork between the deterministic bypass and the bounded
+    # investigation loop (ADAPT-01). Both arms converge on ``finish_investigation``, the
+    # kernel's ONLY inbound edge, so the emergency arm skips ``plan`` and nothing else.
+    graph.add_conditional_edges(
+        "retrieve",
+        route_after_retrieve,
+        {"finish_investigation": "finish_investigation", "plan": "plan"},
+    )
+    # The plan's edge map is DERIVED from the closed action set: every action's value is the
+    # node that implements it, so the router cannot name a node the planner cannot choose.
+    graph.add_conditional_edges(
+        "plan",
+        route_after_plan,
+        {action.value: action.value for action in PlanAction},
+    )
+    # The investigation actions are read-only and all but the exit loop back: evidence and a
+    # re-extraction return to the planner, a question returns to retrieval so the answer is
+    # matched. None of them has an edge to ``score`` (ADAPT-03).
+    graph.add_edge("gather_evidence", "plan")
+    graph.add_edge("ask_question", "retrieve")
+    graph.add_edge("re_extract", "retrieve")
+    graph.add_edge("finish_investigation", "score")
     graph.add_conditional_edges(
         "score",
         route_after_score,
@@ -421,6 +492,12 @@ def _allowed_msgpack_modules() -> list[tuple[str, str]]:
     deserialise an arbitrary type from a tampered checkpoint. ``core.emergency`` is listed
     explicitly because a blocked type is silently downgraded to a plain dict on resume,
     which would erase the verdict's type (EMERG-05).
+
+    Enums declared in those modules are part of the allowlist too: a state contract carries
+    them as members (``InvestigationFacts.history`` is a ``list[PlanAction]``, the interrupt
+    vocabulary is ``InterruptType``), and a blocked enum is silently downgraded to a bare
+    ``str`` on resume — the same class of loss as a blocked model. The scan is by module, so
+    it stays one rule instead of a growing literal list.
     """
     state_modules = (schema_module, emergency_module)
     return [
@@ -428,6 +505,6 @@ def _allowed_msgpack_modules() -> list[tuple[str, str]]:
         for module in state_modules
         for name, obj in vars(module).items()
         if isinstance(obj, type)
-        and issubclass(obj, BaseModel)
+        and issubclass(obj, (BaseModel, Enum))
         and obj.__module__ == module.__name__
     ]

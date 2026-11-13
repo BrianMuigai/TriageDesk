@@ -213,6 +213,19 @@ def async_return(value: Any) -> Callable[..., Awaitable[Any]]:
     return stub
 
 
+def stub_planner_seam(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make the planner's model propose nothing — the deterministic baseline arm.
+
+    A test that stubs only ``extract_async`` still leaves the planner's own model call
+    reachable (the investigation loop asks for a proposal before scoring), and the autouse
+    ``_model_seam_is_stubbed`` guard correctly fails such a run. Stubbing the proposal to
+    ``None`` exercises the SHIPPED guard's missing-proposal path, which substitutes
+    ``finish_investigation``, so the test observes the same deterministic run it did before
+    the loop existed — without pretending a model answered.
+    """
+    monkeypatch.setattr(server_module, "propose_plan_async", async_return(None))
+
+
 @pytest.fixture(autouse=True)
 def _model_seam_is_stubbed() -> Iterator[None]:
     """Fail loudly when a test forgets to stub the async model calls.

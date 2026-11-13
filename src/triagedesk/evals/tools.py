@@ -26,6 +26,7 @@ from collections.abc import Awaitable, Callable, Iterator, Mapping
 from contextlib import contextmanager
 from typing import Any
 
+from triagedesk.core import planner
 from triagedesk.core.schema import (
     CaseInput,
     ExtractionResult,
@@ -161,11 +162,13 @@ def _tool_map(
         return await server_module.retrieve_evidence(str(inp["complaint"]))
 
     async def plan_next_step(inp: Mapping[str, Any]) -> Any:
-        # The planner substrate is allowlisted but not yet called by any node (Phase 23 wires
-        # it). It is the REAL owned tool, so a future node sees the shipped guard, not a copy.
-        return await server_module.plan_next_step(
-            InvestigationState.model_validate(inp["investigation"])
-        )
+        # Offline mode stubs the MODEL — and the planner's proposal is a model call too. The
+        # deterministic default is the baseline arm, so the offline CI gate never reaches
+        # Ollama and stays reproducible. Real mode calls the shipped tool, guard included.
+        state = InvestigationState.model_validate(inp["investigation"])
+        if offline:
+            return planner.default_plan(state)
+        return await server_module.plan_next_step(state)
 
     async def request_clarification(inp: Mapping[str, Any]) -> Any:
         # Allowlisted, not yet called by any node (Phase 23). ``ctx=None`` is the honest

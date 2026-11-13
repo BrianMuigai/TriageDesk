@@ -198,6 +198,20 @@ def _make_normalize(tools: ToolMap) -> NodeFn:
     return normalize
 
 
+def _rematch_text(text: str, answers: list[str]) -> str:
+    """The complaint plus the nurse's accepted answers — the text ``retrieve`` matches against.
+
+    A clarification answer is an observation about this patient (ELICIT-08), so it belongs in
+    the text the matcher reads: that is what lets one question resolve an ambiguous complaint
+    on the next ``retrieve``. The matcher's closed-set authority reads the *complaint*
+    argument, so the answer joins that text — the recorded ``case`` (and the note) are never
+    rewritten. With no answers the text is returned unchanged, so a routine case matches
+    exactly what it matched before the investigation loop existed.
+    """
+    extra = " ".join(answer.strip() for answer in answers if answer.strip())
+    return f"{text} {extra}".strip() if extra else text
+
+
 def _make_retrieve(tools: ToolMap) -> NodeFn:
     """Build the ``retrieve`` node over the injected tool mapping (D-05, D-06)."""
 
@@ -208,12 +222,22 @@ def _make_retrieve(tools: ToolMap) -> NodeFn:
         ``retrieval_status``/``candidates``/``questions`` are copied into the state so
         ``assess`` can decide whether one question would resolve the case. They never
         add an id to ``matched_ids`` — the scored colour is unchanged.
+
+        The complaint text is the case's complaint plus any accepted clarification answer
+        (``_rematch_text``), so re-entering this node after ``ask_question`` re-matches
+        against the freshest facts. The matcher is still the ONLY authority for which ids
+        match, and the note stays the recorded clinical note.
         """
         case = state["case"]
         match = parse_tool_result(
             MatchResult,
             await tools["match_discriminators"](
-                {"complaint": case.complaint, "note": str(state.get("raw_note") or "")}
+                {
+                    "complaint": _rematch_text(
+                        case.complaint, list(state.get("nurse_answers") or [])
+                    ),
+                    "note": str(state.get("raw_note") or ""),
+                }
             ),
         )
         return {
@@ -242,8 +266,13 @@ def _make_score(tools: ToolMap) -> NodeFn:
     return score
 
 
-def _make_ground(tools: ToolMap) -> NodeFn:
-    """Build the ``ground`` node over the injected tool mapping (D9-07, D9-08)."""
+def make_ground(tools: ToolMap) -> NodeFn:
+    """Build the ``ground`` node over the injected tool mapping (D9-07, D9-08).
+
+    Public because the investigation loop's ``gather_evidence`` action IS this node: the
+    "retrieve the attributable evidence" behaviour has exactly ONE implementation, shared by
+    the adaptive step and the post-score advisory step (DRY, SOLID: S).
+    """
 
     async def ground(state: TriageState) -> dict[str, Any]:
         """Surface attributable retrieval evidence in its OWN channel (D9-07, D9-08).
@@ -254,7 +283,13 @@ def _make_ground(tools: ToolMap) -> NodeFn:
         advisory retrieval can never touch the scored colour. The node touches NO model
         and writes NO store. ``ground`` runs once per scored case because ``verify`` has
         no retry edge; it still writes only ``evidence``.
+
+        When evidence is already in hand — ``gather_evidence`` ran in the investigation
+        loop — it writes nothing: the value is a pure function of the complaint, so a
+        second fetch would be identical work and a duplicate audit record.
         """
+        if state.get("evidence") is not None:
+            return {}
         case = state["case"]
         result = parse_tool_result(
             EvidenceResult,
@@ -530,14 +565,22 @@ def make_nodes(tools: ToolMap) -> dict[str, NodeFn]:
     The mapping is the graph's ONLY dependency on the outside world; the tool
     callables are injected here and never imported, so the graph stays decoupled
     from the adapter (SOLID: D).
+
+    The bounded investigation nodes (``graph/planning.py``) are merged in here so the
+    composition root still has ONE node-assembly function. ``planning`` imports this
+    module's primitives (``ToolMap``/``NodeFn``/``parse_tool_result``/``make_ground``), so
+    the import is deferred to call time: the dependency runs one way at module load and the
+    cycle exists only while a graph is being built.
     """
+    from triagedesk.graph.planning import make_planning_nodes
+
     return {
         "ingest": ingest,
         "emergency_check": emergency_check,
         "normalize": _make_normalize(tools),
         "retrieve": _make_retrieve(tools),
         "score": _make_score(tools),
-        "ground": _make_ground(tools),
+        "ground": make_ground(tools),
         "assess": _make_assess(tools),
         "verify": verify,
         "recheck": _make_recheck(tools),
@@ -547,4 +590,5 @@ def make_nodes(tools: ToolMap) -> dict[str, NodeFn]:
         "request_missing_info": request_missing_info,
         "clarify": clarify,
         "escalate": escalate,
+        **make_planning_nodes(tools),
     }
