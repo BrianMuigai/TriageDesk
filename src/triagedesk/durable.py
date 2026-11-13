@@ -99,6 +99,7 @@ async def run_to_gate(
     case: CaseInput,
     db_path: str | Path,
     previous_case: CaseInput | None = None,
+    clarification_round: int = 0,
 ) -> PausedRun:
     """Run one case to the approval gate over the durable saver, WITHOUT resuming (D6-11).
 
@@ -108,7 +109,11 @@ async def run_to_gate(
     """
     thread_id = derive_thread_id(raw_note)
     config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
-    initial: dict[str, Any] = {"raw_note": raw_note, "case": case}
+    initial: dict[str, Any] = {
+        "raw_note": raw_note,
+        "case": case,
+        "clarification_round": clarification_round,
+    }
     if previous_case is not None:
         initial["previous_case"] = previous_case
 

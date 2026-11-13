@@ -38,7 +38,11 @@ def _tools_for(case: CaseInput, extraction: ExtractionResult | None = None) -> d
 
 
 async def submit_case(
-    case: CaseInput, db_path: str | Path, *, extraction: ExtractionResult | None = None
+    case: CaseInput,
+    db_path: str | Path,
+    *,
+    extraction: ExtractionResult | None = None,
+    clarification_round: int = 0,
 ) -> PausedRun:
     """Run one desk case to the approval gate over the shipped pause plumbing (D10-11).
 
@@ -54,6 +58,7 @@ async def submit_case(
         raw_note=case.model_dump_json(),
         case=case,
         db_path=db_path,
+        clarification_round=clarification_round,
     )
 
 

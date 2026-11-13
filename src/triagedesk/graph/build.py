@@ -112,6 +112,7 @@ TRACER_NODES: tuple[str, ...] = (
     "commit",
     "handover",
     "request_missing_info",
+    "clarify",
     "escalate",
 )
 
@@ -145,14 +146,16 @@ def route_after_score(state: TriageState) -> str:
 
 
 def route_after_assess(state: TriageState) -> str:
-    """Choose the next node after ``assess`` — a deferral never reaches the gate (D8-08, D8-12).
+    """Choose the next node after ``assess`` — no deferral or clarification reaches the gate.
 
-    The confidence signal can only make the system *more* cautious: a deferral routes to
-    a safe terminal — ``escalate``, or ``request_missing_info`` when the priority still
-    reports a missing scored vital — both of which end at ``END`` with no edge to
-    ``commit``. The neutral, non-deferral arm proceeds to ``approval_gate`` as before.
-    Because the deterministic ``recheck`` runs *before* ``assess``, a deferral prevents a
-    commit without suppressing the safety recheck.
+    The confidence signal can only make the system *more* cautious. A **clarification**
+    (COV-03) routes to the bounded ``clarify`` terminal, which asks at most three questions
+    and has no edge to ``commit``; it is allowed on the first round only, so a second
+    ambiguity cannot spin. A **deferral** routes to a safe terminal — ``escalate``, or
+    ``request_missing_info`` when the priority still reports a missing scored vital — both of
+    which end at ``END`` with no edge to ``commit``. The neutral, delivered arm proceeds to
+    ``approval_gate`` as before. Because the deterministic ``recheck`` runs *before* ``assess``,
+    neither terminal suppresses the safety recheck.
 
     The ``request_missing_info`` arm is a deliberately RETAINED defensive guard. Under the
     current wiring :func:`route_after_score` already diverts every ``missing_vitals`` case
@@ -163,13 +166,18 @@ def route_after_assess(state: TriageState) -> str:
     the current upstream routing.
     """
     signal = state.get("confidence")
-    if signal is not None and signal.deferral:
-        priority = state.get("priority")
-        # Defensive arm (see docstring): unreachable while ``route_after_score`` diverts
-        # missing-vitals cases, but retained so a deferral always lands on a safe terminal.
-        if priority is not None and priority.missing_vitals:
-            return "request_missing_info"
-        return "escalate"
+    if signal is not None:
+        # A clarification (COV-03) is bounded to ONE answer round: on the second
+        # ambiguity the case defers rather than asking again, so the loop cannot spin.
+        if signal.action == "clarify" and int(state.get("clarification_round") or 0) < 1:
+            return "clarify"
+        if signal.deferral:
+            priority = state.get("priority")
+            # Defensive arm (see docstring): unreachable while ``route_after_score`` diverts
+            # missing-vitals cases, but retained so a deferral always lands on a safe terminal.
+            if priority is not None and priority.missing_vitals:
+                return "request_missing_info"
+            return "escalate"
     return "approval_gate"
 
 
@@ -271,6 +279,7 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
         {
             "escalate": "escalate",
             "request_missing_info": "request_missing_info",
+            "clarify": "clarify",
             "approval_gate": "approval_gate",
         },
     )
@@ -278,6 +287,7 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
     graph.add_edge("commit", "handover")
     graph.add_edge("handover", END)
     graph.add_edge("request_missing_info", END)
+    graph.add_edge("clarify", END)
     graph.add_edge("escalate", END)
     return graph.compile(checkpointer=checkpointer)
 
@@ -304,6 +314,7 @@ async def run_case(
     tools: ToolMap | None = None,
     config: Mapping[str, Any] | None = None,
     previous_case: CaseInput | None = None,
+    clarification_round: int = 0,
 ) -> Mapping[str, Any]:
     """Run one case through the graph, resolving tools from the owned server by default.
 
@@ -312,10 +323,18 @@ async def run_case(
     in use so a paused run can be resumed. ``previous_case`` is the optional earlier
     serial case: when present it seeds the state so the recheck node can raise a
     second-look flag against the current vitals (GATE-04, D-07).
+
+    ``clarification_round`` bounds the clarification terminal (COV-03). The first pass
+    is round 0; a caller that has the nurse's answer runs once more with
+    ``clarification_round=1`` and the answer appended to the note. A second ambiguity
+    then defers rather than asking a third time.
     """
     resolved = tools if tools is not None else await load_graph_tools()
     graph = build_graph(resolved)
-    initial: dict[str, Any] = {"raw_note": raw_note}
+    initial: dict[str, Any] = {
+        "raw_note": raw_note,
+        "clarification_round": clarification_round,
+    }
     if previous_case is not None:
         initial["previous_case"] = previous_case
     return await graph.ainvoke(initial, dict(config or {}))

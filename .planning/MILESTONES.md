@@ -24,3 +24,15 @@
 - `docs/DEMO.md` re-transcribed from the shipped demo runner (Phase-11 drift closed), README taken to v1.1 with the clinical-fit gap re-declared, and EVALS.md §7 given a marked, attributed, empty clinician-review slot.
 
 ---
+
+## v1.2 Coverage Recovery (Shipped: 2026-11-13)
+
+**Phases completed:** 4 phases, 10 plans (single-session execution)
+
+**Key accomplishments:**
+- Coverage is three-way: `matched` / `ambiguous` / `no_candidate`. A complaint that names no discriminator because none applies is delivered on the recorded vitals (with a calm vitals-only note), while a near-miss is a bounded clarification — so "no alias matched" no longer dead-ends a routine patient.
+- A bounded clarification terminal (`clarify`): at most three targeted questions, one answer round, then a deferral. It emits no colour, offers no gate and cannot commit; E-09 now asks for the capillary glucose/ketones its declared ORANGE expectation requires, and remains the one declared failure rather than being tuned green.
+- Deterministic recovery of every stated single vital (RR/HR/systolic/diastolic BP/SpO2) the model drops; only a `None` field is filled and a serial AFTER value is never overwritten. E-11 is stable **9/9 ORANGE** in real mode.
+- The measured suite grew from 16 to **24 cases** (6 held-out): ambiguous+chronic, contradictory complaint-vs-vitals, multi-missing vitals, noisy duplicated vitals, routine review, and alternate arterial-bleed phrasings.
+- Real-mode measurement: **48/48 colour-expected runs correct**, under-triage 0, over-triage 0, **0/60 deferrals**, 9/60 clarifications, coverage 48/60, gate passes, invariants 4/4; p50 17.83 s / p95 59.98 s. `EVALS.md` is regenerated only from `report.json`.
+- Honest disclosure: the small-sample ECE moved 0.210 → 0.518 because the four-component scalar measures coverage completeness, not P(correct); the move and its cause are stated in `EVALS.md` §3.2.

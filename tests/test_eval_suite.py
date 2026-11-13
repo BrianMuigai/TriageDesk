@@ -96,10 +96,12 @@ async def test_exactly_one_declared_failure_is_recorded_failing(
     e09 = _report_case(report, "E-09")
     assert e09.declared_failure is True
     assert e09.passed is False, "the declared failure was silently passed"
-    # Under D8-11 E-09 defers to a terminal — a recorded deferral, not a delivered colour.
-    assert e09.outcomes == ["ABSTAIN"] * 3, "the no_match deferral did not fire for E-09"
-    assert e09.deferrals == [True, True, True]
-    assert store.rows == [], "the deferred declared failure wrote a queue row"
+    # E-09 is now a BOUNDED CLARIFICATION (COV-03): the system asks for the glucose it
+    # needs instead of dead-ending, and still delivers no colour.
+    assert e09.outcomes == ["CLARIFY"] * 3, "the bounded clarification did not fire for E-09"
+    assert e09.deferrals == [False, False, False], "a clarification was reported as a deferral"
+    assert e09.delivered == [False, False, False]
+    assert store.rows == [], "the clarified declared failure wrote a queue row"
     # Only the declared failure misses, so the run must exit 0 (EVAL honesty).
     assert code == 0
 
@@ -147,22 +149,27 @@ async def test_terminal_outcomes_are_first_class_and_write_no_queue_row(
 
     assert _report_case(report, "E-05").outcomes == ["RECOVER"] * 3
     assert _report_case(report, "E-06").outcomes == ["ABSTAIN"] * 3
-    # E-07 keeps its deterministic RECHECK outcome AND is a coverage deferral (dual nature).
+    # E-07 keeps its deterministic RECHECK outcome; the complaint names no discriminator,
+    # so the new coverage classifier delivers on vitals and no longer defers.
     assert _report_case(report, "E-07").outcomes == ["RECHECK"] * 3
-    assert _report_case(report, "E-07").deferrals == [True, True, True]
+    assert _report_case(report, "E-07").deferrals == [False, False, False]
     assert _report_case(report, "E-12").outcomes == ["RECOVER"] * 3
 
     assert store.rows == [], "a recovery/abstention/recheck case wrote a queue row"
 
-    # E-01 is now a COVERAGE DEFERRAL: the no_match override denies it the gate, so it must be
-    # reported as a deferral (surfaced in ``deferral_cases``), never silently excused (D8-11).
+    # A no-candidate complaint with complete vitals is now DELIVERED on the TEWS band:
+    # "sore throat" observes no discriminator, so the vitals are the complete SATS basis.
     e01 = _report_case(report, "E-01")
-    assert e01.outcomes == ["ABSTAIN"] * 3
-    assert e01.deferrals == [True, True, True]
-    assert e01.passed is False
+    assert e01.outcomes == ["GREEN"] * 3
+    assert e01.deferrals == [False, False, False]
+    assert e01.passed is True
 
-    # The gate's exclusion can never be silent: every moved non-declared case is surfaced.
-    assert {"E-01", "E-08", "E-13", "E-14"} <= set(report.analysis.deferral_cases)
+    # A genuine ambiguity is surfaced as a clarification, apart from both delivery and
+    # deferral, so the reduced coverage can never be hidden.
+    assert _report_case(report, "E-09").outcomes == ["CLARIFY"] * 3
+    assert set(report.analysis.clarification_cases) == {"E-09", "E-15", "H-03"}
+    assert report.analysis.clarification_count == 9
+    assert report.analysis.deferral_cases == []
 
 
 # ----------------------------- 5b. the deferral-aware gate never masks a wrong colour
@@ -194,6 +201,33 @@ def test_deferral_gate_excludes_a_covered_run_but_never_a_wrong_colour() -> None
     assert "covered" not in gate.unexpected_failures
     assert "wrong" in gate.unexpected_failures
     assert "partial" in gate.unexpected_failures, "a partially-deferred case was excused"
+
+
+def test_clarification_gate_excludes_an_all_clarify_case_but_never_a_mixed_one() -> None:
+    """An all-clarify case is reduced coverage, not a wrong colour; a mixed one is not excused."""
+    from triagedesk.evals.runner import _build_gate
+
+    def case(case_id: str, outcomes: list[str]) -> ReportCase:
+        return ReportCase(
+            case_id=case_id,
+            expected="GREEN",
+            runs=len(outcomes),
+            outcomes=outcomes,
+            invariants={"INV-1": True, "INV-2": True, "INV-3": True, "INV-4": True},
+            invariants_pass=True,
+            passed=False,
+        )
+
+    gate = _build_gate(
+        [
+            case("asked", ["CLARIFY"] * 3),
+            case("mixed", ["CLARIFY", "GREEN", "CLARIFY"]),
+            case("wrong", ["RED"] * 3),
+        ]
+    )
+    assert "asked" not in gate.unexpected_failures
+    assert "mixed" in gate.unexpected_failures, "a partially-clarified case was excused"
+    assert "wrong" in gate.unexpected_failures
 
 
 # -------------------------------------- 6. the injected fault exercises the real retry
@@ -308,3 +342,29 @@ def test_expected_tokens_are_declared_and_fixtures_are_synthetic_only() -> None:
         assert not _IDENTIFIER_PATTERN.search(text), (
             f"{source.name} carries name/identifier-shaped content"
         )
+
+
+# ------------------------------- 7. the E-11 class is stable over repeated runs (COV-06)
+
+
+async def test_e11_is_stable_over_nine_offline_runs(tmp_path: Path) -> None:
+    """The very-urgent trauma case reaches ORANGE on every one of nine runs (COV-06).
+
+    The published failure was 2/3 runs terminating at ``RECOVER`` because a stated vital was
+    dropped by the model. The deterministic readers now recover a stated RR/HR/systolic BP,
+    so the offline path is stable; the real-mode repeat is reported separately in EVALS.md.
+    """
+    report_path = tmp_path / "e11-nine.json"
+    code = await run_eval(
+        cases_dir=CASES_DIR,
+        runs=9,
+        report_path=report_path,
+        offline=True,
+        case_filter="E-11",
+    )
+    report = Report.model_validate_json(report_path.read_text(encoding="utf-8"))
+    case = report.cases[0]
+
+    assert code == 0
+    assert case.outcomes == ["ORANGE"] * 9
+    assert case.passed is True

@@ -81,7 +81,7 @@ uv run triagedesk desk
 
 ## Beat 6 — The measured eval, honestly
 
-The committed report is `mode: real` (3 runs × 16 cases ≈ 10 minutes) and is **silent** — it is **not**
+The committed report is `mode: real` (3 runs × 24 cases ≈ 20 minutes) and is **silent** — it is **not**
 streamed on screen. The measured artefact you show is the committed [`EVALS.md`](../EVALS.md) (opened in
 an editor) plus the live `failure` beat, which prints the declared-vs-measured mismatch. The `--offline`
 run below is the fast, deterministic rehearsal of the same harness.
@@ -93,15 +93,17 @@ uv run triagedesk demo --beat failure
 
 The `failure` beat is the **E-09** declared failure: the vague complaint matches no discriminator, so
 the score falls back to vitals alone and the beat prints `DECLARED: ORANGE` / `MEASURED: GREEN (SHOWN
-MISMATCH)`. It is shown, unedited and un-tuned — never hidden.
+MISMATCH)`. Since v1.2 the graph then routes it to a **bounded clarification** (capillary glucose and
+ketones), delivering no colour. It is shown, unedited and un-tuned — never hidden.
 
 ## Beat 7 — THE HEADLINE: the live extension is a data edit
 
 A reviewer adds ONE discriminator to `data/sats_discriminators.yaml`, reloads (a fresh process), and the
 system re-scores with **no code change**.
 
-1. **Show the starting state.** In the desk, enter the complaint `severe headache`. It matches no
-   discriminator, so the case defers with the no-match banner — nothing is queued.
+1. **Show the starting state.** In the desk, enter the complaint `severe headache`. It names no
+   discriminator, so the case is delivered on the recorded vitals (a vitals-only basis) — nothing is
+   queued until a named nurse approves.
 2. **Back up the machine authority**, then append ONE discriminator to an **existing** category
    (`very_urgent`) with a **unique** alias:
 

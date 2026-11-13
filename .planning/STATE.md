@@ -1,36 +1,36 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Score Uplift
-current_phase: 14
+milestone: v1.2
+milestone_name: Coverage Recovery
+current_phase: 18
 status: completed
-stopped_at: "G2 bounded: clinician interview instrument prepared and wired into every gap statement; attestation still outstanding (docs/clinician-interview-pack)"
-last_updated: "2026-11-13T12:37:20.644Z"
-last_activity: 2026-11-05
-last_activity_desc: Phase 13 complete
+stopped_at: "v1.2 Coverage Recovery implemented: three-way coverage classification, bounded clarification terminal (one round, max three questions), deterministic stated-vital recovery, 8 new eval cases (24 total, 6 held-out); real-mode report regenerated; PR open to main"
+last_updated: "2026-11-13T14:30:42.869Z"
+last_activity: 2026-11-13
+last_activity_desc: Milestone v1.2 implemented
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-state_head: fa9e2571b66e4524c9159fdb69489c930244fff6
+  total_phases: 2
+  completed_phases: 2
+  total_plans: 6
+  completed_plans: 6
+current_phase_name: Coverage Recovery
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-10-13)
+See: .planning/PROJECT.md (updated 2026-11-13)
 
 **Core value:** A triage nurse gets a sourced, confirmable priority for each patient in seconds, and nothing reaches the queue without her approval.
-**Current focus:** Milestone v1.1 shipped — awaiting the next milestone (`/gsd-new-milestone`)
+**Current focus:** Milestone v1.2 Coverage Recovery implemented — PR open to `main`
 
 ## Current Position
 
-Phase: 14
-Plan: Not started
-Status: All phases complete
-Last activity: 2026-11-05 — Phase 14 complete
+Phase: 18 — COMPLETE
+Plan: —
+Status: Milestone v1.2 implemented; awaiting PR review
+Last activity: 2026-11-13 — Coverage recovery shipped
 
 ## Performance Metrics
 
@@ -154,6 +154,9 @@ Recent decisions affecting current work:
 - [Phase 12]: Q2: the committed EVALS.md projection plus the live failure beat is the on-screen measured artefact; the ~10-min silent real run is NOT streamed
 - [Phase 12]: D25: the milestone close is demonstrated-not-claimed — data-only live extension (fresh process, no hot reload); the demo shows the committed EVALS.md projection + live failure beat, not the ~10-min run; the clinical-fit gap stays declared with an empty attributed slot; the upload and clinician review stay human flags
 - [Phase 14]: G2 is declared and now bounded, not closed: the eight-question clinician interview, its drafted responses, and the module each answer depends on ship in docs/CLINICIAN-INTERVIEW.md; no clinician has attested it, so every gap statement keeps 'none obtained' and no quote is claimed. — The fit-to-desk criterion asks 'did you talk to one?'. Inventing or paraphrasing a review would breach the project's flag-never-claim rule. Preparing the instrument converts an open-ended gap into one bounded fifteen-minute conversation and makes every drafted answer falsifiable against the code.
+- [Phase ?]: Coverage is three-way (matched / ambiguous / no_candidate). A no_candidate complaint with complete vitals is delivered on the TEWS band; only an ambiguous complaint holds a case back. The classifier reads data/text_terms.yaml and never adds a scored id. — One no_match boolean conflated 'no alias matched' with 'no discriminator applies', deferring routine presentations the vitals already answered. Splitting the fact raises coverage without weakening a safety invariant.
+- [Phase ?]: A clarification is bounded to one answer round and at most three targeted questions; it emits no colour, no gate and no commit. A second ambiguity defers. — A dead-end deferral was the only safe response to a vague complaint. Asking the one measurement a nurse would ask (capillary glucose) makes the case resolvable without guessing, while the bound keeps it an ask rather than a loop.
+- [Phase ?]: A stated RR/HR/systolic/diastolic BP/SpO2 is recovered deterministically when the model drops it; only a None field is filled and a stated AFTER value is never overwritten. — E-11 reached RECOVER on 2/3 runs because the model dropped a vital the note stated. Recovery is monotone completion from the note, never imputation, so the deterministic path is stable and an incomplete note still recovers.
 
 ### Pending Todos
 
@@ -208,8 +211,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T12:37:20.628Z
-Stopped at: G2 bounded: clinician interview instrument prepared and wired into every gap statement; attestation still outstanding (docs/clinician-interview-pack)
+Last session: 2026-11-13T14:30:42.781Z
+Stopped at: v1.2 Coverage Recovery implemented: three-way coverage classification, bounded clarification terminal (one round, max three questions), deterministic stated-vital recovery, 8 new eval cases (24 total, 6 held-out); real-mode report regenerated; PR open to main
 Resume file: None
 
 ## Operator Next Steps

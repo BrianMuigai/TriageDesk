@@ -111,7 +111,7 @@ _TEMPLATE_BASE = """# EVALS — test fixture
 
 ## 6. The failure we did not fix
 
-### 6.1 Coverage deferrals — the `no_match` class now defers
+### 6.1 Coverage: delivered, clarified, deferred
 
 Hand-written prose (preserved verbatim by the generator).
 """
@@ -392,6 +392,12 @@ def test_deferral_rate_and_declared_split_calibration_are_measured() -> None:
     assert analysis.deferral_runs == 9
     assert analysis.deferral_rate == pytest.approx(3 / 9)
     assert analysis.deferral_cases == ["D-1"]
+    # Coverage vs clarification is reported apart from the deferral count (COV-07): two
+    # delivered cases and no clarification here.
+    assert analysis.delivered_runs == 6
+    assert analysis.coverage_rate == pytest.approx(6 / 9)
+    assert analysis.clarification_count == 0
+    assert analysis.clarification_cases == []
 
     # The calibration split is declared by ``held_out`` with both sample sizes named (D8-13).
     calibration = analysis.calibration

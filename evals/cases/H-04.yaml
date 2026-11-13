@@ -1,0 +1,22 @@
+# Held-out H-04 (v1.2) — routine review phrasing with normal vitals. It must be DELIVERED
+# on the TEWS baseline, not clarified or deferred: no discriminator applies.
+id: H-04
+description: "Held-out: routine review, no acute finding"
+note: >-
+  33 year old man, walking, alert, no trauma. RR 14, HR 76, systolic BP 118,
+  temperature 36.6. Complaint: suture removal, no concerns.
+case:
+  age_years: 33
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 14
+  heart_rate: 76
+  systolic_bp: 118
+  temperature_c: 36.6
+  trauma: false
+  complaint: "suture removal, no concerns"
+expected: GREEN
+pass_criteria: "colour=GREEN; delivered on the baseline citation; no false clarification"
+source: "v1.2 held-out (D-04)"
+held_out: true
+declared_failure: false

@@ -1,0 +1,23 @@
+# Held-out H-03 (v1.2) — a vague complaint with a stated pregnancy context. Authored, never
+# iterated against. "abdominal discomfort" is near the abdominal/pregnancy families but
+# names none, so the correct action is a bounded clarification, not a guessed colour.
+id: H-03
+description: "Held-out: pregnancy context with a near-miss complaint"
+note: >-
+  28 year old woman, 22 weeks pregnant, walking, alert, no trauma. RR 16, HR 90,
+  systolic BP 112, temperature 36.7. Complaint: abdominal discomfort.
+case:
+  age_years: 28
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 16
+  heart_rate: 90
+  systolic_bp: 112
+  temperature_c: 36.7
+  trauma: false
+  complaint: "abdominal discomfort"
+expected: CLARIFY
+pass_criteria: "CLARIFY; asks about pregnancy/abdominal pain/bleeding; no colour; no commit"
+source: "v1.2 held-out (D-04)"
+held_out: true
+declared_failure: false

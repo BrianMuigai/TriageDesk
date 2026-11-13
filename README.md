@@ -68,10 +68,15 @@ case card in the queue is gated behind a named human approver.
 run offline. This README states what works and what is unfinished; the **measured** results — including
 a failure we did not fix — live in [`EVALS.md`](EVALS.md), generated from `evals/results/report.json`.
 
-**v1.1 milestone close (additive).** The v1.1 line adds durable approve/resume over `checkpoints.db`, a
-`no_match` deferral banner with audit-trail retrieval grounding, and a loopback desk surface
+**v1.1 milestone close (additive).** The v1.1 line adds durable approve/resume over `checkpoints.db`, an
+uncertainty banner with audit-trail retrieval grounding, and a loopback desk surface
 ([`docs/DESK.md`](docs/DESK.md)). It extends the frozen v1.0 build at published seams and changes no
 v1.0 behaviour.
+
+**v1.2 coverage recovery (additive).** The v1.2 line separates *"no discriminator matched"* from *"no
+discriminator applies"*: a routine complaint is delivered on its recorded vitals, a near-miss gets one
+bounded clarification question, and every stated vital the model drops is recovered deterministically.
+The four safety invariants are unchanged — retrieval informs coverage, never a colour.
 
 | Area | State |
 | --- | --- |
@@ -88,8 +93,8 @@ v1.0 behaviour.
 | Clinician interview | 📋 Prepared, **unattested** → [`docs/CLINICIAN-INTERVIEW.md`](docs/CLINICIAN-INTERVIEW.md) |
 
 **What is unfinished.** The measured run records honest misses, not a green sweep: the declared failure
-**E-09** (a vague complaint's discriminator is not retrieved — deferred, not under-triaged) is shown, not
-hidden, and the other misses are recorded in
+**E-09** (a vague complaint's discriminator is not retrieved — it is clarified, not under-triaged) is
+shown, not hidden, and the other misses are recorded in
 [`EVALS.md`](EVALS.md) §4–§6. **No** triage nurse/clinician review was obtained as of 2026-10-13, so the
 fit-to-desk claim is scoped to what was built and measured. The interview is prepared rather than
 improvised — eight questions, drafted responses, and the module that must make each answer true, in
@@ -236,17 +241,18 @@ Honest, measured limitations — not aspirational claims:
 - **No triage nurse/clinician review obtained.** The fit-to-desk claim is scoped to what is built and
   measured; expected colours derive from the published SATS rules ([`EVALS.md`](EVALS.md) §7). The
   interview is prepared but unattested ([`docs/CLINICIAN-INTERVIEW.md`](docs/CLINICIAN-INTERVIEW.md)).
-- **Deferral over-covers benign complaints.** When a complaint matches no discriminator the case defers
-  rather than scoring on vitals alone; the measured deferral rate is published in [`EVALS.md`](EVALS.md) §3.
+- **Ambiguous complaints need one answer.** A near-miss complaint with a stated chronic condition is a
+  bounded clarification, not a delivered colour; the case waits for one measurement. The measured
+  clarification rate and the declared E-09 failure are published in [`EVALS.md`](EVALS.md) §3 and §6.
 - **Extraction latency is not "seconds".** The deterministic score is instant; the local model's
   extraction dominates (latency in [`EVALS.md`](EVALS.md) §3).
 - **The desk surface is a prototype** — loopback, single-machine, English-only, with no hospital-system
   integration ([`docs/DESK.md`](docs/DESK.md)).
 - **Approver identity is recorded, not authenticated** ([`SECURITY.md`](SECURITY.md) §6).
 - **English-only and synthetic-data-only** by design.
-- One recorded gate failure (**E-11**) and one declared discriminator-selection failure (**E-09**)
-  remain unfixed ([`EVALS.md`](EVALS.md) §6). The prompt-injection case (**E-13**) is no longer a gate
-  failure; it now defers as reduced coverage.
+- One declared discriminator-selection failure (**E-09**) remains: it now asks a bounded
+  clarification instead of dead-ending ([`EVALS.md`](EVALS.md) §6). There is no recorded gate failure;
+  **E-11** is stable 9/9 and the prompt-injection case (**E-13**) is a delivered pass.
 
 The full ranked gap analysis is [`STATUS.md`](STATUS.md).
 

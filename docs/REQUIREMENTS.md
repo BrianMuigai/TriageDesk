@@ -70,7 +70,7 @@ risks** — items we cannot yet close, tracked honestly.
 | SB-5 | **Unedited agent run, tool calls on screen** — **not slides** | Real unedited terminal screen recording of `triagedesk demo` (offline), the seven owned tool calls on screen, incl. the declared E-09 failure | docs/assets/triagedesk-demo.mp4 | ✅ |
 | SB-6 | **~300-word text description**: what it does, sub-theme, facility & workflow | DESCRIPTION.md — within ±10% of 300 (guarded by `tests/test_docs_final.py`) | DESCRIPTION.md | ✅ |
 | SB-7 | **ARCHITECTURE.md — one page**: agent shape, MCP servers built vs borrowed, why | ARCHITECTURE.md (one page) | ../ARCHITECTURE.md | ✅ |
-| SB-8 | **EVALS.md**: 8+ test tasks with pass/fail, plus one failure not fixed + what you'd try next | 16 cases; E-09 declared + E-11 recorded gate failure | ../EVALS.md | ✅ (counts reconciled) |
+| SB-8 | **EVALS.md**: 8+ test tasks with pass/fail, plus one failure not fixed + what you'd try next | 24 cases; E-09 declared; no gate failure (E-11 stable 9/9) | ../EVALS.md | ✅ (counts reconciled) |
 | SB-9 | Repo that **runs** (not a repo that does not run) | One-command run + synthetic fixture + CI smoke test | ROADMAP.md | ✅ |
 
 ## 5. Data conduct
@@ -89,7 +89,7 @@ risks** — items we cannot yet close, tracked honestly.
 | JC-1 | Agentic depth & MCP craft (**30**) | Plans, calls tools, recovers — not one model call in a loop; tool boundaries a stranger could reuse | Explicit LangGraph plan with one deterministic evidence check whose failure is a fail-closed terminal (no gate, no commit, no card), missing-vital recovery, tool-failure recovery, safe abstention, and seven reusable tool contracts | ../ARCHITECTURE.md §3–4 |
 | JC-2 | Open-source rigour (**20**) | Clone & run; README honest about unfinished | One-command run, synthetic fixture, CI smoke test, honest status table incl. unfinished items | README, EVALS |
 | JC-3 | Fit to triage desk (**20**) | Named nurse does a real thing faster, at the desk, under queue pressure; *did you talk to one?* | Models the real five-step SATS desk process with an assumption-labelled throughput model; a loopback desk surface now ships ([`DEMO.md`](DEMO.md), [`DESK.md`](DESK.md)) with online extraction, an acuity-ordered read-only waiting room, and keyboard-first vitals (Phase 13–14), while **no clinician interview available** remains a declared gap — the instrument is prepared but unattested ([`CLINICIAN-INTERVIEW.md`](CLINICIAN-INTERVIEW.md)) | PROJECT.md §3, §3.1; EVALS §7; STATUS §6 |
-| JC-4 | Evaluation & reliability (**15**) | Honest test set, not curated to pass; run-to-run variation measured or hidden | 16 cases; E-09 declared + E-11 recorded gate failure; 3 runs/case; variation + latency + cost reported | ../EVALS.md |
+| JC-4 | Evaluation & reliability (**15**) | Honest test set, not curated to pass; run-to-run variation measured or hidden | 24 cases; E-09 declared; no gate failure (E-11 stable 9/9); 3 runs/case; variation + latency + cost reported | ../EVALS.md |
 | JC-5 | Defensibility (**10**) | Priority survives a clinical-audit question; sourced, readable log; known cost per run | Deterministic SATS scorer + exact citations + hash-chained audit log + measured cost/run (tokens + wall-clock) | ../ARCHITECTURE.md §3, §6; ../EVALS.md §3.1 |
 | JC-6 | Demo (**5**) | Three clear minutes, including where it fails | One 2:28 recording: tool calls on screen, the measured eval + the declared failure | docs/DEMO.md |
 

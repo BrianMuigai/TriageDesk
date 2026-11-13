@@ -47,7 +47,7 @@ _END = "<!-- END GENERATED: source -->"
 # anchored on the §6.1 heading so it can be inserted when first absent.
 _DEFERRAL_BEGIN = "<!-- BEGIN GENERATED: deferrals -->"
 _DEFERRAL_END = "<!-- END GENERATED: deferrals -->"
-_DEFERRAL_ANCHOR = "### 6.1 Coverage deferrals"
+_DEFERRAL_ANCHOR = "### 6.1 Coverage: delivered, clarified, deferred"
 
 _PASS = "\u2705"  # ✅
 _FAIL = "\u274c"  # ❌
@@ -55,6 +55,9 @@ _FAIL = "\u274c"  # ❌
 # is reduced COVERAGE, not an answered-and-wrong run, so it is never rendered as a bare ❌
 # (D8-11, D8-16, T-08-10). Derived from ``ReportCase.deferrals`` — never hand-entered.
 _DEFERRAL = "\u23f8 deferral"  # ⏸ deferral
+# A bounded clarification that missed its expected outcome is reduced coverage too — never
+# an answered-and-wrong run, and never folded into the deferral count (COV-07).
+_CLARIFY = "\u23f8 clarify"  # ⏸ clarify
 
 
 def _split_row(line: str) -> list[str]:
@@ -127,6 +130,10 @@ def _measured_metrics(report: Report, analysis: Analysis) -> dict[str, str]:
         # The deferral rate is a FRACTION, never a percentage: a coverage deferral is reduced
         # coverage, not a probability or a risk figure (D8-04, D8-10).
         "Deferral rate": f"{analysis.deferral_count}/{analysis.deferral_runs}",
+        # Coverage vs clarification (COV-07): a delivered colour and a bounded question are
+        # different outcomes and are never folded together.
+        "Coverage rate": f"{analysis.delivered_runs}/{analysis.deferral_runs}",
+        "Clarification rate": f"{analysis.clarification_count}/{analysis.deferral_runs}",
         # ECE + risk–coverage with both sample sizes NAMED; it is a small-sample measure,
         # never a validated calibrated probability (D8-13, D8-15).
         "Calibration (small-sample)": (
@@ -173,6 +180,20 @@ def _shows_deferral_marker(case: ReportCase) -> bool:
     )
 
 
+def _shows_clarify_marker(case: ReportCase) -> bool:
+    """True when *case* asked its bounded question on EVERY run and so missed its outcome.
+
+    A clarification is reduced coverage, not a wrong answer (COV-07): the case delivered no
+    colour by design. It is marked apart from a deferral so the two reduced-coverage forms
+    are never conflated.
+    """
+    return (
+        not case.passed
+        and bool(case.outcomes)
+        and all(outcome == "CLARIFY" for outcome in case.outcomes)
+    )
+
+
 def _render_case_table(lines: list[str], report: Report) -> list[str]:
     """Fill the §4 per-case ``Runs (3×)`` and ``Result`` cells from the report."""
     start = _find_table(lines, ["#", "Case"])
@@ -194,6 +215,8 @@ def _render_case_table(lines: list[str], report: Report) -> list[str]:
             # a passed case (e.g. an offline RECHECK) keeps its ✅ (D8-11, T-08-10).
             if _shows_deferral_marker(case):
                 cells[result_index] = _DEFERRAL
+            elif _shows_clarify_marker(case):
+                cells[result_index] = _CLARIFY
             else:
                 cells[result_index] = _PASS if case.passed else _FAIL
         rows.append(_render_row(cells))
@@ -300,6 +323,13 @@ def _render_deferral_block(lines: list[str], report: Report, analysis: Analysis)
             "> Recorded, unfixed gate failures (this phase does not fix them): "
             f"`{', '.join(failed)}`."
         )
+    clarified = [case.case_id for case in report.cases if _shows_clarify_marker(case)]
+    body.append(
+        "> **Measured clarifications:** "
+        f"{analysis.clarification_count}/{analysis.deferral_runs} reached-assess runs asked a "
+        f"bounded question. Cases rendering the §4 `{_CLARIFY}` marker: "
+        f"`{', '.join(clarified) or 'none'}`."
+    )
     body.append(_DEFERRAL_END)
     if _DEFERRAL_BEGIN in lines:
         start = lines.index(_DEFERRAL_BEGIN)

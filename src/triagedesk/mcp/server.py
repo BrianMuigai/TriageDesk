@@ -28,7 +28,7 @@ from typing import Any
 from mcp.server import MCPServer
 from pydantic import BaseModel, ValidationError
 
-from triagedesk.core import confidence, grounding, matcher, recheck, retrieval, scorer
+from triagedesk.core import confidence, coverage, grounding, matcher, recheck, retrieval, scorer
 from triagedesk.core.approval import committed_colour, target_for_colour
 from triagedesk.core.schema import (
     ApprovalToken,
@@ -269,30 +269,58 @@ def assess_confidence(
     matched_ids: list[str],
     no_match: bool,
     priority: PriorityResult,
+    retrieval_status: str = "matched",
+    candidates: list[str] | None = None,
+    questions: list[str] | None = None,
+    clarification_round: int = 0,
 ) -> ConfidenceResult:
-    """Return the deterministic coverage/deferral signal — no model, no store (D8-07).
+    """Return the deterministic coverage signal — no model, no store (D8-07, COV-03).
 
     A thin, contract-typed adapter over the pure ``core.confidence.assess`` function
     (SOLID: S/D): it reads only the typed inputs it uses and returns the confidence
     contract. It takes no ``CaseInput``, so the declared tool contract cannot carry a
     field the signal ignores (WR-03). It touches no store, writes no queue row and takes
-    no approval token; the signal can only route the graph to a more cautious terminal,
-    never to the commit (D8-07, D8-12).
+    no approval token; the signal can only route the graph to a more cautious terminal
+    (clarify, defer or recovery), never to the commit (D8-07, D8-12).
+
+    The coverage arguments are the matcher's own classification (COV-01): they can turn
+    a deferral into a bounded clarification or a vitals-only delivery, and they never
+    add a scored discriminator or a colour.
     """
-    return confidence.assess(matched_ids, no_match, priority)
+    return confidence.assess(
+        matched_ids,
+        no_match,
+        priority,
+        retrieval_status=retrieval_status,
+        candidates=candidates,
+        questions=questions,
+        clarification_round=clarification_round,
+    )
 
 
 @server.tool()
 @audited()
-def match_discriminators(complaint: str) -> MatchResult:
+def match_discriminators(complaint: str, note: str = "") -> MatchResult:
     """Match a free-text complaint to closed-set discriminator ids (D-05, D-06).
 
     A thin, contract-typed adapter over the pure ``core.matcher`` function
     (SOLID: S/D): a deterministic alias lookup with no model and no fuzzy
     judgement. It returns ids from the closed discriminator set only, or an
     explicit ``no_match`` result — never a guessed id (SAFE-01).
+
+    ``note`` is optional context for the coverage classifier only (COV-01): a stated
+    condition such as "known diabetic" can turn a vague complaint into a targeted
+    clarification. It never adds an id to ``matched_ids`` and never sets a colour.
     """
-    return matcher.match_discriminators(complaint)
+    matched = matcher.match_discriminators(complaint)
+    verdict = coverage.classify(complaint, note or complaint)
+    return matched.model_copy(
+        update={
+            "retrieval_status": verdict.status,
+            "candidates": list(verdict.candidates),
+            "questions": list(verdict.questions),
+        }
+    )
 
 
 @server.tool()

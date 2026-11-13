@@ -1,0 +1,24 @@
+# Eval case E-18 — Noisy, duplicated vitals (v1.2 COV-08).
+# The note repeats the same readings with annotations. Duplicates are consistent, so the
+# determinism claim is that noise does not move the colour: RR 22 -> 2, HR 118 -> 2,
+# SBP 100 -> 1, temperature 38.2 -> 0 => TEWS 5 => ORANGE.
+id: E-18
+description: "Noisy, duplicated vitals"
+note: >-
+  37 year old woman, walking, alert, no trauma. RR 22 (repeat 22), HR 118 (repeat 118),
+  systolic BP 100 (repeat 100), temperature 38.2 (repeat 38.2). Complaint: feeling hot
+  and a bit breathless.
+case:
+  age_years: 37
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 22
+  heart_rate: 118
+  systolic_bp: 100
+  temperature_c: 38.2
+  trauma: false
+  complaint: "feeling hot and a bit breathless"
+expected: ORANGE
+pass_criteria: "colour=ORANGE; duplicate readings do not change the band; cites the vitals"
+source: "v1.2 COV-08 (noisy vitals)"
+declared_failure: false

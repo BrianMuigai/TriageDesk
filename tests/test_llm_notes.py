@@ -159,3 +159,65 @@ def test_a_fully_stated_case_is_unchanged() -> None:
         "temperature 36.8. Complaint: sore throat."
     )
     assert grounded_case(case, note) == case
+
+
+# ------------------------------------------------- single stated vitals (COV-05)
+
+
+def test_a_dropped_stated_respiratory_rate_is_recovered() -> None:
+    """A model that omits RR does not lose a value the note states (COV-05)."""
+    case = CaseInput(age_years=30, heart_rate=122, systolic_bp=92, complaint="bleeding")
+    note = "30 year old man. RR 24, HR 122, systolic BP 92, temp 37.0. Complaint: bleeding."
+    result = grounded_case(case, note)
+    assert result.respiratory_rate == 24
+
+
+def test_a_dropped_stated_pulse_and_systolic_bp_are_recovered() -> None:
+    """HR and systolic BP are recovered from their own labels, never from a stray number."""
+    case = CaseInput(age_years=30, respiratory_rate=24, complaint="bleeding")
+    note = "30 year old man. RR 24, pulse 122, systolic BP 92, temp 37.0."
+    result = grounded_case(case, note)
+    assert result.heart_rate == 122
+    assert result.systolic_bp == 92
+
+
+def test_a_bp_pair_fills_both_sides() -> None:
+    """A stated "BP 118/76" fills systolic and diastolic when neither was extracted."""
+    case = CaseInput(age_years=30, complaint="bleeding")
+    result = grounded_case(case, "30 year old man. BP 118/76, RR 20.")
+    assert result.systolic_bp == 118
+    assert result.diastolic_bp == 76
+
+
+def test_a_stated_spo2_is_recovered() -> None:
+    """SpO2 is a scored vital and is recovered from its own label."""
+    case = CaseInput(age_years=30, complaint="breathless")
+    result = grounded_case(case, "30 year old man. SpO2 94, RR 24.")
+    assert result.spo2 == 94
+
+
+def test_a_single_vital_reader_never_overwrites_a_serial_after_value() -> None:
+    """The serial AFTER value wins: a single reader must not re-read the earlier number."""
+    case = CaseInput(age_years=55, complaint="deteriorating")
+    note = "55 year old man. RR 16 -> 26, HR 80 -> 122, BP 118/76 -> 96/60."
+    result = grounded_case(case, note)
+    assert result.respiratory_rate == 26
+    assert result.heart_rate == 122
+    assert result.systolic_bp == 96
+
+
+def test_a_single_vital_reader_never_invents_an_unstated_value() -> None:
+    """No label means no value — the readers fill only what the note states."""
+    case = CaseInput(age_years=30, complaint="feeling unwell")
+    result = grounded_case(case, "30 year old man, walking, alert, no trauma.")
+    assert result.respiratory_rate is None
+    assert result.heart_rate is None
+    assert result.systolic_bp is None
+    assert result.spo2 is None
+
+
+def test_walking_slash_help_is_read_as_with_help() -> None:
+    """The desk shorthand "walking/help" recovers the MORE cautious mobility category."""
+    case = CaseInput(age_years=30, mobility=None, complaint="bleeding")
+    result = grounded_case(case, "30 year old man, walking/help, alert. RR 24.")
+    assert result.mobility == "with_help"

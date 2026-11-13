@@ -329,6 +329,43 @@ installer remains the ONE owner of every harness spelling (DRY).
 and never restates a band or threshold. A locally edited installed skill is never overwritten without
 `--force`; `docs/MCP.md` stays the human runbook and the skill is the agent-facing contract.
 
+### D28 — Coverage is three-way: `matched` / `ambiguous` / `no_candidate`
+**Decision:** the deterministic `core.coverage` classifier separates *"no alias matched"* from *"no
+discriminator applies"*. `no_candidate` means the recorded vitals are the complete SATS basis, so the
+case is **delivered** on the TEWS band with a `vitals-only` reason. `ambiguous` means a strong complaint
+token or a stated condition points at a discriminator family, so the case is a **clarification**.
+**Why:** one `no_match` boolean conflated two different facts and deferred routine presentations
+("sore throat", "wound check") that the vitals already answered. The classifier reads only
+`data/text_terms.yaml` (stopwords, weak words, routine-review phrases, condition→family context,
+conservative stems) and never adds an id to `matched_ids`, so it cannot invent or raise a colour.
+**Consequence:** coverage rises without weakening a safety invariant; a routine-review phrase wins over
+incidental word overlap; a clarification is reported apart from a deferral; and E-09 stays a declared
+failure (its expectation is a colour that the stated data cannot justify).
+
+### D29 — A clarification is bounded to one round and three questions
+**Decision:** an `ambiguous` case stops at a `clarify` terminal carrying at most three targeted
+questions and the closed-set candidates they resolve. No colour, no gate, no commit. One answer round is
+allowed (`clarification_round=1`); a second ambiguity defers through `escalate`.
+**Why:** the earlier design's only safe response to a vague complaint was a dead-end deferral. A single
+targeted measurement ("capillary glucose and ketones") is what a triage nurse would ask, and it converts
+an unanswerable case into a resolvable one without guessing. A hard bound keeps it an ask, not an
+interrogation, and keeps the small-model loop out of a safety-critical path.
+**Consequence:** `CLARIFY` is a first-class eval outcome; the gate excludes an *all-clarify* case from
+`unexpected_failures` exactly as it excludes an all-deferral case, and can still never mask a wrong
+colour.
+
+### D30 — A stated vital is recovered deterministically after extraction
+**Decision:** the extraction post-check fills respiratory rate, heart rate, systolic/diastolic BP and
+SpO2 from their own labels when the model omitted them, exactly as it already recovered age, serial
+readings, temperature and the categorical fields. It only fills a field that is `None`; a stated AFTER
+value is never overwritten.
+**Why:** E-11 (very-urgent trauma) reached `RECOVER` on two of three runs because the model dropped a
+vital the note stated, not because the note was incomplete. Asking a shocked patient to re-measure a
+value the nurse already recorded is a coverage failure, not a safety win. Recovery is monotone
+completion from the note — never imputation.
+**Consequence:** the deterministic path is stable over repeated runs; a value the note does not state is
+still never invented, so an incomplete note still recovers.
+
 ---
 
 ## Disclosed third-party components (DQ-8)

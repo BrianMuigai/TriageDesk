@@ -152,6 +152,78 @@ def _apply_age(case: CaseInput, note: str) -> CaseInput:
     return _apply(case, {"age_years": int(value)}) if value is not None else case
 
 
+# A single stated scored vital (v1.2 COV-05). A serial pair is handled above and is
+# never re-read here: these readers only FILL a field the model left empty, so a stated
+# AFTER value can never be overwritten by the earlier number. One named reader per vital,
+# with the same label vocabulary the serial patterns use, so a nurse's shorthand is read
+# identically in both presentations.
+_SINGLE_VITALS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "respiratory_rate",
+        re.compile(
+            r"\b(?:rr|resp(?:iratory)? rate|breathing rate)\s*[:=]?\s*(\d{1,3})\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "heart_rate",
+        re.compile(
+            r"\b(?:hr|heart rate|pulse)\s*[:=]?\s*(\d{1,3})\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "systolic_bp",
+        re.compile(
+            r"\b(?:sbp|systolic(?: blood pressure)?(?:\s+bp)?)\s*[:=]?\s*(\d{1,3})\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "diastolic_bp",
+        re.compile(
+            r"\b(?:dbp|diastolic(?: blood pressure)?(?:\s+bp)?)\s*[:=]?\s*(\d{1,3})\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "spo2",
+        re.compile(
+            r"\b(?:spo2|sp o2|o2 sat(?:uration)?|oxygen saturation|sats)\s*[:=]?\s*(\d{1,3})\b",
+            re.IGNORECASE,
+        ),
+    ),
+)
+# A BP pair ("BP 118/76") fills both sides when neither was stated separately.
+_BP_PAIR = re.compile(
+    r"\b(?:bp|blood pressure)\s*[:=]?\s*(\d{1,3})\s*/\s*(\d{1,3})\b",
+    re.IGNORECASE,
+)
+
+
+def _apply_single_vitals(case: CaseInput, note: str) -> CaseInput:
+    """Fill a stated single vital the model dropped — never overwrite, never impute (COV-05).
+
+    Runs AFTER :func:`_apply_serial`, and only where the field is still ``None``, so the
+    AFTER value of a serial reading always wins and a model value is never replaced by a
+    second opinion. A value is taken only when the note states it under its own label.
+    """
+    updates: dict[str, object] = {}
+    for field, pattern in _SINGLE_VITALS:
+        if getattr(case, field) is not None:
+            continue
+        match = pattern.search(note)
+        if match is not None:
+            updates[field] = int(match.group(1))
+    pair = _BP_PAIR.search(note)
+    if pair is not None:
+        if case.systolic_bp is None and "systolic_bp" not in updates:
+            updates["systolic_bp"] = int(pair.group(1))
+        if case.diastolic_bp is None and "diastolic_bp" not in updates:
+            updates["diastolic_bp"] = int(pair.group(2))
+    return _apply(case, updates)
+
+
 def _apply_categoricals(case: CaseInput, note: str) -> CaseInput:
     """Recover a stated mobility/AVPU/trauma the model dropped; never invent one."""
     terms = get_text_terms()
@@ -186,6 +258,7 @@ def grounded_case(case: CaseInput, note: str) -> CaseInput:
     grounded = _apply_serial(grounded, note)
     grounded = _apply_temperature(grounded, note)
     grounded = _apply_age(grounded, note)
+    grounded = _apply_single_vitals(grounded, note)
     grounded = _apply_categoricals(grounded, note)
     return grounded
 

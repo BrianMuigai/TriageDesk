@@ -13,9 +13,12 @@
 > link. This runbook documents the recording script.
 >
 > **Record against the current state (this commit), not the frozen `v1.0-submission` tag.** The
-> Durable-mode and desk sections below document v1.1-only behaviour — `--durable`/`resume`/`replay`,
-> `desk`, and the `no_match` **deferral** — none of which exists at `v1.0-submission`, whose CLI
-> exposes only `eval` and `demo`. The frozen tag remains the reference for the **freeze protocol**
+> Durable-mode and desk sections below document v1.1+ behaviour — `--durable`/`resume`/`replay`,
+> `desk`, and v1.2's three-way coverage (delivered / clarified / deferred) — none of which exists at
+> `v1.0-submission`, whose CLI exposes only `eval` and `demo`. **The uploaded 2:28 recording predates
+> v1.2**: it shows the earlier `no_match` deferral on the routine and deterioration beats. The beats
+> below are transcribed from the shipped v1.2 runner; where they differ from the recording, the text
+> says so explicitly. The frozen tag remains the reference for the **freeze protocol**
 > ([`ROADMAP.md`](ROADMAP.md) §Freeze), not for this runbook's commands. The canonical storyboard is
 > the table in [`ROADMAP.md`](ROADMAP.md) → *Demo storyboard*; this runbook maps those timing bands to
 > exact commands and expected output and does **not** restate the storyboard (DRY — it links to the
@@ -56,7 +59,7 @@ the offline golden fixture.
 
 ## The measured eval on screen (not a live run)
 
-The committed report is `mode: real`, takes **~10 minutes** (3 runs × 16 cases ≈ 13 s/case on local CPU)
+The committed report is `mode: real`, takes **~20 minutes** (3 runs × 24 cases ≈ 18 s/case on local CPU)
 and the harness is **silent** — `uv run triagedesk eval …` writes `evals/results/report.json` and prints
 nothing. A 2–3 minute recording therefore **cannot** stream the real eval run. The honest on-screen
 artefact is the committed [`EVALS.md`](../EVALS.md) projection (generated from `report.json`) plus the
@@ -149,9 +152,9 @@ so the runbook cannot drift from what a presenter will actually run (T-05-06).
 | Time | Beat(s) | Command | Expected on screen |
 | --- | --- | --- | --- |
 | 0:00–0:15 | — (narration) | *(no command)* | The desk problem: 60–90 min wait; unsourced flags are dangerous. |
-| 0:15–0:50 | `routine` | `uv run triagedesk demo --beat routine` | GREEN routine scores, then **defers** — no commit (nothing reaches the queue unapproved). |
+| 0:15–0:50 | `routine` | `uv run triagedesk demo --beat routine` | GREEN routine scores and, since v1.2, **delivers on its recorded vitals** — committed at position 1 after the named approval. |
 | 0:50–1:20 | `escalation` | `uv run triagedesk demo --beat escalation` | ORANGE escalation **commits at queue position 1** — after the named nurse approves. |
-| 1:20–1:45 | `deterioration` | `uv run triagedesk demo --beat deterioration` | A waiting patient flagged for a **second look** (`raise_recheck_flag`); the case defers. |
+| 1:20–1:45 | `deterioration` | `uv run triagedesk demo --beat deterioration` | A waiting patient flagged for a **second look** (`raise_recheck_flag`); since v1.2 the colour is delivered with the flag. |
 | 1:45–2:10 | `refusal` | `uv run triagedesk demo --beat refusal` | The **approval gate refusing** to commit without the named nurse. |
 | 2:10–2:40 | `failure` + the measured eval | open [`EVALS.md`](../EVALS.md), then `uv run triagedesk demo --beat failure` | The committed **measured** eval on screen, then the live **E-09 failure** (`DECLARED: ORANGE` / `MEASURED: GREEN`). |
 | 2:40–2:50 | — (narration) | *(no command)* | Close: open source, offline, synthetic. |
@@ -166,11 +169,13 @@ The run shows **seven owned tools** — `normalize_case`, `match_discriminators`
 `retrieve_evidence`, `assess_confidence`, `raise_recheck_flag`, `commit_priority` — and only the
 `escalation` beat commits a queue row (at position 1).
 
-**`routine` (E-01 → GREEN, then deferred).** Five tool calls — `normalize_case`,
-`match_discriminators`, `score_priority`, `retrieve_evidence`, `assess_confidence` (no commit) — then:
+**`routine` (E-01 → GREEN, then delivered).** Five tool calls — `normalize_case`,
+`match_discriminators`, `score_priority`, `retrieve_evidence`, `assess_confidence` — then the named
+approval reaches the gated commit:
 
-> **Narration cue:** "Watch the routine case score GREEN and then DEFER — no commit, because nothing
-> reaches the queue unapproved."
+> **Narration cue:** "Watch the routine case score GREEN. The complaint names no discriminator, so the
+> recorded vitals are the complete SATS basis — it is delivered, and committed only after the named
+> approval."
 
 ```
 --- outcome ---
@@ -178,10 +183,12 @@ The run shows **seven owned tools** — `normalize_case`, `match_discriminators`
   target       : < 4 hours
   matched ids  : []
   citation     : SATS Training Manual 2012 (EMSSA), adult TEWS — respiratory_rate band
+  commit       : committed case <id> at queue position 1 (GREEN)
 ```
 
-The `no_match` complaint (`sore throat` matches no discriminator) routes the case to a safe terminal, so
-there is **no `commit` line** — nothing reached the queue.
+`match_discriminators` reports `retrieval_status: no_candidate` for "sore throat": no discriminator
+applies, so the case is **not** deferred. (The recorded 2:28 video predates v1.2 and shows the earlier
+deferral here; the shipped behaviour is the delivery above.)
 
 **`escalation` (E-02 → ORANGE, committed under the named nurse).** Six tool calls — the five above plus
 `commit_priority` — and three citations:
@@ -201,11 +208,11 @@ there is **no `commit` line** — nothing reached the queue.
   handover card: {"case_id":"9300336d37c3651c","colour":"ORANGE","target":"< 10 min", ...}
 ```
 
-**`deterioration` (E-07 → second look, then deferred).** Six tool calls — the five above plus
+**`deterioration` (E-07 → second look, delivered).** Six tool calls — the five above plus
 `raise_recheck_flag` — which flags the serial-vitals change **without re-classifying** the patient:
 
-> **Narration cue:** "Watch the second look raise a recheck flag — the case defers rather than
-> committing a stale colour."
+> **Narration cue:** "Watch the second look raise a recheck flag without re-classifying the patient.
+> Since v1.2 the vitals colour is delivered with that flag; the gate still waits for a named human."
 
 ```
 --- outcome ---
@@ -216,10 +223,12 @@ there is **no `commit` line** — nothing reached the queue.
   citation     : SATS Training Manual 2012 (EMSSA), adult TEWS — heart_rate band
   citation     : SATS Training Manual 2012 (EMSSA), adult TEWS — systolic_bp band
   second look  : {"flag":true,"deteriorations":["respiratory_rate","heart_rate","systolic_bp"], ...}
+  commit       : committed case <id> at queue position 1 (ORANGE)
 ```
 
-The `second look` line is the only queue-facing output — the case **defers** rather than committing a
-stale colour, so there is **no `commit` line**.
+The `second look` line carries the deterioration facts and no colour of its own: the flag never
+re-classifies, and the commit happens only through the named approval. (The recorded video predates
+v1.2 and shows the earlier deferral here.)
 
 **`refusal` (the climax).** The same E-02 priority is scored, but the gate is resumed with a `dismiss`
 naming **no approver**, so the gated commit refuses and writes nothing — the refusal is read from the
@@ -255,10 +264,11 @@ measured outcome on screen:
   MEASURED     : GREEN (SHOWN MISMATCH)
 ```
 
-Narrate the failure while it is on screen: the vague complaint's discriminator is **not retrieved** — a
-deferral, not a delivered under-triage. The printed colour is the residual vitals-only result shown
-*before* the deferral routes the case to a safe terminal (`escalate`/`request_missing_info`); the demo
-does not hide the miss.
+Narrate the failure while it is on screen: the vague complaint's discriminator is **not retrieved**. Since
+v1.2 the case is a **bounded clarification** — it asks for a capillary glucose and ketones and delivers
+no colour — rather than a dead-end deferral. The printed colour is the residual vitals-only result shown
+*before* the clarification routes the case to its terminal; the demo does not hide the miss. The recorded
+video predates v1.2 and shows the earlier deferral.
 
 ## The desk surface (browser screen recording)
 
@@ -292,7 +302,7 @@ instead of rendering a fresh gate.
 | Edge — edit | E-10 | The nurse overrides the colour → `Edited to ORANGE by Nurse A. Demo (triage nurse) — committed to the queue at position 2`. A **different** patient (E-10, not E-04) is a genuinely new row, so the two approvals land at positions **1 and 2**. |
 | Edge — dismiss | E-02 | `Dismissed — nothing has been committed`. There is no default approve. |
 | Edge — recovery | E-05 | A scored vital is missing → `A scored vital is missing. Re-measure before scoring.` **No gate**. |
-| Edge — deferred | E-09 | No discriminator matched → the loud banner + a **read-only** card (`Not confirmed and not queued`). **No gate**. |
+| Edge — deferred | E-09 | No discriminator matched, but a chronic condition is stated → the loud banner + a **read-only clarification panel** asking for capillary glucose/ketones. **No gate.** |
 | Edge — escalation | E-06 | An out-of-scope (paediatric) case → `escalated for human review — no priority was committed`. **No gate**. |
 
 The recording is **captioned on screen** — it carries no audio track, so the narration *is* the

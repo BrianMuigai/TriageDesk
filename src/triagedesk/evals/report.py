@@ -247,6 +247,14 @@ class Analysis(BaseModel):
     deferral_runs: int = 0
     deferral_rate: float = 0.0
     deferral_cases: list[str] = Field(default_factory=list)
+    # Coverage vs clarification (COV-07). ``delivered_runs`` is the colour runs the gate
+    # accepted; ``clarification_*`` is the bounded ask, reported apart from a deferral so a
+    # question is never counted as a dead end or as a delivered colour.
+    delivered_runs: int = 0
+    coverage_rate: float = 0.0
+    clarification_count: int = 0
+    clarification_rate: float = 0.0
+    clarification_cases: list[str] = Field(default_factory=list)
     calibration: Calibration = Field(default_factory=Calibration)
 
 

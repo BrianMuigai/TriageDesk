@@ -14,6 +14,9 @@ from triagedesk.desk.copy import (
     _BANNER_HEADLINE,
     _BANNER_LOW_CONFIDENCE_BODY,
     _BANNER_NO_MATCH_BODY,
+    _BANNER_VITALS_ONLY_BODY,
+    _BANNER_VITALS_ONLY_HEADLINE,
+    _CLARIFICATION_COPY,
     _DEFERRED_COPY,
     _DISMISSED_COPY,
     _EMPTY_BODY,
@@ -31,16 +34,25 @@ from triagedesk.durable import PausedRun
 
 
 def banner_trigger(state: Mapping[str, Any]) -> str | None:
-    """The ONE banner rule (D10-09): the typed uncertainty signal, never a heuristic.
+    """The ONE banner rule (D10-09, COV-02): the typed signal, never a heuristic.
 
-    Returns ``"no_match"`` when the state's ``no_match`` channel is true, else ``"deferral"``
-    when the ``confidence`` channel is present and deferring, else ``None``. It deliberately
+    Returns ``"vitals_only"`` when the case was delivered because **no discriminator applies**
+    (``retrieval_status == "no_candidate"``) — a calm, informational note, not an alarm;
+    ``"no_match"`` when the complaint is genuinely ambiguous or the legacy no-match path fired;
+    else ``"deferral"`` when the ``confidence`` channel defers; else ``None``. It deliberately
     does NOT consult ``evidence.no_match`` (a different fact: "no excerpt matched"), NOT
     ``missing_vitals`` alone (the recovery signal's job), and NOT any free-text reason string.
     """
+    status = str(state.get("retrieval_status") or "")
+    confidence = state.get("confidence")
+    if (
+        status == "no_candidate"
+        and confidence is not None
+        and getattr(confidence, "action", "") == "deliver"
+    ):
+        return "vitals_only"
     if bool(state.get("no_match")):
         return "no_match"
-    confidence = state.get("confidence")
     if confidence is not None and bool(getattr(confidence, "deferral", False)):
         return "deferral"
     return None
@@ -49,12 +61,16 @@ def banner_trigger(state: Mapping[str, Any]) -> str | None:
 def terminal_kind(state: Mapping[str, Any]) -> str | None:
     """Select the terminal copy from the graph's typed channels (never a string heuristic).
 
-    ``"deferred"`` when the ``confidence`` channel defers (checked FIRST — a deferral always
-    routes to ``escalate``/``request_missing_info``, so an escalated state may also carry a
+    ``"clarification"`` when the bounded clarification terminal is present (COV-03) — a
+    first-class ask that is neither a deferral nor a colour; else ``"deferred"`` when the
+    ``confidence`` channel defers (checked next — a deferral always routes to
+    ``escalate``/``request_missing_info``, so an escalated state may also carry a
     deferral); else ``"escalated"`` when the ``escalation`` channel is present; else
-    ``"recovery"`` when the ``recovery`` channel is present; else ``None``. The kind is never
-    inferred from ``Escalation.reason`` (a free-text field that varies).
+    ``"recovery"`` when the ``recovery`` channel is present; else ``None``. The kind is
+    never inferred from ``Escalation.reason`` (a free-text field that varies).
     """
+    if state.get("clarification") is not None:
+        return "clarification"
     confidence = state.get("confidence")
     if confidence is not None and bool(getattr(confidence, "deferral", False)):
         return "deferred"
@@ -79,12 +95,18 @@ def _panel(copy: str, kind: str) -> str:
 
 
 def _banner_html(trigger: str) -> str:
-    """Render the loud uncertainty banner with a trigger-conditional body (D10-09).
+    """Render the uncertainty note with a trigger-conditional body (D10-09).
 
-    The headline is verbatim from UX-01; the body is the no-match body when the trigger is
-    ``"no_match"`` and the low-confidence body when it is ``"deferral"`` — so the banner never
-    asserts a fact its trigger did not establish.
+    The headline is verbatim from UX-01 for the genuine uncertainty triggers; a
+    ``vitals_only`` delivery uses the calmer COV-02 note because no discriminator applies
+    and the recorded vitals are the complete basis. The banner never asserts a fact its
+    trigger did not establish.
     """
+    if trigger == "vitals_only":
+        return (
+            f'<p class="banner-headline">{_escaped(_BANNER_VITALS_ONLY_HEADLINE)}</p>'
+            f'<p class="banner-body">{_escaped(_BANNER_VITALS_ONLY_BODY)}</p>'
+        )
     body = _BANNER_NO_MATCH_BODY if trigger == "no_match" else _BANNER_LOW_CONFIDENCE_BODY
     return (
         f'<p class="banner-headline">{_escaped(_BANNER_HEADLINE)}</p>'
@@ -95,6 +117,15 @@ def _banner_html(trigger: str) -> str:
 def _terminal_panel(state: Mapping[str, Any]) -> str:
     """Select the terminal copy from the graph's typed channels (never a string heuristic)."""
     kind = terminal_kind(state)
+    if kind == "clarification":
+        clarification = state.get("clarification")
+        questions = list(getattr(clarification, "questions", None) or [])
+        items = "".join(f"<li>{_escaped(question)}</li>" for question in questions)
+        return (
+            f'<section class="state-panel state-clarification" role="status">'
+            f"<p>{_escaped(_CLARIFICATION_COPY)}</p>"
+            f'<ul class="clarification-questions">{items}</ul></section>'
+        )
     if kind == "deferred":
         return _panel(_DEFERRED_COPY, "muted")
     if kind == "escalated":
@@ -238,6 +269,7 @@ def _render(
     field_error: tuple[str, str] | None = None,
     mode_label: str = _MODE_OFFLINE,
     waiting: str = "",
+    clarification_round: int = 0,
 ) -> str:
     """Substitute the server-rendered regions into the hand-authored page (string.Template).
 
@@ -251,8 +283,15 @@ def _render(
     panel (Plan 13-03); it defaults to empty, so a direct render shows no panel.
     """
     template = string.Template((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
+    # A clarification page carries the round marker into the NEXT submission, so the desk's
+    # re-ask is bounded: one answer round, then a deferral (COV-03). No marker, no round.
+    round_field = (
+        f'<input type="hidden" name="clarification_round" value="{clarification_round}">'
+        if clarification_round
+        else ""
+    )
     return template.substitute(
-        vitals_fields=_vitals_fields(form, field_error),
+        vitals_fields=_vitals_fields(form, field_error) + round_field,
         csrf_field=_csrf_field(csrf_token),
         mode_label=mode_label,
         state_panel=view["state_panel"],
@@ -304,6 +343,9 @@ def render_state(
             csrf_token,
             mode_label=mode_label,
             waiting=waiting,
+            clarification_round=(
+                1 if terminal_kind(paused.result) == "clarification" else 0
+            ),
         )
     if error is not None:
         return _render(

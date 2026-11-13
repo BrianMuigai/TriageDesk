@@ -20,6 +20,18 @@ from triagedesk.core.rules import get_tews
 Mobility = Literal["walking", "with_help", "stretcher"]
 AVPU = Literal["alert", "voice", "pain", "unresponsive"]
 
+# Retrieval coverage status (COV-01). ``matched`` = an alias hit; ``ambiguous`` = no
+# alias hit but the complaint/context points at a discriminator family; ``no_candidate``
+# = no discriminator applies. Declared once here because the matcher, the confidence
+# signal and the tool contracts all speak it.
+RetrievalStatus = Literal["matched", "ambiguous", "no_candidate"]
+
+# The confidence signal's three-way action (COV-03). ``deliver`` proceeds to the gate;
+# ``clarify`` stops at a bounded clarification terminal; ``defer`` stops at a safe
+# escalation/recovery terminal. Kept separate from ``deferral`` so a clarification is
+# never counted as a delivered colour or as a dead-end deferral.
+ConfidenceAction = Literal["deliver", "clarify", "defer"]
+
 # The shared clarification for a scored vital that a note may give as a before/after pair
 # joined by an arrow (the serial-vitals presentation): the value that matters for the
 # current case is the AFTER one. Declared once here and applied to EVERY scored numeric
@@ -140,6 +152,14 @@ class MatchResult(BaseModel):
     matched_ids: list[str] = Field(default_factory=list)
     no_match: bool = False
     warning: str | None = None
+    # Retrieval coverage classification (COV-01). ``matched`` means an alias hit;
+    # ``ambiguous`` means no alias hit but the complaint (or a stated condition) points
+    # at a discriminator family; ``no_candidate`` means no discriminator applies and the
+    # vitals are the complete SATS basis. Retrieval status NEVER admits an id into
+    # scoring — ``matched_ids`` stays the only authority.
+    retrieval_status: RetrievalStatus = "matched"
+    candidates: list[str] = Field(default_factory=list)
+    questions: list[str] = Field(default_factory=list)
 
 
 ConfidenceLevel = Literal["high", "moderate", "low"]
@@ -177,6 +197,13 @@ class ConfidenceResult(BaseModel):
     level: ConfidenceLevel = "high"
     components: list[ConfidenceComponent] = Field(default_factory=list)
     reason: str = ""
+    # Three-way outcome (COV-03): ``deliver`` reaches the gate, ``clarify`` stops at the
+    # bounded clarification terminal, ``defer`` stops at a safe terminal. ``deferral``
+    # remains True exactly when ``action == "defer"`` so every existing reader is
+    # unchanged; a clarification is never reported as a deferral.
+    action: ConfidenceAction = "deliver"
+    questions: list[str] = Field(default_factory=list)
+    candidates: list[str] = Field(default_factory=list)
 
 
 class EvidencePassage(BaseModel):
@@ -267,6 +294,22 @@ class RecoveryRequest(BaseModel):
     """
 
     missing_vitals: list[str] = Field(default_factory=list)
+    reason: str
+
+
+class ClarificationRequest(BaseModel):
+    """A bounded clarification terminal (COV-03) — ask, never guess.
+
+    ``questions`` are at most :data:`MAX_CLARIFICATION_QUESTIONS` targeted questions
+    naming the candidate discriminator families; ``candidates`` are the closed-set ids
+    those questions would resolve. There is deliberately no colour field: a
+    clarification never scores and never commits. One answer round may follow; a
+    second ambiguity defers instead of asking again.
+    """
+
+    max_questions: ClassVar[int] = 3
+    questions: list[str] = Field(default_factory=list)
+    candidates: list[str] = Field(default_factory=list)
     reason: str
 
 

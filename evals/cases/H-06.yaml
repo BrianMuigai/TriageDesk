@@ -1,0 +1,23 @@
+# Held-out H-06 (v1.2) — the E-11 class under a different arterial-bleed phrasing. It probes
+# whether the stated RR/HR/SBP are extracted (or deterministically recovered) completely
+# enough to avoid a spurious RECOVER. RR 22 -> 2, HR 120 -> 2, SBP 95 -> 1 => TEWS 5 => ORANGE.
+id: H-06
+description: "Held-out: very-urgent trauma, alternate phrasing"
+note: >-
+  26 year old man, with help, alert, no trauma recorded. RR 22, HR 120, systolic BP 95,
+  temperature 37.1. Complaint: spurting blood from a cut on the forearm.
+case:
+  age_years: 26
+  mobility: with_help
+  avpu: alert
+  respiratory_rate: 22
+  heart_rate: 120
+  systolic_bp: 95
+  temperature_c: 37.1
+  trauma: false
+  complaint: "spurting blood from a cut on the forearm"
+expected: ORANGE
+pass_criteria: "colour=ORANGE; cites the arterial-haemorrhage discriminator; not RECOVER"
+source: "v1.2 held-out (D-04, E-11 class)"
+held_out: true
+declared_failure: false

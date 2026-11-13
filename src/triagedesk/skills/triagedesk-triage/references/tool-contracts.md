@@ -57,17 +57,29 @@ unknown ids are dropped and missing vitals stay `null`. It never computes a colo
 **Arguments**
 
 ```json
-{"complaint": "chest pain and shortness of breath"}
+{"complaint": "chest pain and shortness of breath", "note": "the full nurse note (optional context)"}
 ```
 
 **Returns**
 
 ```json
-{"matched_ids": ["acute_shortness_of_breath", "chest_pain"], "no_match": false, "warning": null}
+{
+  "matched_ids": ["acute_shortness_of_breath", "chest_pain"],
+  "no_match": false,
+  "warning": null,
+  "retrieval_status": "matched",
+  "candidates": ["acute_shortness_of_breath", "chest_pain"],
+  "questions": []
+}
 ```
 
 Deterministic alias lookup over the closed discriminator set. A `no_match` result carries
 the substrate's coverage-gap `warning`; it never guesses an id.
+
+`retrieval_status` is the coverage classification, not a colour: `matched` (an alias hit),
+`ambiguous` (the complaint or a stated condition points at a family but names none — see
+`questions`), or `no_candidate` (no discriminator applies; the recorded vitals are the
+complete basis). `candidates` and `questions` are only populated for `ambiguous`.
 
 ## `score_priority`
 
@@ -135,16 +147,27 @@ never sets a priority. The authoritative per-rule citations are `score_priority.
 **Arguments**
 
 ```json
-{"matched_ids": ["acute_shortness_of_breath"], "no_match": false, "priority": {…}}
+{
+  "matched_ids": ["acute_shortness_of_breath"],
+  "no_match": false,
+  "priority": {…},
+  "retrieval_status": "matched",
+  "candidates": [],
+  "questions": [],
+  "clarification_round": 0
+}
 ```
 
-Pass the **exact** `PriorityResult` returned by `score_priority`.
+Pass the **exact** `PriorityResult` returned by `score_priority`, and the coverage fields
+from `match_discriminators`. `clarification_round` is 1 only when this is the nurse's answer
+to a clarification already asked.
 
 **Returns**
 
 ```json
 {
   "deferral": false,
+  "action": "deliver",
   "level": "high",
   "components": [
     {"name": "vitals_coverage", "satisfied": true, "detail": "5 of 7 scored vitals recorded"},
@@ -152,12 +175,17 @@ Pass the **exact** `PriorityResult` returned by `score_priority`.
     {"name": "override_path", "satisfied": true, "detail": "a discriminator override raised the priority"},
     {"name": "tews_band_distance", "satisfied": false, "detail": "tews distance 1 from the band edge"}
   ],
-  "reason": ""
+  "reason": "",
+  "questions": [],
+  "candidates": []
 }
 ```
 
-Deterministic coverage signal. `no_match: true` forces `deferral: true`. There is no
-percentage or probability field; never invent one. A deferral must never reach the commit.
+Deterministic coverage signal. `action` is the three-way decision: `deliver` reaches the
+gate, `clarify` stops at the bounded question terminal (no colour, no gate, no commit), and
+`defer` stops at a safe escalation. `deferral` is true exactly when `action` is `defer`.
+There is no percentage or probability field; never invent one. A clarification or a deferral
+must never reach the commit.
 
 ## `raise_recheck_flag`
 

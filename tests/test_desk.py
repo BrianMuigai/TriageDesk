@@ -234,9 +234,37 @@ def _css_block(css: str, selector: str) -> str:
     return match.group(1)
 
 
+def _state_panel(body: str) -> str:
+    """The rendered ``<section class="state-panel ...">`` region (a terminal panel)."""
+    match = re.search(r'<section class="state-panel[^"]*"[^>]*>.*?</section>', body, re.DOTALL)
+    assert match, "the rendered page has no state-panel region"
+    return match.group(0)
+
+
 def _e09() -> CaseSpec:
-    """The genuine ``no_match`` fixture the deferred-path proofs run (never a fabricated state)."""
+    """The genuine ``no_match`` fixture the coverage proofs run (never a fabricated state)."""
     return next(case for case in load_cases(CASES_DIR) if case.id == "E-09")
+
+
+def _no_candidate() -> CaseSpec:
+    """A TEWS-0 case where no discriminator applies, so the vitals are delivered (COV-02)."""
+    return next(case for case in load_cases(CASES_DIR) if case.id == "E-13")
+
+
+def _ambiguous() -> CaseSpec:
+    """The E-09 shape as the desk receives it: the nurse types the history in the complaint.
+
+    The structured form has no separate history field, so a chronic condition travels in the
+    free-text complaint exactly as the nurse writes it ("feeling unwell, known diabetic").
+    """
+    e09 = _e09()
+    return e09.model_copy(
+        update={
+            "case": e09.case.model_copy(
+                update={"complaint": "feeling unwell, known diabetic"}
+            )
+        }
+    )
 
 
 def _run_from_state(**channels: Any) -> PausedRun:
@@ -1002,62 +1030,53 @@ def test_recovery_panel_names_the_missing_vital() -> None:
     assert "Re-measure before scoring" in body
 
 
-def test_deferred_case_renders_the_banner_read_only_card_and_no_gate(
+def test_ambiguous_case_renders_the_banner_and_a_clarification_no_gate(
     tmp_path: Path, injected_store: Any
 ) -> None:
-    """The E-09 class is a loud banner on a READ-ONLY card with NO gate (UX-01, D10-17)."""
-    case = _e09()
+    """The E-09 class asks ONE targeted question on a read-only panel with NO gate (COV-03)."""
+    case = _ambiguous()
     with _running_server(tmp_path / "checkpoints.db") as server:
         body = _post(_base(server) + "/case", _form_from_case(case.case))
 
     assert BANNER_HEADLINE in body, "the verbatim banner headline did not render"
     assert NO_MATCH_BODY in body
     assert LOW_CONFIDENCE_BODY not in body
-    assert 'class="priority-card"' in body, "the deferred path rendered no read-only card"
-    assert "Not confirmed and not queued" in body
-    assert "This case was deferred for human review — no priority was committed." in body
-    assert 'class="approval-gate"' not in body, "the deferred path wrongly offered a gate"
+    assert 'class="state-panel state-clarification"' in body
+    assert "One detail would resolve this case." in body
+    assert "glucose" in body, "the clarification did not name the discriminating check"
+    assert 'class="priority-card"' not in body, "the clarification path rendered a colour card"
+    assert 'class="approval-gate"' not in body, "the clarification path wrongly offered a gate"
     for control in (
         "Your decision",
         "Approve suggestion",
         "Edit colour",
         "Dismiss (commit nothing)",
     ):
-        assert control not in body, f"the deferred path rendered a gate control: {control}"
+        assert control not in body, f"the clarification path rendered a gate control: {control}"
     assert injected_store.rows == []
 
 
-def test_deferred_card_shows_a_deferred_badge_and_no_colour(
+def test_ambiguous_card_leaks_no_colour_and_no_target(
     tmp_path: Path, injected_store: Any
 ) -> None:
-    """A deferred card shows DEFERRED, never the colour it declines to stand behind (S2-3).
+    """A clarified case shows no colour and no target, though the scorer computed both (S2-3).
 
-    The suppressed facts are derived from the same scorer the graph used, and the
-    preconditions assert the deferral carried a colour and target — so the negative
-    assertions cannot pass vacuously.
+    The preconditions assert the scored payload carried a colour and target, so the
+    negative assertions cannot pass vacuously.
     """
-    case = _e09()
+    case = _ambiguous()
     match = matcher.match_discriminators(case.case.complaint)
     priority = scorer.score_priority(case.case, match.matched_ids)
-    assert match.no_match is True, "the E-09 fixture no longer exercises the deferred path"
-    assert priority.colour and priority.target, "the deferred payload lost its colour/target"
+    assert match.no_match is True, "the E-09 fixture no longer exercises the ambiguous path"
+    assert priority.colour and priority.target, "the clarified payload lost its colour/target"
 
-    with _running_server(tmp_path / "deferred.db") as server:
+    with _running_server(tmp_path / "ambiguous.db") as server:
         body = _post(_base(server) + "/case", _form_from_case(case.case))
 
-    assert "DEFERRED" in body
-    assert priority.colour not in body, "the deferred card leaked the scored colour"
+    assert priority.colour not in body, "the clarification leaked the scored colour"
     assert f'class="colour-block colour-{priority.colour.lower()}"' not in body
-    assert 'class="colour-block colour-deferred"' in _section(body, "priority-card")
     assert "Suggested colour:" not in body
     assert "Target time:" not in body
-    for retained in (
-        "Not recorded:",
-        "Why these vitals:",
-        "Evidence from the SATS knowledge base:",
-        "Case:",
-    ):
-        assert retained in body, f"the deferred card dropped a sourced fact: {retained}"
     assert 'class="approval-gate"' not in body
 
 
@@ -1121,7 +1140,7 @@ def test_evidence_list_renders_the_no_evidence_line(
     tmp_path: Path, injected_store: Any
 ) -> None:
     """Zero passages render the verbatim no-evidence line, never an empty box (UX-02)."""
-    case = _e09()
+    case = _no_candidate()
     with _running_server(tmp_path / "checkpoints.db") as server:
         body = _post(_base(server) + "/case", _form_from_case(case.case))
     card = _section(body, "priority-card")
@@ -1425,7 +1444,7 @@ def test_baseline_why_vitals_row_is_never_an_empty_list(
     tmp_path: Path, injected_store: Any
 ) -> None:
     """An all-normal-vitals case renders the scorer's ``tews_baseline`` row (UI-SPEC)."""
-    case = _e09()
+    case = _no_candidate()
     with _running_server(tmp_path / "checkpoints.db") as server:
         body = _post(_base(server) + "/case", _form_from_case(case.case))
 
@@ -1443,13 +1462,13 @@ def test_baseline_why_vitals_row_is_never_an_empty_list(
 
 
 def _rendered_card_and_banner(tmp_path: Path) -> tuple[str, str, str]:
-    """The card/banner regions for a scored case and the deferred case (the scan subject)."""
+    """The card/banner regions for a scored case and the ambiguous case (the scan subject)."""
     with _running_server(tmp_path / "scored.db") as server:
         scored = _post(_base(server) + "/case", _form_from_case(COMPLETE_CASE))
-    case = _e09()
-    with _running_server(tmp_path / "deferred.db") as server:
-        deferred = _post(_base(server) + "/case", _form_from_case(case.case))
-    return scored, deferred, _banner_region(deferred)
+    case = _ambiguous()
+    with _running_server(tmp_path / "ambiguous.db") as server:
+        ambiguous = _post(_base(server) + "/case", _form_from_case(case.case))
+    return scored, ambiguous, _banner_region(ambiguous)
 
 
 def test_rendered_copy_carries_no_forbidden_token(
@@ -1461,11 +1480,11 @@ def test_rendered_copy_carries_no_forbidden_token(
     as typed, covered instead by the escaping proof — so the scan subject is the card region,
     the banner region and the surface's own copy, never the complaint field.
     """
-    scored, deferred, banner = _rendered_card_and_banner(tmp_path)
+    scored, ambiguous, banner = _rendered_card_and_banner(tmp_path)
     subject = "\n".join(
         [
             _section(scored, "priority-card"),
-            _section(deferred, "priority-card"),
+            _state_panel(ambiguous),
             banner,
             (ASSET_DIR / "index.html").read_text(encoding="utf-8"),
             (ASSET_DIR / "styles.css").read_text(encoding="utf-8"),
@@ -1485,11 +1504,36 @@ def test_no_rendered_string_shows_a_percentage(
     tmp_path: Path, injected_store: Any
 ) -> None:
     """No card, banner or state-panel string carries a percent sign or probability word."""
-    scored, deferred, _ = _rendered_card_and_banner(tmp_path)
-    rendered = scored + deferred
+    scored, ambiguous, _ = _rendered_card_and_banner(tmp_path)
+    rendered = scored + ambiguous
     assert "%" not in rendered
     for word in ("percent", "probability", "probable"):
         assert not re.search(rf"\b{word}\b", rendered.lower()), word
+
+
+def test_deferred_terminal_still_renders_a_read_only_badge() -> None:
+    """A genuine deferral (second-round ambiguity) keeps its read-only DEFERRED card (S2-3)."""
+    from triagedesk.core.schema import ConfidenceResult
+    from triagedesk.durable import PausedRun
+
+    deferred = PausedRun(
+        thread_id="t",
+        config={},
+        result={
+            "confidence": ConfidenceResult(
+                deferral=True, action="defer", level="low", reason="clarification did not resolve"
+            )
+        },
+        payload=None,
+        paused=False,
+        existed=False,
+    )
+    view = desk_server.render_state(deferred)
+    assert "This case was deferred for human review" in view
+    card = _section(view, "priority-card")
+    assert 'class="colour-block colour-deferred"' in card
+    assert '<span class="colour-name">DEFERRED</span>' in card
+    assert 'class="approval-gate"' not in view
 
 
 def test_colour_label_accompanies_every_rendered_colour(
@@ -1518,13 +1562,12 @@ def test_colour_label_accompanies_every_rendered_colour(
     assert 'onmouseover="alert(1)' not in hostile_card
     assert "colour-block colour-red&quot; onmouseover=&quot;alert(1)" in hostile_card
 
-    # The deferred read-only card shows the DEFERRED badge, not a colour (S2-3).
-    case = _e09()
-    with _running_server(tmp_path / "deferred.db") as server:
-        deferred = _post(_base(server) + "/case", _form_from_case(case.case))
-    deferred_card = _section(deferred, "priority-card")
-    assert 'class="colour-block colour-deferred"' in deferred_card
-    assert '<span class="colour-name">DEFERRED</span>' in deferred_card
+    # An ambiguous read-only state shows no colour at all (COV-03).
+    case = _ambiguous()
+    with _running_server(tmp_path / "ambiguous.db") as server:
+        clarified = _post(_base(server) + "/case", _form_from_case(case.case))
+    assert 'class="priority-card"' not in clarified
+    assert 'class="colour-block' not in clarified
 
 
 def test_submit_path_launches_no_borrowed_store(
@@ -1555,17 +1598,17 @@ def test_submit_path_launches_no_borrowed_store(
     assert len(injected_store.rows) == 1
 
 
-def test_deferred_end_to_end_is_read_only(tmp_path: Path, injected_store: Any) -> None:
-    """The deferred path renders the banner + read-only card, no gate, no row, no commit."""
-    case = _e09()
+def test_clarification_end_to_end_is_read_only(tmp_path: Path, injected_store: Any) -> None:
+    """The clarification path renders the banner + questions, no gate, no row, no commit."""
+    case = _ambiguous()
     with _running_server(tmp_path / "checkpoints.db") as server:
         body = _post(_base(server) + "/case", _form_from_case(case.case))
 
     assert BANNER_HEADLINE in body
-    assert 'class="priority-card"' in body
+    assert 'state-panel state-clarification' in body
     assert 'class="approval-gate"' not in body
     assert injected_store.rows == []
-    assert injected_store.calls == [], "a deferred case reached the queue store"
+    assert injected_store.calls == [], "a clarified case reached the queue store"
 
 
 def test_served_css_declares_wrapping_rules() -> None:
@@ -1674,7 +1717,7 @@ def test_desk_reuses_one_event_loop_across_requests(
     """Both POSTs run their coroutine on the server's ONE loop (no per-request loop)."""
     loop_ids: list[int] = []
 
-    async def fake_submit(case: CaseInput, db_path: Path) -> PausedRun:
+    async def fake_submit(case: CaseInput, db_path: Path, **_: Any) -> PausedRun:
         loop_ids.append(id(asyncio.get_running_loop()))
         return _run_from_state()
 
@@ -1697,7 +1740,7 @@ def test_slow_submit_does_not_block_the_loop(
     started = threading.Event()
     finished = threading.Event()
 
-    async def slow_submit(case: CaseInput, db_path: Path) -> PausedRun:
+    async def slow_submit(case: CaseInput, db_path: Path, **_: Any) -> PausedRun:
         started.set()
         await asyncio.sleep(0.3)
         finished.set()
@@ -1809,3 +1852,34 @@ def test_main_page_does_not_read_the_store(
 
     assert "waiting-room" not in body
     assert injected_store.calls == [], injected_store.calls
+
+
+def test_a_second_desk_round_defers_instead_of_asking_again(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """The desk loop is bounded: round 1 refuses a third question and defers (COV-03)."""
+    case = _ambiguous()
+    form = _form_from_case(case.case)
+    form["clarification_round"] = "1"
+
+    with _running_server(tmp_path / "bounded.db") as server:
+        body = _post(_base(server) + "/case", form)
+
+    assert "This case was deferred for human review" in body
+    assert "state-panel state-clarification" not in body
+    assert 'class="approval-gate"' not in body
+    assert injected_store.rows == []
+
+
+def test_a_no_candidate_delivery_shows_the_calm_vitals_only_note(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A routine delivery is not an uncertainty alarm (COV-02): calm note, not the banner."""
+    case = _no_candidate()
+    with _running_server(tmp_path / "vitals-only.db") as server:
+        body = _post(_base(server) + "/case", _form_from_case(case.case))
+
+    assert "No discriminator applies — prioritised on the recorded vitals" in body
+    assert "comes from the recorded vitals alone" in body
+    assert BANNER_HEADLINE not in body, "a routine delivery raised the uncertainty alarm"
+    assert 'class="priority-card"' in body

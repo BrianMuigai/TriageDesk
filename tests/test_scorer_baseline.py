@@ -117,15 +117,15 @@ def test_an_out_of_scope_case_stays_uncited() -> None:
 
 # ------------------- 5. E-08 now defers — never reaches the gate (D8-11)
 
-async def test_e08_defers_to_a_safe_terminal_and_never_reaches_the_gate(
+async def test_e08_delivers_on_vitals_and_reaches_the_gate(
     memory_store: Any,
 ) -> None:
-    """Under D8-11 the routine TEWS-0 (no_match) case defers — never committed, no card.
+    """A routine no-candidate case (E-08) is delivered on its vitals, with a card (COV-02).
 
-    E-08 runs ``score -> verify -> recheck -> assess -> escalate`` and stops: there is no
-    ``__interrupt__`` (the deferral denies the gate), no ``commit_priority`` call and no queue
-    row. The graph-level "served through the gate" path this proof used to assert is superseded
-    by the ``no_match`` deferral; the TEWS-0 baseline *citation* contract is still proven at the
+    E-08's "wound check, no complaints" implicates no discriminator, so the coverage
+    classifier treats the recorded vitals as the complete SATS basis: the case reaches the
+    gate with the scorer's GREEN and its baseline citation, and nothing is committed without
+    the human decision. The TEWS-0 baseline *citation* contract is separately proven at the
     scorer level by ``test_a_tews_zero_case_is_sourced_by_the_baseline_citation``.
     """
     case = _case("E-08")
@@ -136,16 +136,15 @@ async def test_e08_defers_to_a_safe_terminal_and_never_reaches_the_gate(
 
     done = await app.ainvoke({"raw_note": case.note}, config)
 
-    # The scored colour is unchanged, but the deferral denies the gate.
     assert done["priority"].colour == case.expected  # GREEN
-    assert not done.get("__interrupt__"), "the deferred case still reached the approval gate"
+    assert done.get("__interrupt__"), "the delivered case never reached the approval gate"
     signal = done.get("confidence")
-    assert signal is not None and signal.deferral is True, "E-08 did not defer"
-    assert done.get("escalation") is not None, "the deferral did not reach a safe terminal"
-    assert done.get("handover") is None, "a deferred case produced a handover card"
+    assert signal is not None and signal.action == "deliver", "E-08 did not deliver"
+    assert done.get("escalation") is None
+    # The gate paused the run: the eval's dismiss resume is what would produce a handover.
     assert done.get("commit_result") is None
     assert "commit_priority" not in [name for name, _ in calls]
-    assert memory_store.rows == [], "the deferred routine case wrote a queue row"
+    assert memory_store.rows == [], "an unapproved case wrote a queue row"
 
 
 # ------------------- 6. INV-1 enforces "a scored priority is always sourced"

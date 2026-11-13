@@ -131,6 +131,26 @@ class TermValue(BaseModel):
     value: str
 
 
+class ContextCondition(BaseModel):
+    """A stated chronic/risk condition -> the discriminator family one measurement resolves.
+
+    Data, not code (COV-04): adding a condition is a ``data/text_terms.yaml`` edit. The
+    condition never sets a colour — it can only turn a vague complaint into a targeted
+    clarification question.
+    """
+
+    terms: list[str]
+    discriminators: list[str]
+    clarify: str
+
+
+class StemRule(BaseModel):
+    """One conservative suffix rule for the retrieval classifier (longest first)."""
+
+    suffix: str
+    replacement: str
+
+
 class TextTerms(BaseModel):
     """Linguistic terms loaded from ``data/text_terms.yaml`` (CONVENTIONS §1).
 
@@ -147,6 +167,13 @@ class TextTerms(BaseModel):
     avpu: list[TermValue]
     trauma_negative: list[str]
     trauma_positive: list[str]
+    # Retrieval coverage terms (v1.2): function words, generic words, routine
+    # review phrases, condition->family context, and the conservative stem rules.
+    stopwords: list[str] = []
+    weak_terms: list[str] = []
+    benign_phrases: list[str] = []
+    context_conditions: list[ContextCondition] = []
+    stems: list[StemRule] = []
 
 
 def load_text_terms(path: Path | None = None) -> TextTerms:

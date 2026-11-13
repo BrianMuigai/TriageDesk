@@ -22,10 +22,11 @@ from pydantic import BaseModel, field_validator
 from triagedesk.core.rules import get_tews
 from triagedesk.core.schema import CaseInput
 
-# The three terminal outcomes a case may expect instead of a colour: the recovery
-# (re-measure) terminal, the abstention/escalation terminal and the serial-vitals
-# second look. Harness vocabulary — not SATS values (CONVENTIONS §1).
-TERMINAL_OUTCOMES: tuple[str, ...] = ("RECOVER", "ABSTAIN", "RECHECK")
+# The four terminal outcomes a case may expect instead of a colour: the recovery
+# (re-measure) terminal, the abstention/escalation terminal, the serial-vitals second
+# look, and (v1.2) the bounded clarification terminal. Harness vocabulary — not SATS
+# values (CONVENTIONS §1).
+TERMINAL_OUTCOMES: tuple[str, ...] = ("RECOVER", "ABSTAIN", "RECHECK", "CLARIFY")
 
 # The first-class ABORT terminal: a run that stopped at END WITHOUT delivering a handover
 # card through the approval gate (a fail-closed ``verify``). It is harness vocabulary, but

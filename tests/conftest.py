@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from triagedesk.core import confidence, matcher, recheck, retrieval, scorer
+from triagedesk.core import confidence, coverage, matcher, recheck, retrieval, scorer
 from triagedesk.core.approval import committed_colour, target_for_colour
 from triagedesk.core.schema import (
     ApprovalToken,
@@ -294,7 +294,15 @@ def build_graph_tools(
 
     async def match_discriminators(inp: dict[str, Any]) -> Any:
         calls.append(("match_discriminators", inp))
-        return matcher.match_discriminators(inp["complaint"])
+        matched = matcher.match_discriminators(inp["complaint"])
+        verdict = coverage.classify(str(inp["complaint"]), str(inp.get("note") or ""))
+        return matched.model_copy(
+            update={
+                "retrieval_status": verdict.status,
+                "candidates": list(verdict.candidates),
+                "questions": list(verdict.questions),
+            }
+        )
 
     async def score_priority(inp: dict[str, Any]) -> Any:
         calls.append(("score_priority", inp))
@@ -313,6 +321,10 @@ def build_graph_tools(
             list(inp.get("matched_ids") or []),
             bool(inp.get("no_match")),
             PriorityResult.model_validate(inp["priority"]),
+            retrieval_status=str(inp.get("retrieval_status") or "matched"),
+            candidates=list(inp.get("candidates") or []),
+            questions=list(inp.get("questions") or []),
+            clarification_round=int(inp.get("clarification_round") or 0),
         )
 
     async def retrieve_evidence(inp: dict[str, Any]) -> Any:
