@@ -16,7 +16,7 @@ covered_files:
   - src/triagedesk/desk/pipeline.py
   - src/triagedesk/desk/server.py
   - src/triagedesk/desk/copy.py
-covered_digest: "v4:sha256:b5a26c44c6ef67c8445611952fab8e25d4f29c966dbd4397b10640b9ac21d00a"
+covered_digest: "v4:sha256:9e4cfc416d0b920f49ca43bcb60a5552c5ab74c8577ef6325b63edd54bc0cd70"
 commands:
   - "uv run pytest -q -> 836 passed"
   - "uv run ruff check src tests -> All checks passed"
