@@ -7,8 +7,8 @@ flowchart LR
 
     subgraph ENGINE["LangGraph execution engine"]
         direction TB
-        GRAPH["Adaptive envelope<br/>+ frozen kernel"]
-        PLAN["Planner +<br/>deterministic guard"]
+        GRAPH["LangGraph graph<br/>adaptive envelope + frozen kernel"]
+        PLAN["plan node +<br/>deterministic guard"]
         CP[("checkpoints.db<br/>runtime state")]
         GRAPH --> PLAN
         GRAPH <-->|"pause / resume"| CP

@@ -170,8 +170,10 @@ loopback only and makes no external request. The recorded walkthrough is
 A **deterministic SATS scorer** inside an **explicit LangGraph plan** on a **local open-weights
 model**, gated by **human approval before anything reaches a queue**. The LLM handles language; **no
 number comes from the model**, so a priority is defensible under audit. The full shape, agent graph,
-MCP servers and data flow are in [`ARCHITECTURE.md`](ARCHITECTURE.md); the diagram is
-[`docs/assets/architecture.pdf`](docs/assets/architecture.pdf).
+MCP servers and data flow are in [`ARCHITECTURE.md`](ARCHITECTURE.md). Two diagrams split by audience:
+[clinical workflow](docs/assets/architecture-workflow.pdf) (judge or clinician, under a minute) and
+[components and infrastructure](docs/assets/architecture-components.pdf) (engineer). Both are
+**proposed for v1.3** and labelled as such; the shipped shape is the one in `ARCHITECTURE.md` §3–5.
 
 ## Agent architecture
 
@@ -179,6 +181,13 @@ An explicit LangGraph plan — `ingest → normalize → retrieve → score → 
 assess → approval_gate → commit → handover`, with `request_missing_info` and `escalate` terminals. The
 model is used only to structure language; the colour is computed deterministically from `data/*.yaml`.
 Node table and edges: [`ARCHITECTURE.md`](ARCHITECTURE.md) §3.
+
+**Proposed for v1.3 (not shipped).** A bounded planner sits between `retrieve` and `score`: it chooses
+one **read-only** investigation action from a closed set (`gather_evidence`, `ask_question`,
+`re_extract`, `finish_investigation`) inside a three-step budget. The model proposes; a deterministic
+guard disposes. `finish_investigation` is the only edge into `score`, so the safety kernel stays a
+non-skippable suffix. A deterministic emergency check may skip the model and the planner for a critical
+structured case — never the kernel or the clinician. See `.planning/REQUIREMENTS.md`.
 
 ## MCP implementation
 
@@ -189,10 +198,15 @@ swapped in one module. Rationale: [`docs/DECISIONS.md`](docs/DECISIONS.md) D5, D
 
 ## MCP tools & servers
 
-**Owned `triage` server — 7 tools.** Read-only: `normalize_case`, `match_discriminators`,
+**Owned `triage` server — 7 tools shipped.** Read-only: `normalize_case`, `match_discriminators`,
 `retrieve_evidence`, `assess_confidence`. Acting: `score_priority`, `raise_recheck_flag`.
 Acting and gated: `commit_priority`. Three of the seven act, and **only `commit_priority` mutates the
 queue** — it refuses to run without a valid approval token.
+
+**Proposed for v1.3 — 2 more (not shipped).** `plan_next_step` (read-only: model proposal over a closed
+action set) and `request_clarification` (read-only: elicits one targeted question mid-call via
+`ctx.elicit()`, with accepted / declined / cancelled / unavailable distinguished). Neither takes an
+approval token or writes a queue row.
 
 **Borrowed server.** A maintained SQLite MCP server (`mcp-sqlite@1.0.9`) for persistence — *"persistence,
 schema and query safety are solved; a hand-rolled DB adds zero triage value"* — its read paths are

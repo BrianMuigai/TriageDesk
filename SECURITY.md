@@ -47,6 +47,9 @@ write**. Everything else is read-only or a pure computation.
 | T-8 | Approver impersonation | Record `approved_by` + `role`; **authenticated approver is a production requirement** | gap (demo records identity only) |
 | T-9 | Runaway cost / denial of service | Timeouts, retry cap, token budget | partial |
 | T-10 | Supply chain (model/tool provenance) | Pin + hash versions; disclose third parties | partial |
+| T-11 | **A clarification answer treated as approval** | An elicited answer is appended as an observation only: it never sets a colour, never advances the case past the gate, and is typed separately from the approval token | proposed (v1.3, ELICIT-08) |
+| T-12 | **Planner widens its own authority** | Closed action set with no score/gate/commit member; a deterministic admissibility guard rejects anything else and falls back to `finish_investigation`; a structural test proves `finish_investigation` is the only edge into `score` | proposed (v1.3, ADAPT-02/03) |
+| T-13 | **Emergency bypass skips a control** | The bypass skips only extraction and the planner; `verify`, `recheck`, `assess`, the gate and the commit are unchanged, and the bypass is audited | proposed (v1.3, EMERG-03/05) |
 
 ## 4. Prompt-injection defense (defense in depth)
 
@@ -55,7 +58,13 @@ write**. Everything else is read-only or a pure computation.
    a patient (or a note) can contain can *make* itself red.
 3. **Citation requirement.** No priority without a rule citation — an injected "red" has no source and
    is rejected by `verify`.
-4. **Tool allowlist.** The agent may call only its seven defined tools; there is no shell and no HTTP.
+4. **Tool allowlist.** The agent may call only its declared tools; there is no shell and no HTTP. The
+   allowlist is asserted at **both** composition and discovery, so a missing or unexpected tool fails
+   loudly. **Shipped (7):** `normalize_case`, `match_discriminators`, `retrieve_evidence`,
+   `assess_confidence`, `score_priority`, `raise_recheck_flag`, `commit_priority`. **Proposed for v1.3
+   (2):** `plan_next_step` (read-only proposal, no store) and `request_clarification` (read-only
+   elicitation, no store, no approval token). Proposed tools are not shipped and are marked as such in
+   [`ARCHITECTURE.md`](ARCHITECTURE.md) and [`STATUS.md`](STATUS.md).
 5. **No secrets in context.**
 6. **Tested.** Eval **E-13** injects instructions into a complaint and asserts the priority is unchanged.
 
