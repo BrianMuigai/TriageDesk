@@ -36,6 +36,7 @@ from triagedesk.core.schema import (
     EvidenceResult,
     ExtractionResult,
     HandoverCard,
+    InterruptType,
     MatchResult,
     PriorityResult,
     RecheckFlag,
@@ -374,10 +375,16 @@ def approval_gate(state: TriageState) -> dict[str, Any]:
     function must remain side-effect-free: the queue write and its audit belong in
     the *next* node, never here (D-04, T-03-02). The resumed value is stored in
     ``approval`` for the commit node to validate.
+
+    The payload carries ``type: "approval"`` (ELICIT-05). The field is additive — every
+    existing reader keeps working — and it exists so a surface can tell this **decision**
+    from an MCP **question** (``type: "mcp_elicitation"``) without inspecting keys. The
+    literal comes from the ONE declaration, ``core.schema.InterruptType``.
     """
     priority = state["priority"]
     second_look = state.get("second_look")
     payload = {
+        "type": InterruptType.APPROVAL.value,
         "case_id": case_id_for_note(state["raw_note"]),
         "colour": priority.colour,
         "target": priority.target,

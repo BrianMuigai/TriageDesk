@@ -18,18 +18,24 @@ launches no borrowed ``npx mcp-sqlite`` subprocess and no model.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any, TypedDict
 
 import pytest
-from langgraph.types import Command
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command, interrupt
 
 from conftest import async_return
 from triagedesk.core.rules import get_tews
-from triagedesk.core.schema import ExtractionResult
+from triagedesk.core.schema import ExtractionResult, InterruptType
 from triagedesk.durable import (
     DurableError,
     approval_decision,
     derive_thread_id,
+    invoke_graph,
+    pending_interrupt,
     resume_paused,
     run_to_gate,
 )
@@ -39,6 +45,7 @@ from triagedesk.evals.usage import UsageRecorder
 from triagedesk.graph.build import checkpointed_graph
 from triagedesk.graph.nodes import case_id_for, case_id_for_note
 from triagedesk.mcp import server as server_module
+from triagedesk.mcp.elicitation import CLARIFICATION_REQUEST_KEY, decline_responses
 from triagedesk.store.queue import content_hash
 
 CASES_DIR = Path(__file__).resolve().parents[1] / "evals" / "cases"
@@ -202,3 +209,146 @@ async def test_edit_resume_supersedes_on_the_durable_path(
     assert edited["handover"].colour == EDITED_COLOUR == rows[0].colour
     assert edited["handover"].target == rows[0].target
     assert edited["handover"].target != scored_target, "the edit must change the target"
+
+
+# ------------------------------------------------- the ONE respond loop (Plan 21-02)
+# A two-interrupt graph: the first payload is a question, the second the approval gate. The
+# node records each resumed value in state, so the loop's answers are asserted from the state
+# rather than from a side list a re-run would duplicate.
+class _TwoInterrupts(TypedDict, total=False):
+    first: Any
+    second: Any
+
+
+_ELICITATION_PAYLOAD: dict[str, Any] = {
+    "type": InterruptType.ELICITATION.value,
+    "tool_name": "request_clarification",
+    "requests": [],
+}
+_APPROVAL_PAYLOAD: dict[str, Any] = {
+    "type": InterruptType.APPROVAL.value,
+    "case_id": "c-policy",
+}
+
+
+def _interrupting_graph(
+    payloads: list[dict[str, Any]], seen: list[Any] | None = None
+) -> Any:
+    """A graph whose one node interrupts once per payload, recording each resume value.
+
+    *seen* collects every value an ``interrupt()`` returned. A resumed node re-runs from its
+    top, so the same value can be recorded more than once — assertions therefore test
+    membership, never a count.
+    """
+
+    def node(_state: Mapping[str, Any]) -> dict[str, Any]:
+        values: list[Any] = []
+        for payload in payloads:
+            value = interrupt(payload)
+            values.append(value)
+            if seen is not None:
+                seen.append(value)
+        return {
+            "first": values[0],
+            "second": values[1] if len(values) > 1 else None,
+        }
+
+    graph = StateGraph(_TwoInterrupts)
+    graph.add_node("ask", node)
+    graph.add_edge(START, "ask")
+    graph.add_edge("ask", END)
+    return graph.compile(checkpointer=MemorySaver())
+
+
+async def test_the_default_policy_answers_the_gate_and_stops_at_an_elicitation() -> None:
+    """No ``respond``: an approval is answered as before, a question is left paused (ELICIT-05)."""
+    graph = _interrupting_graph([_ELICITATION_PAYLOAD])
+    config = {"configurable": {"thread_id": "policy-default"}}
+
+    _result, payload = await invoke_graph(
+        graph, {}, config, approval_decision("dismiss")
+    )
+
+    assert payload == _ELICITATION_PAYLOAD, "the caller must be shown the question"
+    snapshot = await graph.aget_state(config)
+    assert snapshot.next, "the default policy resumed a question with an approval token"
+
+
+async def test_a_respond_policy_answers_the_question_then_stops_at_the_gate() -> None:
+    """A policy that answers the question and declines the approval leaves the gate pending."""
+    seen: list[Any] = []
+    graph = _interrupting_graph([_ELICITATION_PAYLOAD, _APPROVAL_PAYLOAD], seen)
+    config = {"configurable": {"thread_id": "policy-then-gate"}}
+    visited: list[str] = []
+    decline = decline_responses(CLARIFICATION_REQUEST_KEY)
+
+    def policy(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
+        visited.append(str(payload.get("type")))
+        return decline if payload.get("type") == InterruptType.ELICITATION else None
+
+    _result, payload = await invoke_graph(graph, {}, config, {}, respond=policy)
+
+    assert payload == _ELICITATION_PAYLOAD, "the FIRST payload is what a human is shown"
+    assert visited == ["mcp_elicitation", "approval"]
+    assert decline in seen, "the question was answered with the policy's value"
+    snapshot = await graph.aget_state(config)
+    assert snapshot.next == ("ask",), "the gate must stay pending for the clinician"
+
+
+async def test_a_respond_policy_that_answers_both_payloads_reaches_the_terminal() -> None:
+    """Answering the question and the gate completes the run — one loop, two payload types."""
+    graph = _interrupting_graph([_ELICITATION_PAYLOAD, _APPROVAL_PAYLOAD])
+    config = {"configurable": {"thread_id": "policy-both"}}
+    decision = approval_decision("dismiss")
+
+    def policy(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
+        if payload.get("type") == InterruptType.ELICITATION:
+            return decline_responses(CLARIFICATION_REQUEST_KEY)
+        return decision
+
+    result, payload = await invoke_graph(graph, {}, config, {}, respond=policy)
+
+    assert payload == _ELICITATION_PAYLOAD
+    assert not result.get("__interrupt__"), "the loop left the run paused"
+    assert result["second"] == decision
+
+
+async def test_pending_interrupt_reads_the_paused_payload(tmp_path: Path) -> None:
+    """``pending_interrupt`` is the ONE reader of the snapshot's pending payload (DRY)."""
+    case = _case("E-02")
+    tools = build_tools(case, offline=True, recorder=UsageRecorder())
+    db_path = tmp_path / "pending.db"
+    config = {"configurable": {"thread_id": "pending-payload"}}
+
+    async with checkpointed_graph(tools, db_path) as graph:
+        await graph.ainvoke({"raw_note": case.note, "case": case.case}, config)
+        snapshot = await graph.aget_state(config)
+
+    payload = pending_interrupt(snapshot)
+    assert payload is not None
+    assert payload["type"] == InterruptType.APPROVAL
+    assert payload["case_id"] == derive_thread_id(case.note)
+
+
+async def test_resume_paused_leaves_the_thread_paused_when_the_policy_returns_none(
+    tmp_path: Path, injected_store
+) -> None:
+    """A ``None`` policy is a real "present it": the gate stays pending and nothing is written."""
+    case = _case("E-02")
+    tools = build_tools(case, offline=True, recorder=UsageRecorder())
+    db_path = tmp_path / "policy-none.db"
+    thread_id = derive_thread_id(case.note)
+    config = {"configurable": {"thread_id": thread_id}}
+
+    async with checkpointed_graph(tools, db_path) as graph:
+        await graph.ainvoke({"raw_note": case.note, "case": case.case}, config)
+
+    result = await resume_paused(
+        tools, thread_id=thread_id, db_path=db_path, respond=lambda _payload: None
+    )
+
+    assert result.get("priority") is not None, "the state is returned so a surface can render"
+    async with checkpointed_graph(tools, db_path) as graph:
+        snapshot = await graph.aget_state(config)
+    assert snapshot.next == ("approval_gate",), "a None policy resumed the gate anyway"
+    assert injected_store.rows == [], "a None policy committed a queue row"
