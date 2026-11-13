@@ -237,11 +237,15 @@ async def resume_paused(
             raise DurableError(
                 f"no pending approval gate for thread_id {thread_id} in {db_path}"
             )
+        # An explicit ``decision`` answers the PENDING payload (the historical shape); the
+        # policy then decides what any FURTHER payload is answered with. With no decision the
+        # policy answers the pending one too, which is how a surface answers whichever type
+        # happens to be paused without guessing.
         pending = pending_interrupt(snapshot)
-        answer = policy(pending) if pending is not None else dict(decision or {})
+        answer = dict(decision) if decision is not None else policy(pending or {})
         if answer is None:
             return dict(snapshot.values)
-        result = await graph.ainvoke(Command(resume=dict(answer)), config)
+        result = await graph.ainvoke(Command(resume=answer), config)
         final, _payload = await _drive(graph, config, result, policy)
         return final
 

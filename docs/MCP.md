@@ -345,6 +345,42 @@ question is not a decision. Both surfaces present them differently — `triagede
 repeatable `--answer` (and declines by default when none is given), and the desk renders a question
 panel instead of the approval gate.
 
+#### Answering from the CLI
+
+```bash
+# Answer the question, in the order it was asked (repeat the flag per question).
+uv run triagedesk resume --thread-id <id> --answer "crushing central pain" --answer "worse on exertion"
+
+# No --answer: the question is declined. Nothing is recorded as a finding.
+uv run triagedesk resume --thread-id <id>
+```
+
+`--decision` is only needed when an **approval** is pending; without it the CLI says so and names the
+flag rather than inventing a decision. If answering the question reveals the approval gate, the CLI
+prints that it paused again at the gate and exits 0 — **nothing was committed**, and a second
+`resume --decision …` finishes the case.
+
+#### Answering from the desk
+
+The desk renders a **question panel** — the derived questions, one free-text field each, and a
+"Decline to answer" control — instead of the approval gate. The panel has no approve, edit or dismiss
+control, no colour control and no commit path: `POST /clarify` resumes with the answers through the
+same gated plumbing and then shows whatever comes next (usually the gate) as itself.
+
+The fail-closed rules both surfaces obey:
+
+- a **decline** (or a cancel, or a client that cannot elicit) is **not** a negative clinical finding
+  and is never converted into a value;
+- **answering is not approval**: an answer is an observation appended to the case facts, and it never
+  advances a case past the clinician's gate, never becomes a colour and never writes a queue row;
+- an answered question is **not asked twice**, and a resume cannot duplicate a queue commit (the
+  write is idempotent on the case's content hash).
+
+> **Honest scope:** no shipped graph node calls `request_clarification` yet — the `plan` node that
+> will call it is Phase 23. Everything above is the shipped surface contract, proved by tests
+> (`tests/test_elicitation_tool.py`, `tests/test_elicitation_roundtrip.py`, `tests/test_durable_cli.py`,
+> `tests/test_desk.py`), not a storyboard step.
+
 ### `commit_priority`
 
 The only queue-affecting tool. Refuses without a valid token, and the refusal touches no store:

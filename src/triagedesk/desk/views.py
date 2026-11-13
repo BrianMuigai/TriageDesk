@@ -10,6 +10,7 @@ from typing import Any
 
 from triagedesk.desk.assets import STATIC_DIR
 from triagedesk.desk.card import _card_html, _card_payload_from_state
+from triagedesk.desk.clarification import _question_html
 from triagedesk.desk.copy import (
     _BANNER_HEADLINE,
     _BANNER_LOW_CONFIDENCE_BODY,
@@ -31,6 +32,7 @@ from triagedesk.desk.forms import _csrf_field, _vitals_fields
 from triagedesk.desk.gate import _gate_html
 from triagedesk.desk.markup import _escaped
 from triagedesk.durable import PausedRun
+from triagedesk.mcp.elicitation import is_elicitation
 
 
 def banner_trigger(state: Mapping[str, Any]) -> str | None:
@@ -147,6 +149,7 @@ def _empty_view() -> dict[str, str]:
         "banner": "",
         "card": "",
         "gate": "",
+        "clarification": "",
     }
 
 
@@ -167,11 +170,25 @@ def _paused_view(paused: PausedRun, csrf_token: str | None = None) -> dict[str, 
     evidence = state.get("evidence")
 
     if paused.paused and paused.payload is not None:
+        # A QUESTION, not a decision: an elicitation payload renders the question panel and
+        # no gate, no card and no commit path (ELICIT-05/08). Checked FIRST, so an
+        # elicitation can never fall through to the approval-gate branch.
+        if is_elicitation(paused.payload):
+            return {
+                "state_panel": "",
+                "banner": banner,
+                "card": "",
+                "gate": "",
+                "clarification": _question_html(
+                    paused.payload, paused.thread_id, csrf_token
+                ),
+            }
         return {
             "state_panel": "",
             "banner": banner,
             "card": _card_html(paused.payload, evidence),
             "gate": _gate_html(str(paused.payload.get("case_id") or ""), csrf_token),
+            "clarification": "",
         }
 
     kind = terminal_kind(state)
@@ -190,6 +207,7 @@ def _paused_view(paused: PausedRun, csrf_token: str | None = None) -> dict[str, 
             "banner": banner,
             "card": card,
             "gate": "",
+            "clarification": "",
         }
 
     # ``existed=True`` with no terminal: a repeat submission whose thread has a pending gate
@@ -204,6 +222,7 @@ def _paused_view(paused: PausedRun, csrf_token: str | None = None) -> dict[str, 
             "banner": banner,
             "card": "",
             "gate": "",
+            "clarification": "",
         }
     if paused.existed:
         return {
@@ -211,12 +230,14 @@ def _paused_view(paused: PausedRun, csrf_token: str | None = None) -> dict[str, 
             "banner": banner,
             "card": _card_html(_card_payload_from_state(state, paused.thread_id), evidence),
             "gate": _gate_html(paused.thread_id, csrf_token),
+            "clarification": "",
         }
     return {
         "state_panel": _terminal_panel(state),
         "banner": banner,
         "card": "",
         "gate": "",
+        "clarification": "",
     }
 
 
@@ -254,6 +275,7 @@ def _decision_view(result: Mapping[str, Any], form: Mapping[str, str]) -> dict[s
         "banner": "",
         "card": "",
         "gate": "",
+        "clarification": "",
     }
 
 
@@ -299,6 +321,7 @@ def _render(
         waiting=waiting,
         card=view["card"],
         gate=view["gate"],
+        clarification=view.get("clarification", ""),
     )
 
 
@@ -354,6 +377,7 @@ def render_state(
                 "banner": "",
                 "card": "",
                 "gate": "",
+                "clarification": "",
             },
             form,
             csrf_token,
@@ -362,7 +386,13 @@ def render_state(
         )
     if field_error is not None:
         return _render(
-            {"state_panel": "", "banner": "", "card": "", "gate": ""},
+            {
+                "state_panel": "",
+                "banner": "",
+                "card": "",
+                "gate": "",
+                "clarification": "",
+            },
             form,
             csrf_token,
             field_error,

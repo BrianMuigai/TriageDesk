@@ -48,7 +48,8 @@ free text. Nothing reaches the queue until a named clinician approves it.
 8. **An answered question is not an approval.** `request_clarification` returns one of four
    outcomes (`accepted`, `declined`, `cancelled`, `unavailable`); only `accepted` carries an
    answer, and a refusal is **not** a negative clinical finding. Never convert a refusal into
-   a value, and never let an answer advance a case past the clinician's gate.
+   a value, and never let an answer advance a case past the clinician's gate. Do not retry a
+   decline to get a different answer, and never invent the answer the nurse did not give.
 
 ## Before the first call
 
