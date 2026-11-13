@@ -142,7 +142,7 @@ Plans:
 **Goal:** A structured case that the pure scorer already puts in the most urgent band reaches the kernel without waiting for extraction or the planner — and still cannot commit without the clinician.
 **Requirements**: EMERG-01, EMERG-02, EMERG-03, EMERG-04, EMERG-05
 **Depends on:** Phase 21
-**Plans:** 2/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 

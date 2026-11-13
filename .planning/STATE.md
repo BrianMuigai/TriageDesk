@@ -1,21 +1,21 @@
 ---
-gsd_state_version: 1.0
+gsd_state_version: "1.0"
 milestone: v1.3
 milestone_name: Adaptive Triage
-current_phase: 22
-current_phase_name: Deterministic emergency bypass — the model does not delay a critical patient
-status: executing
+current_phase: 23
+current_phase_name: Adaptive graph — the `plan` node, the bounded loop, and the frozen-kernel proof
+status: planning
 stopped_at: Phase 22 complete (2/2 plans), ready to plan Phase 23
-last_updated: "2026-11-14T00:00:00.000Z"
+last_updated: "2026-11-13T22:31:08.688Z"
 last_activity: 2026-11-14
-last_activity_desc: Phase 22 complete — deterministic emergency bypass
+last_activity_desc: Phase 22 complete, transitioned to Phase 23
+state_head: beb836fd60dd5be4f15c216eb43021d01fc6c383
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 10
+  total_plans: 8
   completed_plans: 10
   percent: 67
-state_head: 1418b387a334a20475f9376f9ee56d209d047d59
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 
 ## Current Position
 
-Phase: 22 — Deterministic emergency bypass — the model does not delay a critical patient
-Plan: 2/2 complete (22-01, 22-02)
-Status: Complete — ready to plan Phase 23
-Last activity: 2026-11-14 — Phase 22 complete: the pure pre-check, the fast arm, and the proof suite
+Phase: 23 — Adaptive graph — the `plan` node, the bounded loop, and the frozen-kernel proof
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-14 — Phase 22 complete, transitioned to Phase 23
 
 ## Reviewer Challenge (drives this milestone)
 
@@ -77,7 +77,7 @@ and **no MCP elicitation (G7)**. v1.3 answers with behaviour + a structural proo
 | 19 | 1 | - | - |
 | 20 | 4 | - | - |
 | 21 | 3 | - | - |
-| 22 | 2 | - | - |
+| 22 | 3 | - | - |
 
 **Recent Trend:**
 
