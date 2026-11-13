@@ -116,26 +116,26 @@ Plans:
 **Goal:** A planner decision is a typed contract over a closed action set, proposed by the local model and validated by a deterministic guard that can only narrow what happens next — with the bounded-step policy implemented and tested before any graph edge moves.
 **Requirements**: ADAPT-02, ADAPT-04, ADAPT-06, ADAPT-08
 **Depends on:** Phase 19
-**Plans:** 0/3 plans complete
+**Plans:** 4/3 plans complete
 
 Plans:
 
-- [ ] 20-01-PLAN.md — `core/planner.py`: `PlanAction` closed set (`finish_investigation`), `InvestigationState`, `admissible_actions`, `default_plan`, `validate_proposal`, budget/no-repeat policy
-- [ ] 20-02-PLAN.md — Model proposal via structured output in the ONE `llm` wrapper, and the thin `plan_next_step` owned tool
-- [ ] 20-03-PLAN.md — Guard tests: inadmissible / malformed / unparseable / exhausted-budget proposals all degrade to `finish_investigation`; no proposal can widen the action set
+- [x] 20-01-PLAN.md — `core/planner.py`: `PlanAction` closed set (`finish_investigation`), `InvestigationState`, `admissible_actions`, `default_plan`, `validate_proposal`, budget/no-repeat policy
+- [x] 20-02-PLAN.md — Model proposal via structured output in the ONE `llm` wrapper, and the thin `plan_next_step` owned tool
+- [x] 20-03-PLAN.md — Guard tests: inadmissible / malformed / unparseable / exhausted-budget proposals all degrade to `finish_investigation`; no proposal can widen the action set
 
 ### Phase 21: MCP elicitation end-to-end — `request_clarification` asks mid-call
 
 **Goal:** The owned server genuinely asks the human for the missing measurement inside a tool call, the shipped adapter turns that into a LangGraph `interrupt()`, and all four outcomes are distinguished — with a refusal never treated as an answer.
 **Requirements**: ELICIT-01, ELICIT-02, ELICIT-03, ELICIT-04, ELICIT-05, ELICIT-06, ELICIT-07, ELICIT-08
 **Depends on:** Phase 20
-**Plans:** 0/3 plans complete
+**Plans:** 3/3 plans complete — completed 2026-11-14
 
 Plans:
 
-- [ ] 21-01-PLAN.md — `request_clarification` with `ctx.elicit()`, data-sourced questions only, four outcomes; the nine-name allowlist fan-out in one atomic change
-- [ ] 21-02-PLAN.md — Adapter-level proof: real `MCPAdapter` call → `interrupt(mcp_elicitation)` → resume → answer; decline/cancel/unavailable paths; idempotent resume
-- [ ] 21-03-PLAN.md — Desk + CLI present the question distinctly from the gate; an answer is an observation, not an approval
+- [x] 21-01-PLAN.md — `request_clarification` (input-required round trip on 2026-07-28, legacy `ctx.elicit` fallback), data-sourced questions only, four outcomes; the nine-name allowlist fan-out in one atomic change
+- [x] 21-02-PLAN.md — Adapter-level proof: real `MCPAdapter` call → `interrupt(mcp_elicitation)` → resume → answer; decline/cancel/unavailable paths; idempotent resume
+- [x] 21-03-PLAN.md — Desk + CLI present the question distinctly from the gate; an answer is an observation, not an approval
 
 ### Phase 22: Deterministic emergency bypass — the model does not delay a critical patient
 

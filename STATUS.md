@@ -122,8 +122,11 @@ real and digest-stamped · greenfield and disclosed.
    calibrated probability.
 7. **G7 — No MCP sampling or elicitation.** 🧪 **Closing in v1.3:** the server exposes static tool
    contracts today; it never asks the client for a model call or a clarification mid-task. v1.3 adds
-   `request_clarification`, which elicits mid-call via `ctx.elicit()` (ELICIT-01..08). MCP **sampling**
-   stays deliberately out of scope — the server must not borrow the client's model.
+   `request_clarification`, which elicits mid-call (ELICIT-01..08). **The two v1.3 substrate tools
+   (`plan_next_step`, `request_clarification`) now exist on the server and are allowlisted, but no
+   graph node calls either yet — the shipped path is still the seven tools until Phase 23 wires the
+   planner.** MCP **sampling** stays deliberately out of scope — the server must not borrow the
+   client's model.
 8. **G8 — No multimodal intake.** Vitals and complaint are typed. Voice and a chart/cuff photo are
    the real desk interface and are absent.
 9. **G9 — The desk is a single-machine, loopback-only prototype.** `127.0.0.1`, one shared terminal,

@@ -48,7 +48,7 @@
   a **closed, typed** set — `gather_evidence`, `ask_question`, `re_extract`, `finish_investigation`. The
   action set and its admissibility rules are declared once; no node inlines a second copy.
 
-- [ ] **ADAPT-02**: The local model **proposes** the action with structured output over the closed set; a
+- [x] **ADAPT-02**: The local model **proposes** the action with structured output over the closed set; a
   deterministic admissibility guard **validates** it against the current typed state and the remaining
   step budget, and substitutes the default (`finish_investigation`) when the proposal is inadmissible,
   malformed, unparseable, or the budget is spent. The model is never the authority, and a bad proposal can
@@ -59,7 +59,7 @@
   unchanged. A structural test proves by graph inspection that no investigation node reaches `score`,
   `approval_gate` or `commit`, and that `commit` still has exactly one inbound edge.
 
-- [ ] **ADAPT-04**: Every investigation action is read-only with respect to the queue, the colour and the
+- [x] **ADAPT-04**: Every investigation action is read-only with respect to the queue, the colour and the
   clinical facts: it may add investigation facts only (evidence passages, candidate ids, an appended
   nurse answer, a re-extraction hint). No investigation action writes `priority`, `commit_result`, or a
   queue row, and none may emit a colour.
@@ -68,7 +68,7 @@
   stream — action, rationale, the signals it used, and the step index — so an auditor can answer
   "why did it do that next?" from the record alone, without re-running the case.
 
-- [ ] **ADAPT-06**: The investigation loop is **bounded**: a declared maximum number of steps (default 3),
+- [x] **ADAPT-06**: The investigation loop is **bounded**: a declared maximum number of steps (default 3),
   a no-repeat guard on an identical `(action, input)` pair, and a monotonically decreasing budget. Budget
   exhaustion concludes the investigation; it never raises, loops, or falls through to the gate. An
   unresolved case that exhausts its budget still cannot deliver on a guess — the deterministic `assess`
@@ -78,39 +78,39 @@
   overwrites a recorded vital, the original note, or a nurse's answer. A stated value always wins over a
   re-read value.
 
-- [ ] **ADAPT-08**: The fourth action is named `finish_investigation` in code, contracts, tests and docs —
+- [x] **ADAPT-08**: The fourth action is named `finish_investigation` in code, contracts, tests and docs —
   one name, no synonym drift.
 
 ### MCP elicitation
 
-- [ ] **ELICIT-01**: A new owned tool `request_clarification` elicits a typed answer **mid-tool-call** via
+- [x] **ELICIT-01**: A new owned tool `request_clarification` elicits a typed answer **mid-tool-call** via
   `ctx.elicit()` for at most three targeted questions. It is read-only, takes no approval token, and
   writes no queue row.
 
-- [ ] **ELICIT-02**: The elicitation round-trip works end-to-end through the **shipped adapter**, not a
+- [x] **ELICIT-02**: The elicitation round-trip works end-to-end through the **shipped adapter**, not a
   stub: tool call → `interrupt()` → resume with the nurse's answer → the tool returns the answer and
   the call completes. Proven by a test that drives `langchain.mcp.MCPAdapter` against the real owned
   server.
 
-- [ ] **ELICIT-03**: Elicitation has **four distinct outcomes** — `accepted`, `declined`, `cancelled`,
+- [x] **ELICIT-03**: Elicitation has **four distinct outcomes** — `accepted`, `declined`, `cancelled`,
   `unavailable` (the client cannot elicit). Only `accepted` carries an answer. A decline, cancel or
   unavailable client is **not** a negative clinical response and is never converted into a value.
 
-- [ ] **ELICIT-04**: The owned-tool allowlist fan-out (server, discovery, graph allowlist, test fake,
+- [x] **ELICIT-04**: The owned-tool allowlist fan-out (server, discovery, graph allowlist, test fake,
   exact-set assertion) moves in **one atomic change**, and the exact-set assertion still fails closed on a
   missing or unexpected tool.
 
-- [ ] **ELICIT-05**: The desk and CLI surfaces present an elicitation interrupt **distinctly** from the
+- [x] **ELICIT-05**: The desk and CLI surfaces present an elicitation interrupt **distinctly** from the
   approval gate — a question, not a decision — and neither surface can commit from it.
 
-- [ ] **ELICIT-06**: Every question is drawn from the loaded discriminator definitions (the closed set plus
+- [x] **ELICIT-06**: Every question is drawn from the loaded discriminator definitions (the closed set plus
   `data/*.yaml`), never authored freely by the model. A question that does not trace to a definition is
   not asked.
 
-- [ ] **ELICIT-07**: Resuming an elicitation is **idempotent**: a resumed thread cannot duplicate a queue
+- [x] **ELICIT-07**: Resuming an elicitation is **idempotent**: a resumed thread cannot duplicate a queue
   commit, and an already-answered question is not asked twice.
 
-- [ ] **ELICIT-08**: A clarification answer is an **observation, not an approval**: it is appended to the
+- [x] **ELICIT-08**: A clarification answer is an **observation, not an approval**: it is appended to the
   case facts only, it never advances the case past the approval gate, and it never becomes a colour.
 
 ### Emergency bypass
