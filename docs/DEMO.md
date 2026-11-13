@@ -320,7 +320,8 @@ The video must be as honest as the docs. Point the close at what the repository 
   quickstart.
 - Clinician validation remains a **declared gap** (`EVALS.md` §7): the expected colours come from the
   published SATS rules, not clinician adjudication. **No** triage nurse/clinician review was obtained as
-  of 2026-10-13.
+  of 2026-10-13. The interview is prepared but unattested
+  ([`CLINICIAN-INTERVIEW.md`](CLINICIAN-INTERVIEW.md)).
 - The video is recorded (`docs/assets/triagedesk-demo.mp4`, 2:28) and was **uploaded to Google Drive
   during submission** (folder link above). The brief's YouTube/Vimeo requirement is the residual
   platform caveat.

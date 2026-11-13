@@ -88,7 +88,7 @@ risks** — items we cannot yet close, tracked honestly.
 | --- | --- | --- | --- | --- |
 | JC-1 | Agentic depth & MCP craft (**30**) | Plans, calls tools, recovers — not one model call in a loop; tool boundaries a stranger could reuse | Explicit LangGraph plan with one deterministic evidence check whose failure is a fail-closed terminal (no gate, no commit, no card), missing-vital recovery, tool-failure recovery, safe abstention, and seven reusable tool contracts | ../ARCHITECTURE.md §3–4 |
 | JC-2 | Open-source rigour (**20**) | Clone & run; README honest about unfinished | One-command run, synthetic fixture, CI smoke test, honest status table incl. unfinished items | README, EVALS |
-| JC-3 | Fit to triage desk (**20**) | Named nurse does a real thing faster, at the desk, under queue pressure; *did you talk to one?* | Models the real five-step SATS desk process with an assumption-labelled throughput model; a loopback desk surface now ships ([`DEMO.md`](DEMO.md), [`DESK.md`](DESK.md)) with online extraction, an acuity-ordered read-only waiting room, and keyboard-first vitals (Phase 13–14), while **no clinician interview available** remains a declared gap | PROJECT.md §3, §3.1; EVALS §7; STATUS §6 |
+| JC-3 | Fit to triage desk (**20**) | Named nurse does a real thing faster, at the desk, under queue pressure; *did you talk to one?* | Models the real five-step SATS desk process with an assumption-labelled throughput model; a loopback desk surface now ships ([`DEMO.md`](DEMO.md), [`DESK.md`](DESK.md)) with online extraction, an acuity-ordered read-only waiting room, and keyboard-first vitals (Phase 13–14), while **no clinician interview available** remains a declared gap — the instrument is prepared but unattested ([`CLINICIAN-INTERVIEW.md`](CLINICIAN-INTERVIEW.md)) | PROJECT.md §3, §3.1; EVALS §7; STATUS §6 |
 | JC-4 | Evaluation & reliability (**15**) | Honest test set, not curated to pass; run-to-run variation measured or hidden | 16 cases; E-09 declared + E-11 recorded gate failure; 3 runs/case; variation + latency + cost reported | ../EVALS.md |
 | JC-5 | Defensibility (**10**) | Priority survives a clinical-audit question; sourced, readable log; known cost per run | Deterministic SATS scorer + exact citations + hash-chained audit log + measured cost/run (tokens + wall-clock) | ../ARCHITECTURE.md §3, §6; ../EVALS.md §3.1 |
 | JC-6 | Demo (**5**) | Three clear minutes, including where it fails | One 2:28 recording: tool calls on screen, the measured eval + the declared failure | docs/DEMO.md |
@@ -149,7 +149,7 @@ Not required by the brief, tracked because the agent touches a clinical queue. F
 
 | # | Gap / risk | Impact | Mitigation | Status |
 | --- | --- | --- | --- | --- |
-| G-1 | **No clinician interview** | Loses part of JC-3 (20 pts) | Ground in published SATS/OPD workflow; declared gap; attempt one call before 2026-10-15 | **OPEN** |
+| G-1 | **No clinician interview** | Loses part of JC-3 (20 pts) | Ground in published SATS/OPD workflow; declared gap; instrument prepared ([`CLINICIAN-INTERVIEW.md`](CLINICIAN-INTERVIEW.md)) — one interview + signed attestation outstanding | **OPEN** |
 | G-2 | RAM ceiling — a 4B may not fit | BW-5 | **Resolved:** measured in Phase 1; `qwen2.5:1.5b` default, `qwen3.5:4b` fallback; both run E2E | ✅ resolved |
 | G-3 | Host Python is 3.14 | wheels | **Resolved:** Python 3.12 pinned via `uv` | ✅ resolved |
 | G-4 | Borrowed MCP server availability | BW-3 | **Resolved:** `mcp-sqlite@1.0.9` adopted (World A); MCP spec 2026-07-28 | ✅ resolved |

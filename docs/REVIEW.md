@@ -140,6 +140,20 @@ duplicate alias, correctly fails the substrate-shape safety tests. The chosen al
 rather than re-tuning a published case (it must never tune **E-09** green). This is the project's
 open/closed claim (SOLID: O) shown live: extend by data, not by editing working code.
 
+## Beat 8 — If asked: "did you talk to one?"
+
+Answer in one breath, without hedging and without claiming:
+
+> "Not yet. No clinician or triage nurse has reviewed this. What I did instead was make the gap cheap
+> to close: eight questions drafted from the published SATS desk process, and for every answer, the
+> module that has to make it true — [`CLINICIAN-INTERVIEW.md`](CLINICIAN-INTERVIEW.md). One
+> fifteen-minute conversation with a named nurse signs it off. Until then `EVALS.md` §7 says *none
+> obtained*, and I quote nobody."
+
+**Do not** say *"designed with nurses"*, *"clinically validated"*, or present a drafted answer as a
+quote. **Do** show the blank, signed-only-if-true attestation block: the point is that the claim is
+falsifiable, not that it is flattering.
+
 ## House-keeping — the freeze
 
 Any remaining documentation edit must land **before** the repository freeze — a post-deadline commit

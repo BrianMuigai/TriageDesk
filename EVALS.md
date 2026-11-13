@@ -188,8 +188,12 @@ We do **not** have guaranteed access to a working triage nurse or clinician duri
 published SATS rules, not from clinician adjudication. This is an honest limitation:
 
 - Grounding: SATS Training Manual (EMSSA) and published SATS validation studies.
+- **Interview instrument ready.** [`docs/CLINICIAN-INTERVIEW.md`](docs/CLINICIAN-INTERVIEW.md) carries the
+  eight questions, the drafted responses, and — for each answer — the module that has to make it true.
+  It is the fifteen-minute artifact to put in front of a nurse; it is **not** a review.
 - **Clinician review: none obtained as of 2026-10-13.** If a triage nurse/clinician review is arranged,
-  add their attributed quote here (name/role/date, with consent). Nothing is claimed until it is.
+  run the instrument, sign its attestation, and add the attributed quote here (name/role/date, with
+  consent). Nothing is claimed until it is.
 
 ## 8. Reproducibility
 

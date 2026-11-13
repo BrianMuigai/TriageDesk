@@ -102,7 +102,9 @@ test suite; `--write` is the only supported way to update the document.
 ## 6. What is not covered
 
 - **No clinician review.** Expected colours derive from published SATS rules, not from
-  clinician adjudication; see [`../EVALS.md`](../EVALS.md) §7 for the declared gap.
+  clinician adjudication; see [`../EVALS.md`](../EVALS.md) §7 for the declared gap. The interview
+  instrument and drafted responses are in [`CLINICIAN-INTERVIEW.md`](CLINICIAN-INTERVIEW.md) — prepared,
+  not attested.
 - **Synthetic data only.** The fixtures are synthetic; no real patient data is used or leaves
   the machine.
 - **Small samples.** The measured set and the calibration split are small; see
