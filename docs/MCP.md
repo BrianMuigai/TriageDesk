@@ -12,7 +12,7 @@ TriageDesk runs **two** MCP servers, and only one of them is installed into a ha
 
 | Component | Role | How it is installed |
 | --- | --- | --- |
-| `triagedesk-triage` (**owned server**, SDK v2, 7 tools) | scoring, matching, retrieval, recheck, gated commit | you install it — this page |
+| `triagedesk-triage` (**owned server**, SDK v2; 7 shipped tools + 2 substrate) | scoring, matching, retrieval, recheck, gated commit | you install it — this page |
 | `mcp-sqlite@1.0.9` (**borrowed server**) | storage: queue rows + the hash-chained audit | launched by the owned server's audit path, on demand |
 | `triagedesk-triage` (**usage skill**) | the agent-facing safe sequence and fail-closed stop rules | copied by the same installer into the harness's skills directory |
 
@@ -159,8 +159,8 @@ on CPU.
 ## 4. Verify the connection
 
 Restart the harness, then check that the tools are listed (`/mcp` in most CLIs) — the seven shipped
-tools, plus `plan_next_step` (the v1.3 planner substrate, not yet wired into the graph) — and call one
-low-risk tool by name:
+tools, plus the two v1.3 substrate tools (`plan_next_step` and `request_clarification`, neither wired
+into the shipped graph yet) — and call one low-risk tool by name:
 
 ```bash
 # from a shell, before blaming the harness
@@ -187,7 +187,7 @@ If the harness does not list the skill, confirm the file exists at the target pr
 that the harness's skill discovery is enabled. The MCP server works without the skill, but the agent
 then has to be told the safe sequence explicitly — install the skill for any real triage use.
 
-## 5. Use: the seven shipped tools (+ the planner substrate)
+## 5. Use: the seven shipped tools (+ the two substrate tools)
 
 ### `normalize_case`
 
@@ -290,6 +290,60 @@ The closed action set is `gather_evidence`, `ask_question`, `re_extract` and
 the proposal is inadmissible, missing, malformed or the budget is spent, the guard returns
 `finish_investigation` with `overridden: true` and a reason. When the only admissible action is
 `finish_investigation`, the model is not called at all.
+
+### `request_clarification`
+
+The ninth owned tool and the second v1.3 substrate tool: it asks the nurse at most **three**
+questions **inside** the tool call, and returns a typed answer. Read-only — no store, no queue row,
+no approval token, no colour — and **not yet wired into the shipped graph**, so the shipped run
+never calls it.
+
+```json
+{"candidates": ["chest_pain", "acute_shortness_of_breath"]}
+```
+
+```json
+{"outcome": "accepted", "answers": ["crushing central pain, worse on exertion"], "reason": null}
+```
+
+- The caller supplies **closed-set discriminator ids only**. Each question is derived from the loaded
+  discriminator definitions through the one helper the coverage classifier uses, so a caller cannot
+  author question text and a question that does not trace to a definition is not asked.
+- At most three are asked; an id outside the closed set is skipped.
+- Four outcomes are distinguished — and only `accepted` carries an answer:
+
+| `outcome` | Meaning | Carries an answer? |
+| --- | --- | --- |
+| `accepted` | the nurse answered | yes |
+| `declined` | the nurse declined the question | no |
+| `cancelled` | the client abandoned the call | no |
+| `unavailable` | the client cannot elicit at all | no |
+
+```json
+{"outcome": "declined", "answers": [], "reason": null}
+```
+
+A `declined`, `cancelled` or `unavailable` result is **not** a negative clinical finding and is never
+converted into a value. An answer is an **observation**, not an approval: it can be appended to the
+case facts and it never advances a case past the clinician's gate, never becomes a colour, and never
+writes a queue row.
+
+#### How the round-trip works
+
+The shipped adapter (`langchain.mcp.MCPAdapter`) turns the server's mid-call question into a LangGraph
+`interrupt()`:
+
+1. the tool call reaches `request_clarification` and the server returns an `input_required` result
+   carrying one form request (the 2026-07-28 revision forbids a server-initiated request);
+2. the adapter raises `interrupt({"type": "mcp_elicitation", "tool_name": …, "requests": […]})`;
+3. the caller resumes the graph with `{"responses": {"clarification": {"action": "accept",
+   "content": {"q1": "…"}}}}` — or `{"action": "decline"}`;
+4. the call completes and the tool returns the `ClarificationAnswer`.
+
+The approval gate's payload carries `"type": "approval"`, so the two interrupts are never confused: a
+question is not a decision. Both surfaces present them differently — `triagedesk resume` takes
+repeatable `--answer` (and declines by default when none is given), and the desk renders a question
+panel instead of the approval gate.
 
 ### `commit_priority`
 

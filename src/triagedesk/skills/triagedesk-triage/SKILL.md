@@ -19,6 +19,7 @@ metadata:
     - assess_confidence
     - raise_recheck_flag
     - plan_next_step
+    - request_clarification
     - commit_priority
 ---
 
@@ -44,6 +45,10 @@ free text. Nothing reaches the queue until a named clinician approves it.
    scorer decide.
 7. **Every call is audited.** Each tool call appends a hash-chained record. Do not call the
    tools with invented data on a live desk; the audit is the clinical record.
+8. **An answered question is not an approval.** `request_clarification` returns one of four
+   outcomes (`accepted`, `declined`, `cancelled`, `unavailable`); only `accepted` carries an
+   answer, and a refusal is **not** a negative clinical finding. Never convert a refusal into
+   a value, and never let an answer advance a case past the clinician's gate.
 
 ## Before the first call
 
@@ -74,6 +79,7 @@ harness's working directory: `triage.db` (queue + hash-chained audit) and `spans
 | `assess_confidence` | no | no | Deterministic coverage/deferral signal |
 | `raise_recheck_flag` | no | no | Serial-vitals second look (never a re-colour) |
 | `plan_next_step` | only when needed | no | The planner's next read-only action (substrate; **not wired into the shipped graph yet**) |
+| `request_clarification` | no | no | At most three questions derived from the loaded discriminator definitions (substrate; **not wired into the shipped graph yet**) |
 | `commit_priority` | no | **yes** | The gated, idempotent queue write |
 
 Exact arguments and return shapes: [`references/tool-contracts.md`](references/tool-contracts.md).

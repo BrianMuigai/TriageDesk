@@ -254,6 +254,54 @@ malformed or the budget is spent, the returned `action` is `finish_investigation
 `overridden: true` and an `override_reason` naming the cause — so the guard can only narrow what
 happens next. When `finish_investigation` is the only admissible action, the model is not called.
 
+## `request_clarification`
+
+The ninth owned tool: it asks the nurse at most **three** questions **inside** the call and returns a
+typed answer. Read-only — no store, no queue row, no approval token, no colour — and **not yet wired
+into the shipped graph**, so a normal triage run never calls it.
+
+**Arguments**
+
+```json
+{"candidates": ["chest_pain", "acute_shortness_of_breath"]}
+```
+
+`candidates` are closed-set discriminator **ids only**. Each question is derived from the loaded
+discriminator definitions, so you cannot supply question text. At most three are asked; an id outside
+the closed set is skipped.
+
+**Returns** (`ClarificationAnswer`)
+
+```json
+{"outcome": "accepted", "answers": ["crushing central pain, worse on exertion"], "reason": null}
+```
+
+| `outcome` | Meaning | Carries an answer? |
+| --- | --- | --- |
+| `accepted` | the nurse answered | yes — in question order, blanks dropped |
+| `declined` | the nurse declined the question | no |
+| `cancelled` | the client abandoned the call | no |
+| `unavailable` | the client cannot elicit at all | no |
+
+```json
+{"outcome": "declined", "answers": [], "reason": null}
+```
+
+**Stop rules**
+
+- Only `accepted` carries an answer. A `declined` / `cancelled` / `unavailable` result is **not** a
+  negative clinical finding: never record it as a finding, never convert it into a value, never let it
+  change a colour.
+- An answer is an **observation**, not an approval. It may be appended to the case facts; it never
+  advances a case past the clinician's gate and never writes a queue row.
+- Do not retry a decline to get a different answer, and never invent the answer the nurse did not give.
+
+**Round-trip.** The shipped adapter turns the server's mid-call question into a LangGraph
+`interrupt()` of type `mcp_elicitation`; the caller resumes with
+`{"responses": {"clarification": {"action": "accept", "content": {"q1": "…"}}}}` (or
+`{"action": "decline"}`). The approval gate's payload carries `type: "approval"`, so a question is
+never mistaken for a decision.
+
 ## `commit_priority`
 
 **Arguments**

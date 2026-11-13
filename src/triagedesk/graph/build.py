@@ -64,17 +64,19 @@ __all__ = [
 # The least-privilege allowlist (SAFE-03, D-12): the graph may call ONLY these owned
 # tools. Declared ONCE here and asserted at both edges (composition and discovery) so
 # a missing or unexpected tool fails loudly instead of silently changing which
-# capabilities the agent can reach (T-03-23). The owned surface is eight tools; the
-# same eight-name set is mirrored at the harness, the test fake and the exact-set
+# capabilities the agent can reach (T-03-23). The owned surface is nine tools; the
+# same nine-name set is mirrored at the harness, the test fake and the exact-set
 # assertion, which must move together or composition raises (D9-05).
-# ``plan_next_step`` is the read-only planner substrate (Phase 20): it is allowlisted and
-# callable, but no node calls it yet — the graph topology is unchanged until Phase 21.
+# ``plan_next_step`` and ``request_clarification`` are the v1.3 substrate tools: they are
+# allowlisted and callable, but NO node calls them yet — the graph topology is unchanged
+# until Phase 23 wires the ``plan`` node.
 OWNED_TOOL_ALLOWLIST: tuple[str, ...] = (
     "normalize_case",
     "match_discriminators",
     "score_priority",
     "raise_recheck_flag",
     "plan_next_step",
+    "request_clarification",
     "assess_confidence",
     "retrieve_evidence",
     "commit_priority",

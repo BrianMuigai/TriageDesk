@@ -314,6 +314,75 @@ class ClarificationRequest(BaseModel):
     reason: str
 
 
+class InterruptType(StrEnum):
+    """The two interrupt-payload discriminators — declared ONCE, here (ELICIT-05).
+
+    A paused run's payload carries a ``type`` so a surface can tell a **decision** from a
+    **question** without inspecting keys: ``approval`` is minted by
+    ``graph.nodes.approval_gate`` and answered with an ``ApprovalToken``-shaped decision;
+    ``mcp_elicitation`` is minted by the shipped ``langchain.mcp`` interrupt driver and
+    answered with ``{"responses": {...}}``. The values are the wire contract, so they live in
+    the ONE schema module: ``durable``, the CLI and the desk compare against these members
+    instead of repeating a literal, and a drift from the adapter's own constant is caught by
+    a test. There is deliberately no third member — an interrupt this system cannot answer is
+    not representable.
+    """
+
+    APPROVAL = "approval"
+    ELICITATION = "mcp_elicitation"
+
+
+class ElicitationOutcome(StrEnum):
+    """The FOUR outcomes of asking a human a question mid-tool-call (ELICIT-03).
+
+    ``accepted`` is the only outcome that carries an answer. ``declined`` and ``cancelled``
+    are the client's refusals, and ``unavailable`` means the client *could not* elicit at all
+    (no capability, no back-channel, or no protocol era that can carry the round) — which is
+    emphatically **not** a refusal by the nurse and **not** a negative clinical finding. The
+    distinction exists so a transport limitation can never be mistaken for a clinical answer.
+    """
+
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    CANCELLED = "cancelled"
+    UNAVAILABLE = "unavailable"
+
+
+class ClarificationAnswer(BaseModel):
+    """What one mid-call clarification returns — an observation, never a decision (ELICIT-08).
+
+    ``outcome`` is the transport's four-way answer (never a clinical one), ``answers`` are the
+    human's typed replies **in question order** and only for an ``accepted`` outcome, and
+    ``reason`` explains a non-answer (a skipped candidate, a missing capability) so a reader
+    never has to guess. There is deliberately no colour, priority, target, queue or approval
+    field, and ``extra="forbid"`` rejects one at construction: an answer is an observation
+    appended to the case facts, so it is *unrepresentable* as a clinical decision rather than
+    merely discouraged from becoming one (mirrors :class:`EvidencePassage`).
+    """
+
+    # An undeclared field is rejected rather than silently carried (ELICIT-08).
+    model_config = ConfigDict(extra="forbid")
+
+    outcome: ElicitationOutcome
+    answers: list[str] = Field(default_factory=list)
+    reason: str | None = None
+
+    @model_validator(mode="after")
+    def _only_an_acceptance_carries_answers(self) -> ClarificationAnswer:
+        """Reject answers on a refusal — a decline/cancel/unavailable is never a value.
+
+        This makes the safety property structural: a caller cannot build a
+        ``ClarificationAnswer`` that turns "the client declined" into a clinical fact
+        (ELICIT-03). Only ``accepted`` may carry answers.
+        """
+        if self.outcome is not ElicitationOutcome.ACCEPTED and self.answers:
+            raise ValueError(
+                f"a {self.outcome.value!r} elicitation cannot carry answers; "
+                "only 'accepted' carries a human's reply"
+            )
+        return self
+
+
 class Escalation(BaseModel):
     """A safe abstention/escalation terminal (ORCH-05, D-03).
 

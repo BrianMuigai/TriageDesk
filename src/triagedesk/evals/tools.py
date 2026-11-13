@@ -161,10 +161,18 @@ def _tool_map(
         return await server_module.retrieve_evidence(str(inp["complaint"]))
 
     async def plan_next_step(inp: Mapping[str, Any]) -> Any:
-        # The planner substrate is allowlisted but not yet called by any node (Phase 21 wires
+        # The planner substrate is allowlisted but not yet called by any node (Phase 23 wires
         # it). It is the REAL owned tool, so a future node sees the shipped guard, not a copy.
         return await server_module.plan_next_step(
             InvestigationState.model_validate(inp["investigation"])
+        )
+
+    async def request_clarification(inp: Mapping[str, Any]) -> Any:
+        # Allowlisted, not yet called by any node (Phase 23). ``ctx=None`` is the honest
+        # in-process answer: there is no MCP client here, so the shipped tool returns
+        # ``unavailable`` rather than fabricating an answer.
+        return await server_module.request_clarification(
+            list(inp.get("candidates") or []), None
         )
 
     async def commit_priority(inp: Mapping[str, Any]) -> Any:
@@ -179,6 +187,7 @@ def _tool_map(
         "score_priority": score_priority,
         "raise_recheck_flag": raise_recheck_flag,
         "plan_next_step": plan_next_step,
+        "request_clarification": request_clarification,
         "assess_confidence": assess_confidence,
         "retrieve_evidence": retrieve_evidence,
         "commit_priority": commit_priority,

@@ -336,11 +336,20 @@ def build_graph_tools(
         return retrieval.retrieve(str(inp["complaint"]))
 
     async def plan_next_step(inp: dict[str, Any]) -> Any:
-        # The planner substrate is allowlisted but not yet called by any node (Phase 21 wires
+        # The planner substrate is allowlisted but not yet called by any node (Phase 23 wires
         # it). The fake is the offline baseline: it never calls a model, so the graph suites
         # stay deterministic even if a node starts calling it.
         calls.append(("plan_next_step", inp))
         return planner.default_plan(InvestigationState.model_validate(inp["investigation"]))
+
+    async def request_clarification(inp: dict[str, Any]) -> Any:
+        # Allowlisted, not yet called by any node (Phase 23). It calls the REAL owned tool with
+        # no client, so the fake and the shipped tool cannot drift: the honest in-process answer
+        # is ``unavailable``, never a fabricated answer.
+        calls.append(("request_clarification", inp))
+        return await server_module.request_clarification(
+            list(inp.get("candidates") or []), None
+        )
 
     async def commit_priority(inp: dict[str, Any]) -> CommitResult:
         calls.append(("commit_priority", inp))
@@ -386,6 +395,7 @@ def build_graph_tools(
         "score_priority": score_priority,
         "raise_recheck_flag": raise_recheck_flag,
         "plan_next_step": plan_next_step,
+        "request_clarification": request_clarification,
         "assess_confidence": assess_confidence,
         "retrieve_evidence": retrieve_evidence,
         "commit_priority": commit_priority,

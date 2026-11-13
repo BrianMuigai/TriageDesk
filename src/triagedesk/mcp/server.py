@@ -1,4 +1,4 @@
-"""Owned MCP server (SDK v2, stdio) exposing the eight triage tools (D-04/D-12).
+"""Owned MCP server (SDK v2, stdio) exposing the nine triage tools (D-04/D-12).
 
 ``from mcp.server import MCPServer`` — the v1 ``FastMCP`` import path was removed
 in SDK v2. Every tool returns a shared ``core.schema`` contract (D-14), so the
@@ -11,6 +11,11 @@ the adapter seam (``mcp/adapter.py``), which launches it as a stdio subprocess.
 validates the approval token, REFUSES (touching no store) when the token is absent,
 malformed or a ``dismiss``, and otherwise performs the idempotent queue write through
 the injectable :class:`~triagedesk.store.Store` seam (D-05, D-06, GATE-02/03).
+
+``plan_next_step`` and ``request_clarification`` are the two v1.3 tools that **exist and are
+allowlisted but are not yet called by any graph node** (Phase 23 wires the ``plan`` node), so
+the shipped graph still runs the seven-tool path. Do not describe the surface as "nine
+shipped tools": seven are on the shipped path, two are substrate.
 
 Every tool is wrapped by ONE uniform interceptor (:func:`audited`) that appends exactly
 one chained audit record per call through ``store/audit.append``, so no owned tool call
@@ -26,7 +31,22 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from mcp.server import MCPServer
-from pydantic import BaseModel, ValidationError
+from mcp.server.elicitation import (
+    AcceptedElicitation,
+    CancelledElicitation,
+    DeclinedElicitation,
+    render_elicitation_schema,
+)
+from mcp.server.mcpserver.context import Context
+from mcp.shared.exceptions import MCPError, NoBackChannelError
+from mcp.types import (
+    MISSING_REQUIRED_CLIENT_CAPABILITY,
+    ElicitRequest,
+    ElicitRequestFormParams,
+    InputRequiredResult,
+)
+from mcp.types.version import is_version_at_least
+from pydantic import BaseModel, Field, ValidationError, create_model
 
 from triagedesk.core import (
     confidence,
@@ -42,8 +62,10 @@ from triagedesk.core.approval import committed_colour, target_for_colour
 from triagedesk.core.schema import (
     ApprovalToken,
     CaseInput,
+    ClarificationAnswer,
     CommitResult,
     ConfidenceResult,
+    ElicitationOutcome,
     EvidenceResult,
     ExtractionResult,
     InvestigationState,
@@ -53,6 +75,7 @@ from triagedesk.core.schema import (
     RecheckFlag,
 )
 from triagedesk.llm.client import extract_async, propose_plan_async
+from triagedesk.mcp.elicitation import CLARIFICATION_REQUEST_KEY, answer_field
 from triagedesk.observability import current_trace_id, span
 from triagedesk.store import Store, default_store
 from triagedesk.store.audit import append
@@ -385,6 +408,215 @@ async def plan_next_step(investigation: InvestigationState) -> PlanDecision:
     if planner.admissible_actions(investigation) == planner.FINISH_ONLY:
         return planner.default_plan(investigation)
     return planner.validate_proposal(await propose_plan_async(investigation), investigation)
+
+
+# The first protocol revision whose ``tools/call`` carries elicitation inside an
+# ``InputRequiredResult`` (the multi-round-trip flow) instead of a server-initiated request.
+# Pinned to the revision, NOT ``LATEST_MODERN_VERSION``, so a future revision cannot silently
+# move the gate. On an older connection the legacy back-channel ``ctx.elicit`` is used instead.
+_INPUT_REQUIRED_VERSION = "2026-07-28"
+
+# The human-facing prompt for a clarification round. Static text: the QUESTIONS are derived
+# per candidate and ride the form's property descriptions, so no question is authored here.
+_CLARIFICATION_MESSAGE = (
+    "One detail would resolve this triage case. Answer what you can — a blank field is an "
+    "unanswered question, not a finding."
+)
+
+
+def _clarification_questions(candidates: list[str]) -> list[str]:
+    """Derive at most three targeted questions from closed-set candidate ids (ELICIT-06).
+
+    The ONE owner of question text is ``core.coverage.question_for`` (the same helper the
+    coverage classifier uses), so a caller supplies **ids** and can never author a question.
+    An id outside the closed set is skipped rather than raising — a data typo must not crash
+    a tool call — and the bound is the classifier's own ``MAX_CLARIFICATION_QUESTIONS``, so
+    the two cannot disagree about how many questions a nurse is asked.
+    """
+    questions: list[str] = []
+    for candidate in candidates:
+        if len(questions) >= coverage.MAX_CLARIFICATION_QUESTIONS:
+            break
+        try:
+            question = coverage.question_for(candidate)
+        except KeyError:
+            continue  # not a declared discriminator: nothing to ask about
+        questions.append(question)
+    return questions
+
+
+def _clarification_form(questions: list[str]) -> type[BaseModel]:
+    """Build the spec-valid elicitation form: one string property per question.
+
+    MCP elicitation admits primitive properties only, so the form is a flat model of ``str``
+    fields named ``q1..qN`` (the ONE naming rule, ``mcp.elicitation.answer_field``) whose
+    descriptions carry the derived question text. ``create_model`` is used because the field
+    count is data-driven, not fixed.
+    """
+    form: type[BaseModel] = create_model(  # type: ignore[call-overload]
+        "ClarificationForm",
+        **{
+            answer_field(index): (str, Field(default="", description=question))
+            for index, question in enumerate(questions, start=1)
+        },
+    )
+    return form
+
+
+def _answers(form: type[BaseModel], content: Any) -> list[str]:
+    """The human's answers in question order, blanks dropped.
+
+    ``content`` is a mapping from the modern round trip, or the validated form model the
+    legacy ``ctx.elicit`` returns; both are read the same way. A blank field is an
+    unanswered question, not a finding: carrying ``""`` as an answer would let an untouched
+    input become an observation (ELICIT-03/08).
+    """
+    if isinstance(content, BaseModel):
+        content = content.model_dump()
+    if not isinstance(content, Mapping):
+        return []
+    answers: list[str] = []
+    for name in form.model_fields:
+        value = content.get(name)
+        if isinstance(value, str) and value.strip():
+            answers.append(value)
+    return answers
+
+
+def _client_can_elicit(ctx: Context | None) -> bool:
+    """True only when the connected client declared the elicitation capability.
+
+    A ``None`` ctx (an in-process caller with no MCP client) or a ctx outside a request
+    cannot elicit, so the answer is honestly ``unavailable`` rather than a fabricated value.
+    """
+    if ctx is None:
+        return False
+    try:
+        capabilities = ctx.client_capabilities
+    except (ValueError, AttributeError):
+        return False
+    return capabilities is not None and capabilities.elicitation is not None
+
+
+def _unavailable(reason: str) -> ClarificationAnswer:
+    """The ONE non-answer for a client that could not be asked (never a clinical value)."""
+    return ClarificationAnswer(outcome=ElicitationOutcome.UNAVAILABLE, reason=reason)
+
+
+def _outcome_from_responses(
+    responses: Any, form: type[BaseModel]
+) -> ClarificationAnswer:
+    """Map a resumed elicitation round to one of the four outcomes (ELICIT-03).
+
+    A cancel anywhere outranks a decline (a cancel abandons the call, a decline only the
+    question), and either way **no** answer is carried. Only an all-accept round produces
+    ``accepted`` with answers. A missing request, or a response this server did not mint, is
+    ``unavailable`` — never an answer.
+    """
+    if not isinstance(responses, Mapping):
+        return _unavailable("the client returned no elicitation response")
+    response = responses.get(CLARIFICATION_REQUEST_KEY)
+    action = getattr(response, "action", None)
+    if action is None and isinstance(response, Mapping):
+        action = response.get("action")
+    if action == "cancel":
+        return ClarificationAnswer(outcome=ElicitationOutcome.CANCELLED)
+    if action == "decline":
+        return ClarificationAnswer(outcome=ElicitationOutcome.DECLINED)
+    if action != "accept":
+        return _unavailable("the client did not answer the clarification request")
+    content = getattr(response, "content", None)
+    if content is None and isinstance(response, Mapping):
+        content = response.get("content")
+    return ClarificationAnswer(
+        outcome=ElicitationOutcome.ACCEPTED, answers=_answers(form, content)
+    )
+
+
+async def _ask(questions: list[str], ctx: Context) -> ClarificationAnswer | InputRequiredResult:
+    """Ask the questions over whichever transport this connection can carry — ONE branch.
+
+    The 2026-07-28 transport forbids a server-initiated request, so elicitation there rides
+    the multi-round-trip flow: the first round returns an ``InputRequiredResult`` and the
+    client retries with ``input_responses``. An older connection has a back-channel, so the
+    legacy ``ctx.elicit`` is used. Both paths feed the ONE outcome mapping, so the four
+    outcomes cannot differ by transport.
+
+    A missing capability or a connection with no back-channel is ``unavailable``; **any other
+    exception propagates**, because a transport failure must never be reported as a clinical
+    answer.
+    """
+    form = _clarification_form(questions)
+    version = getattr(ctx, "protocol_version", None)
+    if version is not None and is_version_at_least(version, _INPUT_REQUIRED_VERSION):
+        responses = ctx.input_responses
+        if responses is None:
+            return InputRequiredResult(
+                input_requests={
+                    CLARIFICATION_REQUEST_KEY: ElicitRequest(
+                        params=ElicitRequestFormParams(
+                            message=_CLARIFICATION_MESSAGE,
+                            requested_schema=render_elicitation_schema(form),
+                        )
+                    )
+                }
+            )
+        return _outcome_from_responses(responses, form)
+
+    try:
+        result = await ctx.elicit(_CLARIFICATION_MESSAGE, form)
+    except NoBackChannelError:
+        return _unavailable("this connection has no back-channel for a server-initiated question")
+    except MCPError as exc:
+        if getattr(exc, "code", None) == MISSING_REQUIRED_CLIENT_CAPABILITY:
+            return _unavailable("the client did not declare the elicitation capability")
+        raise
+    if isinstance(result, AcceptedElicitation):
+        return ClarificationAnswer(
+            outcome=ElicitationOutcome.ACCEPTED,
+            answers=_answers(form, result.data),
+        )
+    if isinstance(result, DeclinedElicitation):
+        return ClarificationAnswer(outcome=ElicitationOutcome.DECLINED)
+    assert isinstance(result, CancelledElicitation)  # the union is exhaustive
+    return ClarificationAnswer(outcome=ElicitationOutcome.CANCELLED)
+
+
+@server.tool()
+@audited()
+async def request_clarification(
+    candidates: list[str], ctx: Context | None = None
+) -> ClarificationAnswer | InputRequiredResult:
+    """Ask the nurse at most three targeted questions **inside** this call (ELICIT-01).
+
+    The ninth owned tool, and read-only: no store, no queue row, no approval token, and a
+    contract with no colour/priority/target field — so an answer is an *observation* that
+    can never advance the case past the clinician's gate (ELICIT-01/08).
+
+    Every question is derived from ``core.coverage.question_for``, the ONE owner of question
+    text: the caller supplies closed-set discriminator **ids** and cannot author a question,
+    so a question that does not trace to a loaded definition is not asked (ELICIT-06). At
+    most ``coverage.MAX_CLARIFICATION_QUESTIONS`` are asked; an id outside the closed set is
+    skipped.
+
+    Four outcomes are distinguished (ELICIT-03): ``accepted`` (the only one carrying
+    answers), ``declined``, ``cancelled`` and ``unavailable`` (the client cannot elicit). A
+    decline, a cancel or an unavailable client is **not** a negative clinical response and is
+    never converted into a value.
+
+    On a 2026-07-28 connection the first round returns an ``InputRequiredResult`` (the
+    transport forbids a server-initiated request), which the shipped adapter turns into a
+    LangGraph ``interrupt()`` of type ``mcp_elicitation``; on an older connection the legacy
+    ``ctx.elicit`` back-channel is used. ``ctx`` is optional so an in-process caller honestly
+    receives ``unavailable`` instead of a fabricated answer.
+    """
+    questions = _clarification_questions(candidates)
+    if not questions:
+        return _unavailable("no candidate id names a declared discriminator; nothing to ask")
+    if not _client_can_elicit(ctx):
+        return _unavailable("the connected client cannot elicit an answer")
+    assert ctx is not None  # _client_can_elicit proved it
+    return await _ask(questions, ctx)
 
 
 @server.tool()
