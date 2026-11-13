@@ -64,7 +64,9 @@ uv run python scripts/install_mcp.py --harness <key> --write
 ```
 
 Prerequisites: `uv`, `npx` (the audit store), and for `normalize_case` only, Ollama with
-`qwen2.5:1.5b`. The other six tools need no model and no network. `normalize_case` can take
+`qwen2.5:1.5b`. No other tool needs the network. `plan_next_step` calls the same local model,
+but only when an investigation action is admissible — the routine case takes the
+deterministic fast path and calls no model. `normalize_case` can take
 about 13–30 s on CPU; give the harness a 120 s timeout. Runtime artefacts land in the
 harness's working directory: `triage.db` (queue + hash-chained audit) and `spans.jsonl`
 (local trace stream).
@@ -79,8 +81,8 @@ harness's working directory: `triage.db` (queue + hash-chained audit) and `spans
 | `retrieve_evidence` | no | no | Attributed SATS excerpts (advisory grounding) |
 | `assess_confidence` | no | no | Deterministic coverage/deferral signal |
 | `raise_recheck_flag` | no | no | Serial-vitals second look (never a re-colour) |
-| `plan_next_step` | only when needed | no | The planner's next read-only action (substrate; **not wired into the shipped graph yet**) |
-| `request_clarification` | no | no | At most three questions derived from the loaded discriminator definitions (substrate; **not wired into the shipped graph yet**) |
+| `plan_next_step` | only when needed | no | The planner's next read-only action (the graph's `plan` node calls it) |
+| `request_clarification` | no | no | At most three questions derived from the loaded discriminator definitions (the graph's `ask_question` node calls it) |
 | `commit_priority` | no | **yes** | The gated, idempotent queue write |
 
 Exact arguments and return shapes: [`references/tool-contracts.md`](references/tool-contracts.md).
@@ -233,7 +235,7 @@ temperature. Do not present ORANGE as the decision and do not commit.
 
 | Symptom | Fix |
 | --- | --- |
-| The seven tools are missing | Re-run the installer with `--write`; restart or reload the harness. |
+| The nine tools are missing | Re-run the installer with `--write`; restart or reload the harness. |
 | `ModuleNotFoundError: triagedesk` | Launch from the checkout or install editable (`uv pip install -e .`). |
 | Every call fails, including read-only ones | The audit path needs `npx`; allow the first fetch of `mcp-sqlite@1.0.9`. |
 | `normalize_case` fails, the other six work | Start Ollama and pull `qwen2.5:1.5b`. |

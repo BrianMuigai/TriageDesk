@@ -12,7 +12,7 @@ TriageDesk runs **two** MCP servers, and only one of them is installed into a ha
 
 | Component | Role | How it is installed |
 | --- | --- | --- |
-| `triagedesk-triage` (**owned server**, SDK v2; 7 shipped tools + 2 substrate) | scoring, matching, retrieval, recheck, gated commit | you install it — this page |
+| `triagedesk-triage` (**owned server**, SDK v2; nine tools) | scoring, matching, retrieval, recheck, gated commit | you install it — this page |
 | `mcp-sqlite@1.0.9` (**borrowed server**) | storage: queue rows + the hash-chained audit | launched by the owned server's audit path, on demand |
 | `triagedesk-triage` (**usage skill**) | the agent-facing safe sequence and fail-closed stop rules | copied by the same installer into the harness's skills directory |
 
@@ -21,7 +21,7 @@ harness can call `score_priority` directly and present a colour for a case with 
 the Python package (`src/triagedesk/skills/triagedesk-triage/`) and is copied by the same installer,
 so it travels with the MCP.
 
-Tool contracts and the seven-tool table live in [`ARCHITECTURE.md`](../ARCHITECTURE.md) §4; the skill's
+Tool contracts and the tool table live in [`ARCHITECTURE.md`](../ARCHITECTURE.md) §4; the skill's
 own self-contained contracts are in
 [`src/triagedesk/skills/triagedesk-triage/references/tool-contracts.md`](../src/triagedesk/skills/triagedesk-triage/references/tool-contracts.md).
 This page does not restate them. **Prerequisites:**
@@ -158,9 +158,9 @@ on CPU.
 
 ## 4. Verify the connection
 
-Restart the harness, then check that the tools are listed (`/mcp` in most CLIs) — the seven shipped
-tools, plus the two v1.3 substrate tools (`plan_next_step` and `request_clarification`, neither wired
-into the shipped graph yet) — and call one low-risk tool by name:
+Restart the harness, then check that the tools are listed (`/mcp` in most CLIs) — all nine:
+the seven kernel tools plus `plan_next_step` and `request_clarification`, which the graph's `plan`
+and `ask_question` nodes call — and call one low-risk tool by name:
 
 ```bash
 # from a shell, before blaming the harness
@@ -187,7 +187,7 @@ If the harness does not list the skill, confirm the file exists at the target pr
 that the harness's skill discovery is enabled. The MCP server works without the skill, but the agent
 then has to be told the safe sequence explicitly — install the skill for any real triage use.
 
-## 5. Use: the seven shipped tools (+ the two substrate tools)
+## 5. Use: the nine shipped tools
 
 ### `normalize_case`
 
@@ -270,7 +270,8 @@ Returns `{"flag": true, "deteriorations": ["respiratory_rate", "heart_rate"], "c
 
 ### `plan_next_step`
 
-The v1.3 planner substrate: the local model **proposes** the next investigation action and a
+The planner tool the graph's `plan` node calls: the local model **proposes** the next
+investigation action and a
 deterministic guard decides. Read-only — no queue row, no colour, no approval token — and **not yet
 wired into the shipped graph**, so the shipped run never calls it.
 
@@ -293,7 +294,7 @@ the proposal is inadmissible, missing, malformed or the budget is spent, the gua
 
 ### `request_clarification`
 
-The ninth owned tool and the second v1.3 substrate tool: it asks the nurse at most **three**
+The clarification tool the graph's `ask_question` node calls: it asks the nurse at most **three**
 questions **inside** the tool call, and returns a typed answer. Read-only — no store, no queue row,
 no approval token, no colour — and **not yet wired into the shipped graph**, so the shipped run
 never calls it.

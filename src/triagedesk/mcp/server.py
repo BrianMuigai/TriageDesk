@@ -12,10 +12,10 @@ validates the approval token, REFUSES (touching no store) when the token is abse
 malformed or a ``dismiss``, and otherwise performs the idempotent queue write through
 the injectable :class:`~triagedesk.store.Store` seam (D-05, D-06, GATE-02/03).
 
-``plan_next_step`` and ``request_clarification`` are the two v1.3 tools that **exist and are
-allowlisted but are not yet called by any graph node** (Phase 23 wires the ``plan`` node), so
-the shipped graph still runs the seven-tool path. Do not describe the surface as "nine
-shipped tools": seven are on the shipped path, two are substrate.
+``plan_next_step`` and ``request_clarification`` are the two v1.3 investigation tools, and
+both are on the shipped path: the graph's ``plan`` node calls ``plan_next_step`` and its
+``ask_question`` node calls ``request_clarification`` (Phase 23). All nine tools are therefore
+callable by the shipped graph; the seven kernel tools plus these two are the whole surface.
 
 Every tool is wrapped by ONE uniform interceptor (:func:`audited`) that appends exactly
 one chained audit record per call through ``store/audit.append``, so no owned tool call
