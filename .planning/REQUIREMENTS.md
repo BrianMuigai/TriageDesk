@@ -115,19 +115,19 @@
 
 ### Emergency bypass
 
-- [ ] **EMERG-01**: A pure, deterministic pre-check runs on a structured case **before any model call**. When
+- [x] **EMERG-01**: A pure, deterministic pre-check runs on a structured case **before any model call**. When
   it fires, the graph skips extraction and the planner and enters the kernel at `retrieve → score`.
 
-- [ ] **EMERG-02**: The pre-check reuses the ONE scorer and the loaded bands; it cannot disagree with the
+- [x] **EMERG-02**: The pre-check reuses the ONE scorer and the loaded bands; it cannot disagree with the
   kernel's colour, and it never produces a colour itself.
 
-- [ ] **EMERG-03**: The emergency arm still passes `verify → recheck → assess → approval_gate → commit`; it
+- [x] **EMERG-03**: The emergency arm still passes `verify → recheck → assess → approval_gate → commit`; it
   cannot write a queue row and cannot bypass the clinician.
 
-- [ ] **EMERG-04**: An incomplete or unstructured case never fires the check (no imputation); it takes the
+- [x] **EMERG-04**: An incomplete or unstructured case never fires the check (no imputation); it takes the
   normal path.
 
-- [ ] **EMERG-05**: The bypass is recorded as a provenance fact and an audit/span event, so a reader can see
+- [x] **EMERG-05**: The bypass is recorded as a provenance fact and an audit/span event, so a reader can see
   that the case skipped the model and why.
 
 ### Measurement
@@ -180,14 +180,17 @@
 - **G8 — Multimodal intake** (voice, chart/cuff photo) — the real desk interface, absent by choice.
 - **Four-state observation model** — stated / missing / not assessed / explicitly negative as first-class
   structured states. Text-level negation is handled today; a per-field provenance model is deferred.
+
 - **MCP sampling** — deliberately out of scope: the server must not borrow the client's model.
 
 ## Out of Scope (explicit)
 
 - **Free-form ReAct / LLM-authored plan DAG** — makes the safety kernel skippable and is unevaluable on a
   1.5B CPU model. The planner's action set is closed for this reason.
+
 - **Multi-agent planner/executor/critic** — the `verify` node plus the admissibility guard cover the
   critic role structurally; a second autonomous agent adds risk without evidence.
+
 - **Allergy history and acute allergic-reaction support** — explicitly outside v1.3.
 - **Runtime self-learning / long-term memory** — unsafe at the point of care.
 - **Autonomous queue movement** — forbidden by the challenge; `commit_priority` remains the only

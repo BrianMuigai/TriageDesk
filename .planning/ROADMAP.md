@@ -129,7 +129,7 @@ Plans:
 **Goal:** The owned server genuinely asks the human for the missing measurement inside a tool call, the shipped adapter turns that into a LangGraph `interrupt()`, and all four outcomes are distinguished — with a refusal never treated as an answer.
 **Requirements**: ELICIT-01, ELICIT-02, ELICIT-03, ELICIT-04, ELICIT-05, ELICIT-06, ELICIT-07, ELICIT-08
 **Depends on:** Phase 20
-**Plans:** 3/3 plans complete — completed 2026-11-14
+**Plans:** 4/3 plans complete — completed 2026-11-14
 
 Plans:
 
@@ -142,12 +142,12 @@ Plans:
 **Goal:** A structured case that the pure scorer already puts in the most urgent band reaches the kernel without waiting for extraction or the planner — and still cannot commit without the clinician.
 **Requirements**: EMERG-01, EMERG-02, EMERG-03, EMERG-04, EMERG-05
 **Depends on:** Phase 21
-**Plans:** 0/2 plans complete
+**Plans:** 2/2 plans executed
 
 Plans:
 
-- [ ] 22-01-PLAN.md — `core/emergency.py` + the `emergency_check` node and route; skips `normalize` and `plan`, never the kernel
-- [ ] 22-02-PLAN.md — Proof: incomplete/unstructured cases never fire; the arm still hits verify/recheck/assess/gate; the bypass is audited and spanned
+- [x] 22-01-PLAN.md — `core/emergency.py` + the `emergency_check` node and route; skips `normalize` and `plan`, never the kernel
+- [x] 22-02-PLAN.md — Proof: incomplete/unstructured cases never fire; the arm still hits verify/recheck/assess/gate; the bypass is audited and spanned
 
 ### Phase 23: Adaptive graph — the `plan` node, the bounded loop, and the frozen-kernel proof
 

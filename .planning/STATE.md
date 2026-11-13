@@ -1,21 +1,21 @@
 ---
-gsd_state_version: "1.0"
+gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Adaptive Triage
-current_phase: 21
-current_phase_name: MCP elicitation end-to-end — `request_clarification` asks mid-call
+current_phase: 22
+current_phase_name: Deterministic emergency bypass — the model does not delay a critical patient
 status: executing
-stopped_at: Phase 21 complete (3/3 plans), ready to plan Phase 22
-last_updated: "2026-11-14T00:58:26.000Z"
+stopped_at: Phase 22 complete (2/2 plans), ready to plan Phase 23
+last_updated: "2026-11-14T00:00:00.000Z"
 last_activity: 2026-11-14
-last_activity_desc: Phase 21 complete — MCP elicitation end-to-end
-state_head: 9c512ac
+last_activity_desc: Phase 22 complete — deterministic emergency bypass
 progress:
   total_phases: 6
-  completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
-  percent: 50
+  completed_phases: 4
+  total_plans: 10
+  completed_plans: 10
+  percent: 67
+state_head: 1418b387a334a20475f9376f9ee56d209d047d59
 ---
 
 # Project State
@@ -29,11 +29,10 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 
 ## Current Position
 
-Phase: 21 — MCP elicitation end-to-end — `request_clarification` asks mid-call
-Plan: 3/3 complete (21-01, 21-02, 21-03)
-Status: Complete — ready to plan Phase 22
-Last activity: 2026-11-14 — Phase 21 complete: the ninth owned tool, the real-adapter round trip,
-the ONE respond loop, and the CLI/desk question surfaces
+Phase: 22 — Deterministic emergency bypass — the model does not delay a critical patient
+Plan: 2/2 complete (22-01, 22-02)
+Status: Complete — ready to plan Phase 23
+Last activity: 2026-11-14 — Phase 22 complete: the pure pre-check, the fast arm, and the proof suite
 
 ## Reviewer Challenge (drives this milestone)
 
@@ -48,10 +47,10 @@ and **no MCP elicitation (G7)**. v1.3 answers with behaviour + a structural proo
 - `request_clarification` eliciting mid-tool-call → LangGraph `interrupt()`, with
   accepted / declined / cancelled / unavailable distinguished (the 2026-07-28 transport carries the
   question inside an `InputRequiredResult`; `ctx.elicit` remains the legacy-era path);
+
 - a deterministic emergency bypass so a critical structured case never waits for the model or the planner;
 - two diagrams split by audience (clinical workflow; components and infrastructure), honestly labelled;
 - an adaptive-vs-baseline measurement published from `report.json`, never hand-typed.
-
 
 ## Performance Metrics
 
@@ -78,6 +77,7 @@ and **no MCP elicitation (G7)**. v1.3 answers with behaviour + a structural proo
 | 19 | 1 | - | - |
 | 20 | 4 | - | - |
 | 21 | 3 | - | - |
+| 22 | 2 | - | - |
 
 **Recent Trend:**
 
@@ -111,6 +111,8 @@ and **no MCP elicitation (G7)**. v1.3 answers with behaviour + a structural proo
 | Phase 21 P01 | 35min | 6 tasks | 12 files |
 | Phase 21 P02 | 30min | 4 tasks | 4 files |
 | Phase 21 P03 | 40min | 6 tasks | 15 files |
+| Phase 22 P01 | 35min | 4 tasks | 8 files |
+| Phase 22 P02 | 20min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -127,13 +129,25 @@ Recent decisions affecting current work:
 - [v1.3 Phase 21]: The installed SDK's 2026-07-28 revision forbids a server-initiated request, so
   `request_clarification` asks over the input-required round trip and keeps `ctx.elicit` for an older
   connection; both share one question derivation and one outcome mapper.
+
 - [v1.3 Phase 21]: The interrupt discriminator (`approval` | `mcp_elicitation`) lives once in
   `core.schema.InterruptType`, so the graph never imports `mcp` and no surface repeats a literal.
+
 - [v1.3 Phase 21]: One interrupt loop behind an injectable `RespondPolicy`; the default answers an
   approval and STOPS at a question, so no existing caller changed and an approval never answers one.
+
 - [v1.3 Phase 21]: `request_clarification` is the ninth owned tool but is unwired — no graph node
   calls it until Phase 23 wires the `plan` node. The nine-tool count stays "7 shipped + 2 substrate"
   in README/ARCHITECTURE/SECURITY/STATUS.
+
+- [v1.3 Phase 22]: The emergency pre-check reads the kernel's own `score_priority(case, [])` and
+  derives the most urgent band from `colour_urgency()`; it emits no colour, so the kernel stays the
+  ONE colour producer. The fast arm skips `normalize` only and rejoins at `retrieve`.
+
+- [v1.3 Phase 22]: The internal arm route tokens are `fast`/`normal`, not the word `emergency`,
+  because that spelling is a loaded discriminator category. The state/payload key stays `emergency`
+  per CONTEXT, carried by ONE pinned structural-key exemption in the SATS DRY guard.
+
 - [v1.0, carried]: `checkpoints.db` (runtime state) is a separate file from `triage.db` (clinical record + audit); the queue write is the ONE idempotent write keyed on immutable case content.
 - [v1.0, carried]: Colour is produced in exactly one place (`core/scorer.score_priority`, `citations == triggered_rules`); the agent path stays offline and model-free on the score path.
 - [v1.0, carried]: `approval_gate` is side-effect-free before `interrupt()`, and `commit` is reachable only through the resumed interrupt.
@@ -248,8 +262,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T18:30:00.000Z
-Stopped at: Phase 20 complete, ready to plan Phase 21
+Last session: 2026-11-14T00:00:00.000Z
+Stopped at: Phase 22 complete, ready to plan Phase 23
 Resume file: None
 
 ## Operator Next Steps
