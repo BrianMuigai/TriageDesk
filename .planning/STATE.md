@@ -2,15 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v1.3
 milestone_name: Adaptive Triage
+current_phase: 20
+current_phase_name: Planner substrate — typed decision, closed action set, admissibility guard
 status: planning
-last_updated: "2026-11-13T18:26:21.898Z"
+stopped_at: Phase 19 complete, ready to plan Phase 20
+last_updated: "2026-11-13T20:23:18.224Z"
 last_activity: 2026-11-13
+last_activity_desc: Phase 19 complete, transitioned to Phase 20
+state_head: 4286ce4711bcce59f5f2d3d7a70b7e331520f91a
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 0
   completed_plans: 0
-  percent: 0
+  percent: 17
 ---
 
 # Project State
@@ -24,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 
 ## Current Position
 
-Phase: 19 — Not started
-Plan: —
-Status: Roadmap defined; ready for `/gsd-discuss-phase 19` or `/gsd-plan-phase 19`
-Last activity: 2026-11-13 — Milestone v1.3 started (reviewer challenge: adaptive behaviour)
+Phase: 20 — Planner substrate — typed decision, closed action set, admissibility guard
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-13 — Phase 19 complete, transitioned to Phase 20
 
 ## Reviewer Challenge (drives this milestone)
 
@@ -68,6 +73,7 @@ and **no MCP elicitation (G7)**. v1.3 answers with behaviour + a structural proo
 | 12 | 3 | - | - |
 | 13 | 3 | - | - |
 | 14 | 3 | - | - |
+| 19 | 1 | - | - |
 
 **Recent Trend:**
 
@@ -226,7 +232,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-13T18:30:00.000Z
-Stopped at: Milestone v1.3 Adaptive Triage initialised — requirements + roadmap defined on branch `feat/v1.3-adaptive-triage`; Phase 19 ready to plan
+Stopped at: Phase 19 complete, ready to plan Phase 20
 Resume file: None
 
 ## Operator Next Steps

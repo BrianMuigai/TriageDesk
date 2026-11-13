@@ -103,7 +103,7 @@ model and the planner — never the kernel or the clinician.
 **Goal:** A judge understands the clinical workflow in under a minute and an engineer can trace a model call, an MCP interaction, a database access, a checkpoint write and an audit record — with every element marked implemented, tested, proposed or outstanding.
 **Requirements**: DIAG-01, DIAG-02, DIAG-03, DIAG-04, DIAG-05, DIAG-06
 **Depends on:** Phase 18
-**Plans:** 0/3 plans complete
+**Plans:** 1/0 plans complete
 
 Plans:
 

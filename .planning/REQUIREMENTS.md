@@ -14,31 +14,31 @@
 
 ### Architecture documentation (reviewer-requested)
 
-- [ ] **DIAG-01**: Two diagrams ship as separately readable assets with different audiences: **A** —
+- [x] **DIAG-01**: Two diagrams ship as separately readable assets with different audiences: **A** —
   adaptive clinical workflow (judge / clinician / product reviewer, understandable in under a minute);
   **B** — component and infrastructure architecture (engineer, traceable model call → MCP → DB →
   checkpoint → audit). The comprehensive reference diagram is retained.
 
-- [ ] **DIAG-02**: Diagram A shows intake and observations, the deterministic emergency check, normalisation,
+- [x] **DIAG-02**: Diagram A shows intake and observations, the deterministic emergency check, normalisation,
   discriminator retrieval and coverage, the four planner actions, the guard between proposal and execution,
   the iteration / clarification / evidence budgets, all four elicitation outcomes, the frozen kernel, the
   clinician decision, and the safe exits — and makes it visually unmistakable that the planner cannot
   score, approve or commit.
 
-- [ ] **DIAG-03**: Diagram B shows the nurse-facing app, the LangGraph engine with planner and checkpoint
+- [x] **DIAG-03**: Diagram B shows the nurse-facing app, the LangGraph engine with planner and checkpoint
   persistence, the local model (measured default and documented fallback), the MCP client over stdio, the
   owned server's nine tools with `plan_next_step`, `request_clarification` and `commit_priority`
   distinguished, the guard as a separate control, the borrowed server's read-only paths, the Store-seam
   write, the three rule sources, the three persistence/observability stores, and the offline boundary.
 
-- [ ] **DIAG-04**: Both diagrams share one vocabulary (labels match source names), one legend (human /
+- [x] **DIAG-04**: Both diagrams share one vocabulary (labels match source names), one legend (human /
   deterministic / model proposal / persistence / safe exit), and one honesty rule: every element is marked
   implemented, tested, proposed or outstanding. No proposed feature is drawn as shipped.
 
-- [ ] **DIAG-05**: One renderer produces every diagram asset from source
+- [x] **DIAG-05**: One renderer produces every diagram asset from source
   (`docs/render-architecture.sh [stem]`); no diagram is hand-edited binary output.
 
-- [ ] **DIAG-06**: `ARCHITECTURE.md` links both diagrams; `README.md` stays high-level; `SECURITY.md` states
+- [x] **DIAG-06**: `ARCHITECTURE.md` links both diagrams; `README.md` stays high-level; `SECURITY.md` states
   the real tool inventory and marks proposed tools as proposed; `STATUS.md` separates implemented /
   tested / proposed / outstanding.
 
@@ -197,9 +197,40 @@
 
 | Requirement | Phase |
 | --- | --- |
-| DIAG-01, DIAG-02, DIAG-03, DIAG-04, DIAG-05, DIAG-06 | Phase 19 |
-| ADAPT-02, ADAPT-04, ADAPT-06, ADAPT-08 | Phase 20 |
-| ELICIT-01, ELICIT-02, ELICIT-03, ELICIT-04, ELICIT-05, ELICIT-06, ELICIT-07, ELICIT-08 | Phase 21 |
-| EMERG-01, EMERG-02, EMERG-03, EMERG-04, EMERG-05 | Phase 22 |
-| ADAPT-01, ADAPT-03, ADAPT-05, ADAPT-07 | Phase 23 |
-| MEAS-01, MEAS-02, MEAS-03, MEAS-04, DOC-01, DOC-02, DOC-03, DOC-04, DOC-05, DOC-06 | Phase 24 |
+| DIAG-01 | Phase 19 |
+| DIAG-02 | Phase 19 |
+| DIAG-03 | Phase 19 |
+| DIAG-04 | Phase 19 |
+| DIAG-05 | Phase 19 |
+| DIAG-06 | Phase 19 |
+| ADAPT-02 | Phase 20 |
+| ADAPT-04 | Phase 20 |
+| ADAPT-06 | Phase 20 |
+| ADAPT-08 | Phase 20 |
+| ELICIT-01 | Phase 21 |
+| ELICIT-02 | Phase 21 |
+| ELICIT-03 | Phase 21 |
+| ELICIT-04 | Phase 21 |
+| ELICIT-05 | Phase 21 |
+| ELICIT-06 | Phase 21 |
+| ELICIT-07 | Phase 21 |
+| ELICIT-08 | Phase 21 |
+| EMERG-01 | Phase 22 |
+| EMERG-02 | Phase 22 |
+| EMERG-03 | Phase 22 |
+| EMERG-04 | Phase 22 |
+| EMERG-05 | Phase 22 |
+| ADAPT-01 | Phase 23 |
+| ADAPT-03 | Phase 23 |
+| ADAPT-05 | Phase 23 |
+| ADAPT-07 | Phase 23 |
+| MEAS-01 | Phase 24 |
+| MEAS-02 | Phase 24 |
+| MEAS-03 | Phase 24 |
+| MEAS-04 | Phase 24 |
+| DOC-01 | Phase 24 |
+| DOC-02 | Phase 24 |
+| DOC-03 | Phase 24 |
+| DOC-04 | Phase 24 |
+| DOC-05 | Phase 24 |
+| DOC-06 | Phase 24 |

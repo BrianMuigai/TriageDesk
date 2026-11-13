@@ -1,7 +1,7 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v1.3",
+  "milestone": "v1.3 — Adaptive Triage",
   "phases": [
     {
       "number": "1",
@@ -62,12 +62,32 @@
       "number": "12",
       "name": "Live Review, Demo & Milestone-Close Documentation",
       "status": "complete"
+    },
+    {
+      "number": "15",
+      "name": "Deterministic coverage classification",
+      "status": "complete"
+    },
+    {
+      "number": "16",
+      "name": "Three-way confidence and the bounded clarification terminal",
+      "status": "complete"
+    },
+    {
+      "number": "17",
+      "name": "Extraction completeness",
+      "status": "complete"
+    },
+    {
+      "number": "18",
+      "name": "Eval expansion, honest measurement and docs",
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "/gsd-discuss-phase",
-    "label": "Discuss the first phase",
-    "reason": "Project initialized — plan your first phase"
+    "command": "/gsd-progress --next",
+    "label": "Advance to the next step (plan phase 20)",
+    "reason": "Phase 2 of 6 — needs a plan"
   },
-  "updated_at": "2026-11-13T18:26:21.908Z"
+  "updated_at": "2026-11-13T20:23:18.279Z"
 }
