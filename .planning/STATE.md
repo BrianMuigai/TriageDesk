@@ -1,19 +1,16 @@
 ---
-gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Coverage Recovery
-current_phase: 18
-status: completed
-stopped_at: "v1.2 Coverage Recovery implemented: three-way coverage classification, bounded clarification terminal (one round, max three questions), deterministic stated-vital recovery, 8 new eval cases (24 total, 6 held-out); real-mode report regenerated; PR open to main"
-last_updated: "2026-11-13T14:30:42.869Z"
+gsd_state_version: "1.0"
+milestone: v1.3
+milestone_name: Adaptive Triage
+status: planning
+last_updated: "2026-11-13T18:26:21.898Z"
 last_activity: 2026-11-13
-last_activity_desc: Milestone v1.2 implemented
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
-current_phase_name: Coverage Recovery
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -23,14 +20,28 @@ current_phase_name: Coverage Recovery
 See: .planning/PROJECT.md (updated 2026-11-13)
 
 **Core value:** A triage nurse gets a sourced, confirmable priority for each patient in seconds, and nothing reaches the queue without her approval.
-**Current focus:** Milestone v1.2 Coverage Recovery implemented — PR open to `main`
+**Current focus:** Milestone v1.3 Adaptive Triage — bounded planner over a frozen safety kernel, plus real MCP elicitation
 
 ## Current Position
 
-Phase: 18 — COMPLETE
+Phase: 19 — Not started
 Plan: —
-Status: Milestone v1.2 implemented; awaiting PR review
-Last activity: 2026-11-13 — Coverage recovery shipped
+Status: Roadmap defined; ready for `/gsd-discuss-phase 19` or `/gsd-plan-phase 19`
+Last activity: 2026-11-13 — Milestone v1.3 started (reviewer challenge: adaptive behaviour)
+
+## Reviewer Challenge (drives this milestone)
+
+> "Is this genuinely an agentic system, or a deterministic clinical rules engine with an LLM
+> extraction step and an MCP integration?"
+
+`STATUS.md` §3/§5/§7 conceded two named limitations: **fixed routing rather than dynamic planning**
+and **no MCP elicitation (G7)**. v1.3 answers with behaviour + a structural proof:
+
+- a bounded `plan` node that chooses the next read-only investigation action (model proposes, guard disposes);
+- `conclude` as the only edge into `score`, so the safety kernel is a non-skippable suffix;
+- `request_clarification` eliciting mid-tool-call via `ctx.elicit()` → LangGraph `interrupt()`;
+- an adaptive-vs-baseline measurement published from `report.json`, never hand-typed.
+
 
 ## Performance Metrics
 
@@ -211,10 +222,12 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T14:30:42.781Z
-Stopped at: v1.2 Coverage Recovery implemented: three-way coverage classification, bounded clarification terminal (one round, max three questions), deterministic stated-vital recovery, 8 new eval cases (24 total, 6 held-out); real-mode report regenerated; PR open to main
+Last session: 2026-11-13T18:30:00.000Z
+Stopped at: Milestone v1.3 Adaptive Triage initialised — requirements + roadmap defined on branch `feat/v1.3-adaptive-triage`; Phase 19 ready to plan
 Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Branch is `feat/v1.3-adaptive-triage` (never work on `main`); open a PR to `main` when the milestone lands.
+- `/gsd-plan-phase 19` — planner substrate, closed action set, admissibility guard.
+- Phases 19 → 20 → 21 → 22 are strictly sequential: the guard lands before the tool, the tool before the graph, the graph before the measurement.

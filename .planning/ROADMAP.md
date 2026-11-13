@@ -4,7 +4,8 @@
 
 - ✅ **v1.0 MVP** — Phases 1–5 (shipped 2026-10-10) — archived at `.planning/milestones/v1.0-ROADMAP.md`
 - ✅ **v1.1 Score Uplift** — Phases 6–12 (shipped 2026-10-13) — archived at `.planning/milestones/v1.1-ROADMAP.md`
-- ✅ **v1.2 Coverage Recovery** — Phases 15–18 (shipped 2026-11-13)
+- ✅ **v1.2 Coverage Recovery** — Phases 15–18 (shipped 2026-11-13) — archived at `.planning/milestones/v1.2-phases/`
+- 🚧 **v1.3 Adaptive Triage** — Phases 19–22 (started 2026-11-13)
 
 ## Phases
 
@@ -73,54 +74,75 @@ raise the number. The four safety invariants are unchanged; retrieval informs co
 **Measured baseline (real mode, 16 cases × 3 runs, 2026-10-13 report):** colour 19/19 correct,
 coverage deferrals 18/37 (48.6%), colour stability 15/16 (E-11), p95 latency 55.03 s.
 
+- [x] **Phase 15: Deterministic coverage classification** (2/2 plans) — `matched` / `ambiguous` / `no_candidate` from the closed set plus data-driven context terms
+- [x] **Phase 16: Three-way confidence and the bounded clarification terminal** (3/3 plans) — vitals-only delivery, at most three questions, one answer round
+- [x] **Phase 17: Extraction completeness** (2/2 plans) — recover every stated vital the model drops
+- [x] **Phase 18: Eval expansion, honest measurement and docs** (3/3 plans) — 24 cases (6 held-out), report-derived EVALS.md
+
 </details>
 
-### Phase 15: Deterministic coverage classification — matched / ambiguous / no-candidate, from the closed set plus data-driven context terms
+---
 
-**Goal:** The matcher stops conflating "no discriminator exists" with "retrieval failed": a pure classifier returns `matched`, `ambiguous` or `no_candidate`, and only an `ambiguous` complaint can hold a case back.
-**Requirements**: COV-01, COV-04
-**Depends on:** Phase 14
-**Plans:** 2/2 plans complete
+## v1.3 Adaptive Triage
 
-Plans:
+**Milestone goal:** replace the fixed investigation ladder with a bounded, audited planner that genuinely
+decides what to do next — while the safety kernel (`score → verify → recheck → assess → gate → commit`)
+stays a non-skippable suffix. The reviewer's challenge ("rules engine with an LLM extraction step?") is
+answered by behaviour plus a structural proof, not by prose.
 
-- [x] 15-01-PLAN.md — Retrieval classifier: stopwords, conservative stems, context terms (data-only)
-- [x] 15-02-PLAN.md — Matcher/MatchResult contract carries status + candidates; purity and boundary tests
+**Design in one line:** *an adaptive envelope around a frozen kernel.* The planner may choose only
+read-only investigation actions; the model proposes and a deterministic guard disposes; the colour still
+comes from exactly one place.
 
-### Phase 16: Three-way confidence and the bounded clarification terminal
+### Phase 19: Planner substrate — typed decision, closed action set, admissibility guard
 
-**Goal:** A no-candidate case with complete vitals is delivered with a `vitals-only` provenance fact; an ambiguous case gets at most three targeted questions, no colour, no gate, no commit; one answer round is allowed before deferring.
-**Requirements**: COV-02, COV-03, COV-07
-**Depends on:** Phase 15
-**Plans:** 3/3 plans complete
-
-Plans:
-
-- [x] 16-01-PLAN.md — `ConfidenceResult.action` + questions; `assess` uses retrieval status and priority
-- [x] 16-02-PLAN.md — Graph `clarify` terminal and routing; clarification channel in state/outcome
-- [x] 16-03-PLAN.md — Desk surfaces the questions and accepts one answer round; eval counts clarify separately
-
-### Phase 17: Extraction completeness — recover every stated vital the model drops
-
-**Goal:** A stated RR/HR/systolic BP/SpO2 is recovered deterministically after extraction, so a dropped vital cannot turn an urgent case into RECOVER; nothing unstated is ever imputed.
-**Requirements**: COV-05, COV-06
-**Depends on:** Phase 16
-**Plans:** 2/2 plans complete
+**Goal:** A planner decision is a typed contract over a closed action set, proposed by the local model and validated by a deterministic guard that can only narrow what happens next — with the bounded-step policy implemented and tested before any graph edge moves.
+**Requirements**: ADAPT-02, ADAPT-04, ADAPT-06
+**Depends on:** Phase 18
+**Plans:** 0/3 plans complete
 
 Plans:
 
-- [x] 17-01-PLAN.md — Single-vital deterministic readers in the one grounding module
-- [x] 17-02-PLAN.md — E-11 repeated-run regression (≥9 runs) and the missing-vital safety proof
+- [ ] 19-01-PLAN.md — `core/planner.py`: `PlanAction` closed set, `InvestigationState`, `admissible_actions`, `default_plan`, `validate_proposal`, budget/no-repeat policy
+- [ ] 19-02-PLAN.md — Model proposal via structured output in the ONE `llm` wrapper, and the thin `plan_next_step` owned tool
+- [ ] 19-03-PLAN.md — Guard tests: inadmissible / malformed / unparseable / exhausted-budget proposals all degrade to `conclude`; no proposal can widen the action set
 
-### Phase 18: Eval expansion, honest measurement and docs
+### Phase 20: MCP elicitation end-to-end — `request_clarification` asks mid-call
 
-**Goal:** Measure the new coverage honestly on a larger, partly held-out set — ambiguous+chronic, contradictory/incomplete/noisy vitals — and publish delivered/clarified/deferred plus latency without hand-typed numbers.
-**Requirements**: COV-08, COV-09, COV-10
-**Depends on:** Phase 17
-**Plans:** 3/3 plans complete
+**Goal:** The owned server genuinely asks the human for the missing measurement inside a tool call, the shipped adapter turns that into a LangGraph `interrupt()`, and a decline or cancel is treated as a refusal rather than an answer.
+**Requirements**: ELICIT-01, ELICIT-02, ELICIT-03, ELICIT-04, ELICIT-05
+**Depends on:** Phase 19
+**Plans:** 0/3 plans complete
 
 Plans:
 
-- [x] 18-01-PLAN.md — New synthetic cases: ambiguous+chronic, contradictory, incomplete, noisy, held-out
-- [x] 18-02-PLAN.md — Analysis/gate/report: coverage vs clarification vs deferral, ECE and risk–coverage re-derived
-- [x] 18-03-PLAN.md — Regenerate EVALS.md and sweep README/STATUS/ARCHITECTURE/DESK prose
+- [ ] 20-01-PLAN.md — `request_clarification` tool with `ctx.elicit()`, typed form, at most three questions; the nine-name allowlist fan-out in one atomic change
+- [ ] 20-02-PLAN.md — Adapter-level proof: real `MCPAdapter` call → `interrupt(mcp_elicitation)` → resume → answer returned; decline/cancel path
+- [ ] 20-03-PLAN.md — Desk + CLI present the elicitation question distinctly from the approval gate; neither can commit from it
+
+### Phase 21: Adaptive graph — the `plan` node, the bounded loop, and the frozen-kernel proof
+
+**Goal:** The graph investigates adaptively before it scores — `plan → action → plan … → conclude` inside a hard budget — and a structural test proves no investigation node can reach `score`, the gate, or the commit, with every decision audited.
+**Requirements**: ADAPT-01, ADAPT-03, ADAPT-05
+**Depends on:** Phase 20
+**Plans:** 0/3 plans complete
+
+Plans:
+
+- [ ] 21-01-PLAN.md — `plan` node + `gather_evidence` / `ask_question` / `re_extract` / `conclude` actions; loop back through `retrieve`; TRACER_NODES updated
+- [ ] 21-02-PLAN.md — Structural proof: `conclude` is the only edge into `score`; `commit` keeps one inbound edge; no investigation node writes `priority`/`commit_result`
+- [ ] 21-03-PLAN.md — Decision audit + span facts (action, rationale, signals, step index) and a replayable "why next?" record
+
+### Phase 22: Measure the adaptivity, publish it honestly, and answer the reviewer
+
+**Goal:** The suite measures whether the planner earns its keep — adaptive vs default-conclude on the same cases, with steps and latency — and the docs answer "is this a rules engine?" with the measured delta and the structural proof.
+**Requirements**: MEAS-01, MEAS-02, MEAS-03, MEAS-04, DOC-01, DOC-02, DOC-03, DOC-04, DOC-05
+**Depends on:** Phase 21
+**Plans:** 0/3 plans complete
+
+Plans:
+
+- [ ] 22-01-PLAN.md — Eval facts: investigation steps, action sequence, elicitation occurred, guard override; new cases resolvable only by asking
+- [ ] 22-02-PLAN.md — Report: adaptive-vs-baseline block, invariants re-proven, `EVALS.md` regenerated (`--check` exits 0)
+- [ ] 22-03-PLAN.md — ARCHITECTURE/STATUS/README/DECISIONS/MCP.md + skill sweep; the written reviewer answer
+
