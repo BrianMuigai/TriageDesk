@@ -17,13 +17,14 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from triagedesk.core import confidence, coverage, matcher, recheck, retrieval, scorer
+from triagedesk.core import confidence, coverage, matcher, planner, recheck, retrieval, scorer
 from triagedesk.core.approval import committed_colour, target_for_colour
 from triagedesk.core.schema import (
     ApprovalToken,
     CaseInput,
     CommitResult,
     ExtractionResult,
+    InvestigationState,
     PriorityResult,
 )
 from triagedesk.mcp import server as server_module
@@ -214,23 +215,24 @@ def async_return(value: Any) -> Callable[..., Awaitable[Any]]:
 
 @pytest.fixture(autouse=True)
 def _model_seam_is_stubbed() -> Iterator[None]:
-    """Fail loudly when a test forgets to stub the async model call.
+    """Fail loudly when a test forgets to stub the async model calls.
 
-    ``normalize_case`` awaits ``server_module.extract_async``; this autouse fixture
-    replaces it with a stub that raises, so a missed patch site fails the test instead of
-    reaching Ollama. A test's own ``monkeypatch.setattr`` runs after this fixture and
-    therefore wins.
+    ``normalize_case`` awaits ``server_module.extract_async`` and ``plan_next_step`` awaits
+    ``server_module.propose_plan_async``; this autouse fixture replaces BOTH with stubs that
+    raise, so a missed patch site fails the test instead of reaching Ollama. A test's own
+    ``monkeypatch.setattr`` runs after this fixture and therefore wins.
     """
-    original = server_module.extract_async
+    originals = (server_module.extract_async, server_module.propose_plan_async)
 
     async def unpatched(*args: Any, **kwargs: Any) -> Any:
         raise AssertionError("unpatched model call")
 
     server_module.extract_async = unpatched
+    server_module.propose_plan_async = unpatched
     try:
         yield
     finally:
-        server_module.extract_async = original
+        server_module.extract_async, server_module.propose_plan_async = originals
 
 
 @pytest.fixture(autouse=True)
@@ -333,6 +335,13 @@ def build_graph_tools(
             return retrieve_impl(inp)
         return retrieval.retrieve(str(inp["complaint"]))
 
+    async def plan_next_step(inp: dict[str, Any]) -> Any:
+        # The planner substrate is allowlisted but not yet called by any node (Phase 21 wires
+        # it). The fake is the offline baseline: it never calls a model, so the graph suites
+        # stay deterministic even if a node starts calling it.
+        calls.append(("plan_next_step", inp))
+        return planner.default_plan(InvestigationState.model_validate(inp["investigation"]))
+
     async def commit_priority(inp: dict[str, Any]) -> CommitResult:
         calls.append(("commit_priority", inp))
         token = inp.get("approval_token")
@@ -376,6 +385,7 @@ def build_graph_tools(
         "match_discriminators": match_discriminators,
         "score_priority": score_priority,
         "raise_recheck_flag": raise_recheck_flag,
+        "plan_next_step": plan_next_step,
         "assess_confidence": assess_confidence,
         "retrieve_evidence": retrieve_evidence,
         "commit_priority": commit_priority,

@@ -158,7 +158,8 @@ on CPU.
 
 ## 4. Verify the connection
 
-Restart the harness, then check that the seven tools are listed (`/mcp` in most CLIs) and call one
+Restart the harness, then check that the tools are listed (`/mcp` in most CLIs) — the seven shipped
+tools, plus `plan_next_step` (the v1.3 planner substrate, not yet wired into the graph) — and call one
 low-risk tool by name:
 
 ```bash
@@ -186,7 +187,7 @@ If the harness does not list the skill, confirm the file exists at the target pr
 that the harness's skill discovery is enabled. The MCP server works without the skill, but the agent
 then has to be told the safe sequence explicitly — install the skill for any real triage use.
 
-## 5. Use: the seven tools
+## 5. Use: the seven shipped tools (+ the planner substrate)
 
 ### `normalize_case`
 
@@ -266,6 +267,29 @@ Serial vitals, never a re-classification:
 
 Returns `{"flag": true, "deteriorations": ["respiratory_rate", "heart_rate"], "changes": […],
 "reason": "serial vitals show deterioration; a second look is required"}`.
+
+### `plan_next_step`
+
+The v1.3 planner substrate: the local model **proposes** the next investigation action and a
+deterministic guard decides. Read-only — no queue row, no colour, no approval token — and **not yet
+wired into the shipped graph**, so the shipped run never calls it.
+
+```json
+{"investigation": {"complaint": "chest pain", "retrieval_status": "matched",
+                   "has_evidence": false, "step": 0, "budget_left": 3}}
+```
+
+```json
+{"action": "gather_evidence", "rationale": "no excerpt is in hand yet", "signals": [],
+ "step": 1, "budget_left": 2, "proposed_action": "gather_evidence",
+ "overridden": false, "override_reason": null}
+```
+
+The closed action set is `gather_evidence`, `ask_question`, `re_extract` and
+`finish_investigation` — the last is the only exit to the deterministic kernel and the default. When
+the proposal is inadmissible, missing, malformed or the budget is spent, the guard returns
+`finish_investigation` with `overridden: true` and a reason. When the only admissible action is
+`finish_investigation`, the model is not called at all.
 
 ### `commit_priority`
 

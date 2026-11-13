@@ -18,6 +18,7 @@ metadata:
     - retrieve_evidence
     - assess_confidence
     - raise_recheck_flag
+    - plan_next_step
     - commit_priority
 ---
 
@@ -46,7 +47,7 @@ free text. Nothing reaches the queue until a named clinician approves it.
 
 ## Before the first call
 
-The harness must expose the `triagedesk` MCP server. It may namespace the seven tools
+The harness must expose the `triagedesk` MCP server. It may namespace the tools
 (for example `triagedesk_score_priority` or `tools.triagedesk.score_priority`); the final
 segment is the tool name used below.
 
@@ -62,7 +63,7 @@ about 13–30 s on CPU; give the harness a 120 s timeout. Runtime artefacts land
 harness's working directory: `triage.db` (queue + hash-chained audit) and `spans.jsonl`
 (local trace stream).
 
-## The seven tools
+## The tools
 
 | Tool | Model? | Queue write? | Use it for |
 | --- | --- | --- | --- |
@@ -72,6 +73,7 @@ harness's working directory: `triage.db` (queue + hash-chained audit) and `spans
 | `retrieve_evidence` | no | no | Attributed SATS excerpts (advisory grounding) |
 | `assess_confidence` | no | no | Deterministic coverage/deferral signal |
 | `raise_recheck_flag` | no | no | Serial-vitals second look (never a re-colour) |
+| `plan_next_step` | only when needed | no | The planner's next read-only action (substrate; **not wired into the shipped graph yet**) |
 | `commit_priority` | no | **yes** | The gated, idempotent queue write |
 
 Exact arguments and return shapes: [`references/tool-contracts.md`](references/tool-contracts.md).

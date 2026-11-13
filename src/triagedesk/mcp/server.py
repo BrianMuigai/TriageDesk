@@ -1,4 +1,4 @@
-"""Owned MCP server (SDK v2, stdio) exposing the seven triage tools (D-04/D-12).
+"""Owned MCP server (SDK v2, stdio) exposing the eight triage tools (D-04/D-12).
 
 ``from mcp.server import MCPServer`` — the v1 ``FastMCP`` import path was removed
 in SDK v2. Every tool returns a shared ``core.schema`` contract (D-14), so the
@@ -28,7 +28,16 @@ from typing import Any
 from mcp.server import MCPServer
 from pydantic import BaseModel, ValidationError
 
-from triagedesk.core import confidence, coverage, grounding, matcher, recheck, retrieval, scorer
+from triagedesk.core import (
+    confidence,
+    coverage,
+    grounding,
+    matcher,
+    planner,
+    recheck,
+    retrieval,
+    scorer,
+)
 from triagedesk.core.approval import committed_colour, target_for_colour
 from triagedesk.core.schema import (
     ApprovalToken,
@@ -37,11 +46,13 @@ from triagedesk.core.schema import (
     ConfidenceResult,
     EvidenceResult,
     ExtractionResult,
+    InvestigationState,
     MatchResult,
+    PlanDecision,
     PriorityResult,
     RecheckFlag,
 )
-from triagedesk.llm.client import extract_async
+from triagedesk.llm.client import extract_async, propose_plan_async
 from triagedesk.observability import current_trace_id, span
 from triagedesk.store import Store, default_store
 from triagedesk.store.audit import append
@@ -349,6 +360,31 @@ def raise_recheck_flag(previous: CaseInput, current: CaseInput) -> RecheckFlag:
     never returns a colour and never reorders the queue (TOOL-04, T-02-10).
     """
     return recheck.compare_vitals(previous, current)
+
+
+@server.tool()
+@audited()
+async def plan_next_step(investigation: InvestigationState) -> PlanDecision:
+    """Propose the next investigation action — the deterministic guard decides (ADAPT-02).
+
+    A thin, contract-typed adapter (SOLID: S/D): admissibility comes from the pure
+    ``core.planner`` policy, the proposal from the ONE model wrapper, and the audit record and
+    ``tool`` span from the ONE ``@audited`` interceptor. It carries no policy of its own.
+
+    Read-only (ADAPT-04): it touches no store, writes no queue row, takes no approval token and
+    returns a contract with no colour, priority or commit field — an investigation action can
+    only add a fact, never a clinical decision.
+
+    The fast path is the routine case: when the ONLY admissible action is
+    ``finish_investigation`` the model is **not called**, so a case that needs no investigation
+    costs exactly what it costs today. Otherwise the model proposes and
+    ``core.planner.validate_proposal`` accepts or replaces the proposal; the returned action is
+    therefore always a member of ``admissible_actions(investigation)`` — the tool's contract
+    cannot express an inadmissible action (ADAPT-02, ADAPT-06).
+    """
+    if planner.admissible_actions(investigation) == planner.FINISH_ONLY:
+        return planner.default_plan(investigation)
+    return planner.validate_proposal(await propose_plan_async(investigation), investigation)
 
 
 @server.tool()

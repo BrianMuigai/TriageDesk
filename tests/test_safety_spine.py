@@ -216,12 +216,13 @@ def _credential_reads(source: str) -> list[str]:
 
 def test_graph_startup_asserts_the_tool_allowlist() -> None:
     """The graph composes only over the allowlisted tool set, failing loudly on drift (SAFE-03)."""
-    # The allowlist is the owned seven, declared as ONE constant.
+    # The allowlist is the owned eight, declared as ONE constant.
     assert set(build_module.OWNED_TOOL_ALLOWLIST) == {
         "normalize_case",
         "match_discriminators",
         "score_priority",
         "raise_recheck_flag",
+        "plan_next_step",
         "assess_confidence",
         "retrieve_evidence",
         "commit_priority",
