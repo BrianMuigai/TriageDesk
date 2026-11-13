@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-11-13T18:26:21.898Z"
 last_activity: 2026-11-13
 progress:
-  total_phases: 4
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -38,8 +38,11 @@ Last activity: 2026-11-13 — Milestone v1.3 started (reviewer challenge: adapti
 and **no MCP elicitation (G7)**. v1.3 answers with behaviour + a structural proof:
 
 - a bounded `plan` node that chooses the next read-only investigation action (model proposes, guard disposes);
-- `conclude` as the only edge into `score`, so the safety kernel is a non-skippable suffix;
-- `request_clarification` eliciting mid-tool-call via `ctx.elicit()` → LangGraph `interrupt()`;
+- `finish_investigation` as the only edge into `score`, so the safety kernel is a non-skippable suffix;
+- `request_clarification` eliciting mid-tool-call via `ctx.elicit()` → LangGraph `interrupt()`, with
+  accepted / declined / cancelled / unavailable distinguished;
+- a deterministic emergency bypass so a critical structured case never waits for the model or the planner;
+- two diagrams split by audience (clinical workflow; components and infrastructure), honestly labelled;
 - an adaptive-vs-baseline measurement published from `report.json`, never hand-typed.
 
 
@@ -229,5 +232,7 @@ Resume file: None
 ## Operator Next Steps
 
 - Branch is `feat/v1.3-adaptive-triage` (never work on `main`); open a PR to `main` when the milestone lands.
-- `/gsd-plan-phase 19` — planner substrate, closed action set, admissibility guard.
-- Phases 19 → 20 → 21 → 22 are strictly sequential: the guard lands before the tool, the tool before the graph, the graph before the measurement.
+- `/gsd-plan-phase 19` — the two diagrams, the shared legend and the honest-labelling pass.
+- Phases 19 → 24 are strictly sequential: docs contract → guard → tool → emergency bypass → graph → measurement.
+- The emergency bypass and the diagrams came from the owner's architecture review on 2026-11-13; both are
+  now requirements (EMERG-01..05, DIAG-01..06), not side notes.

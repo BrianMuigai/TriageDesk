@@ -1,7 +1,7 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v1.1 — Score Uplift",
+  "milestone": "v1.3",
   "phases": [
     {
       "number": "1",
@@ -65,9 +65,9 @@
     }
   ],
   "next": {
-    "command": "/gsd:progress",
-    "label": "Show progress",
-    "reason": "Unsure of state — showing progress"
+    "command": "/gsd-discuss-phase",
+    "label": "Discuss the first phase",
+    "reason": "Project initialized — plan your first phase"
   },
-  "updated_at": "2026-10-13T13:49:55.199Z"
+  "updated_at": "2026-11-13T18:26:21.908Z"
 }

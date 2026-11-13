@@ -14,26 +14,25 @@ model**, gated by **human approval before anything reaches a queue**. The LLM ha
 Vitals + complaint → `triage` MCP (score/flag) + borrowed SQLite MCP (persist) + local Qwen2.5,
 offline, gated by a clinician.
 
-## 3. Agent graph (LangGraph)
+## 3. Agent shape — two layers
 
-| Node | Kind | Responsibility |
-| --- | --- | --- |
-| `ingest` | deterministic | Validate raw case. |
-| `normalize` | LLM + tool | Parse prose → fields; `missing[]`; `out_of_scope`. |
-| `retrieve` | tool | `match_discriminators`. |
-| `score` | tool | `score_priority` — TEWS + override → colour + citations. |
-| `ground` | tool | `retrieve_evidence` (no colour). |
-| `verify` | deterministic | Reject uncited; fail-closed terminal (no gate/commit/card). |
-| `recheck` | tool | `raise_recheck_flag` — serial vitals → second-look. |
-| `assess` | deterministic | Coverage → deliver, clarify, or defer. |
-| `approval_gate` | `interrupt()` | Pause for a **named** clinician. |
-| `commit` | tool (gated) | Gated write: case card + queue + audit. |
-| `handover` | deterministic | Render the sourced case card. |
-| `clarify` · `request_missing_info` · `escalate` | terminal | Ask / abstain / escalate — no colour, no gate, no commit. |
+**Adaptive envelope** (`ingest → normalize → retrieve → plan`): the planner chooses one read-only
+action — `gather_evidence`, `ask_question`, `re_extract`, `finish_investigation` — from a closed set,
+inside a 3-step budget. The model proposes; a deterministic guard disposes.
 
-**Edges:** missing vitals → recover · `out_of_scope` → abstain · uncited → `END` · deterioration →
-`recheck` · near-miss complaint → clarify once, then defer. **Why not ReAct:** a small CPU model is an
-unreliable free agent; a bounded plan is reproducible (JC-1).
+**Frozen safety kernel** (`score → ground → verify → recheck → assess → approval_gate → commit →
+handover`): non-skippable. `finish_investigation` is its only entry, `commit` keeps one inbound edge,
+and the planner's vocabulary contains no score, gate or commit.
+
+A **deterministic emergency check** runs before any model call: a critical structured case skips the
+model and the planner, never the kernel or the clinician.
+
+**Why not ReAct:** a small CPU model is an unreliable free agent; a bounded plan is reproducible (JC-1).
+The planner is bounded for the same reason (D31).
+
+**Diagrams:** [clinical workflow](docs/assets/architecture-workflow.pdf) ·
+[components](docs/assets/architecture-components.pdf) · [reference](docs/assets/architecture-v1.3.pdf) —
+all PROPOSED until v1.3 ships; source `.mmd` beside each, one renderer.
 
 ## 4. MCP servers
 

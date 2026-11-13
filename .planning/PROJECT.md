@@ -41,6 +41,11 @@ safety invariants provably unchanged.
   the adapter turns it into a LangGraph `interrupt()`, and a decline/cancel is a refusal, never an answer.
 - **Honest measurement** — adaptive-vs-baseline comparison on the same eval suite, investigation facts
   published, all four safety invariants re-proven on every run.
+- **Deterministic emergency bypass** — a pure pre-check on structured vitals skips the model and the
+  planner for a critical case, and still cannot bypass the kernel or the clinician.
+- **Two audience-split diagrams** — a clinical workflow a judge reads in under a minute, and a component
+  map an engineer can trace; one vocabulary, one legend, every element labelled implemented/tested/
+  proposed/outstanding.
 - **Reviewer-facing docs** — a written answer to "is this a rules engine?", with the bounded-autonomy
   defence recorded as a decision (D31) rather than argued in prose alone.
 
