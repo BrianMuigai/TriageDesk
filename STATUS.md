@@ -23,7 +23,10 @@
 **Not 100.** The build is complete and the eligibility bar is met. The submission is delivered —
 including the demo video, which was **uploaded to Google Drive during submission**. One 20-point
 criterion stays partially met because **no clinician or triage nurse has reviewed the system**, and
-that is the single largest remaining score gap. The latency figure is pessimistic (measured under
+that is the single largest remaining score gap. The interview itself is now prepared — eight questions,
+drafted responses, and the module each answer depends on
+([`docs/CLINICIAN-INTERVIEW.md`](docs/CLINICIAN-INTERVIEW.md)) — but it is **unattested**: it shortens
+the conversation, it does not replace it. The latency figure is pessimistic (measured under
 host load) and a quiet-machine re-run is pending.
 
 | Dimension | Status | Basis |
@@ -91,8 +94,10 @@ real and digest-stamped · greenfield and disclosed.
 
 1. **G2 — No clinician or triage-nurse review.** The 20-point "fit to the desk" criterion asks
    directly *"did you talk to one?"*. We declare the gap ([`EVALS.md`](EVALS.md) §7) but still lose
-   the points. **Fix:** one real triage-nurse or clinician review, plus an attributed quote in
-   `EVALS.md` §7. This is the single biggest available score mover.
+   the points. **Fix:** run the prepared instrument
+   ([`docs/CLINICIAN-INTERVIEW.md`](docs/CLINICIAN-INTERVIEW.md)) with one real triage-nurse or
+   clinician, sign its attestation, and add the attributed quote to `EVALS.md` §7. The prep work is
+   done; the conversation is not. This is the single biggest available score mover.
 2. **G3 — Latency is not yet "seconds" on a loaded machine.** The measured p50 is 19.98 s and p95 is
    55.03 s, but that re-run happened under host load (load average 8.4–10.9 on 12 cores); a
    single-case re-check on the same code gave 13.5–17.0 s. Treat the published figure as
@@ -223,8 +228,9 @@ that half-work").
 during submission. Submission itself is complete.
 
 **Top score movers, in order:**
-1. **One clinician or triage-nurse review** (G2) — an attributed quote in `EVALS.md` §7 and the
-   README. The largest single gain available.
+1. **One clinician or triage-nurse review** (G2) — run
+   [`docs/CLINICIAN-INTERVIEW.md`](docs/CLINICIAN-INTERVIEW.md), sign its attestation, and put the
+   attributed quote in `EVALS.md` §7 and the README. The largest single gain available.
 2. **A quiet-machine latency re-run** (G3) — re-run the measured evaluation on an idle host and let
    `scripts/emit_evals.py` republish the figures. The current number is pessimistic.
 3. **Re-host the video on YouTube or Vimeo** (G1) — same file, no re-recording.

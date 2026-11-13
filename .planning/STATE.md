@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: Score Uplift
 current_phase: 14
 status: completed
-stopped_at: Milestone v1.1 Score Uplift shipped (audit passed; archived to `.planning/milestones/`; tagged `v1.1`)
-last_updated: "2026-11-05T08:53:32.080Z"
+stopped_at: "G2 bounded: clinician interview instrument prepared and wired into every gap statement; attestation still outstanding (docs/clinician-interview-pack)"
+last_updated: "2026-11-13T12:37:20.644Z"
 last_activity: 2026-11-05
 last_activity_desc: Phase 13 complete
 progress:
@@ -153,6 +153,7 @@ Recent decisions affecting current work:
 - [Phase 12]: D12-10: the Phase-11 docs/DEMO.md output drift is closed by re-transcription from the shipped runner
 - [Phase 12]: Q2: the committed EVALS.md projection plus the live failure beat is the on-screen measured artefact; the ~10-min silent real run is NOT streamed
 - [Phase 12]: D25: the milestone close is demonstrated-not-claimed — data-only live extension (fresh process, no hot reload); the demo shows the committed EVALS.md projection + live failure beat, not the ~10-min run; the clinical-fit gap stays declared with an empty attributed slot; the upload and clinician review stay human flags
+- [Phase 14]: G2 is declared and now bounded, not closed: the eight-question clinician interview, its drafted responses, and the module each answer depends on ship in docs/CLINICIAN-INTERVIEW.md; no clinician has attested it, so every gap statement keeps 'none obtained' and no quote is claimed. — The fit-to-desk criterion asks 'did you talk to one?'. Inventing or paraphrasing a review would breach the project's flag-never-claim rule. Preparing the instrument converts an open-ended gap into one bounded fifteen-minute conversation and makes every drafted answer falsifiable against the code.
 
 ### Pending Todos
 
@@ -207,8 +208,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-04T19:23:19.162Z
-Stopped at: Milestone v1.1 Score Uplift shipped (audit passed; archived to `.planning/milestones/`; tagged `v1.1`)
+Last session: 2026-11-13T12:37:20.628Z
+Stopped at: G2 bounded: clinician interview instrument prepared and wired into every gap statement; attestation still outstanding (docs/clinician-interview-pack)
 Resume file: None
 
 ## Operator Next Steps
