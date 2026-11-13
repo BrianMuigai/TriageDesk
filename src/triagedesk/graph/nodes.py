@@ -26,6 +26,7 @@ from langgraph.types import interrupt
 from pydantic import BaseModel, ValidationError
 
 from triagedesk.core.approval import committed_or_scored
+from triagedesk.core.emergency import EmergencyVerdict, assess_emergency
 from triagedesk.core.hashing import hash_value
 from triagedesk.core.schema import (
     CaseInput,
@@ -63,6 +64,12 @@ _ESCALATION_REASON = "case could not be safely scored; escalating for human revi
 _EXTRACTION_FAILED_REASON = (
     "extraction failed after the bounded retry and no structured fields were available"
 )
+
+# The two pre-check route tokens (EMERG-01), declared ONCE. The loaded discriminator
+# substrate already uses the word "emergency" as a category, so the internal route token
+# deliberately differs — the SATS DRY guard forbids repeating a loaded value under src/.
+_ROUTE_FAST = "fast"
+_ROUTE_NORMAL = "normal"
 
 
 def parse_tool_result[ModelT: BaseModel](model: type[ModelT], payload: Any) -> ModelT:
@@ -136,6 +143,30 @@ def _structured_case(state: TriageState) -> CaseInput | None:
         return CaseInput.model_validate_json(raw_note)
     except (ValidationError, ValueError):
         return None
+
+
+def emergency_check(state: TriageState) -> dict[str, Any]:
+    """Decide whether this case may skip extraction — no model, no colour (EMERG-01/02).
+
+    Reads the already-structured ``case`` and delegates the decision to the pure
+    :func:`triagedesk.core.emergency.assess_emergency`. It writes the ``emergency``
+    verdict and the ``route`` token that selects the fast or normal arm; it never scores,
+    never writes a colour and never touches a store. With no structured case it returns a
+    non-firing verdict, so an unstructured note always takes the normal extraction path
+    (EMERG-04).
+    """
+    case = state.get("case")
+    if isinstance(case, CaseInput):
+        verdict = assess_emergency(case)
+    else:
+        verdict = EmergencyVerdict(
+            fired=False,
+            reason="no structured case is available; the pre-check does not fire",
+        )
+    return {
+        "emergency": verdict,
+        "route": _ROUTE_FAST if verdict.fired else _ROUTE_NORMAL,
+    }
 
 
 def _make_normalize(tools: ToolMap) -> NodeFn:
@@ -380,9 +411,22 @@ def approval_gate(state: TriageState) -> dict[str, Any]:
     existing reader keeps working — and it exists so a surface can tell this **decision**
     from an MCP **question** (``type: "mcp_elicitation"``) without inspecting keys. The
     literal comes from the ONE declaration, ``core.schema.InterruptType``.
+
+    The additive ``emergency`` key carries the deterministic bypass fact — ``fired``, the
+    reason and the trigger facts — but ONLY when the pre-check actually fired; a normal
+    case carries ``None`` (EMERG-05). The bypass is therefore visible to the clinician
+    without a second audit writer.
     """
     priority = state["priority"]
     second_look = state.get("second_look")
+    emergency = state.get("emergency")
+    # The bypass fact is reported ONLY when it fired: a clinician sees that this case
+    # skipped extraction and why, while a normal case carries no emergency noise (EMERG-05).
+    emergency_fact = (
+        emergency.model_dump(mode="json")
+        if emergency is not None and emergency.fired
+        else None
+    )
     payload = {
         "type": InterruptType.APPROVAL.value,
         "case_id": case_id_for_note(state["raw_note"]),
@@ -394,6 +438,7 @@ def approval_gate(state: TriageState) -> dict[str, Any]:
         "matched_ids": list(state.get("matched_ids") or []),
         "no_match": bool(state.get("no_match")),
         "second_look": second_look.model_dump(mode="json") if second_look is not None else None,
+        "emergency": emergency_fact,
     }
     approval = interrupt(payload)
     return {"approval": approval}
@@ -488,6 +533,7 @@ def make_nodes(tools: ToolMap) -> dict[str, NodeFn]:
     """
     return {
         "ingest": ingest,
+        "emergency_check": emergency_check,
         "normalize": _make_normalize(tools),
         "retrieve": _make_retrieve(tools),
         "score": _make_score(tools),

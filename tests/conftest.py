@@ -265,6 +265,23 @@ COMPLETE_CASE = CaseInput(
     complaint="central chest pain",
 )
 
+# A complete adult case whose derived TEWS lands in the most urgent band (RR 30 -> 3,
+# HR 130 -> 3, systolic 70 -> 3; the rest 0). Used by the emergency-bypass suites: the
+# pre-check must fire on it and skip extraction, while the kernel still scores it. The
+# complaint deliberately matches no discriminator, so the fast arm's colour is the pure
+# vitals result.
+EMERGENCY_CASE = CaseInput(
+    age_years=44,
+    mobility="walking",
+    avpu="alert",
+    respiratory_rate=30,
+    heart_rate=130,
+    systolic_bp=70,
+    temperature_c=37.0,
+    trauma=False,
+    complaint="feels fine",
+)
+
 
 def build_graph_tools(
     *,

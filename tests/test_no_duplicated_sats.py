@@ -19,6 +19,11 @@ from ``data/``. A future reader must NOT "fix" this by moving the enums into the
 YAML: they are a different concern (RESEARCH Pitfall 3; the STATE decision
 "schema plausible-range bounds are distinct from SATS TEWS bands").
 
+It also does NOT flag the ONE **structural channel key** that collides with a loaded
+spelling (``emergency``): the key names a graph state/interrupt channel, never a clinical
+classification, so it is exempt by exact value in ``STRUCTURAL_CHANNEL_KEYS`` and the
+exemption is pinned narrow by its own test.
+
 Mechanism
 ---------
 A single :func:`_leaf_values` helper collects every scalar leaf from the loaded
@@ -47,6 +52,12 @@ SRC_DIR = REPO_ROOT / "src"
 
 # Input-domain enum fields whose values are NOT scoring substrate (see docstring).
 INPUT_DOMAIN_FIELDS = ("mobility", "avpu")
+# Structural identifiers that are NOT scoring values. A graph state channel / interrupt
+# payload key may collide with a loaded discriminator category spelling (phase 22 fixes
+# the key ``emergency`` in its CONTEXT). The key names a structural channel, never a
+# clinical classification, so it is exempt by EXACT value — and the exemption is asserted
+# narrow below so it cannot grow into a loophole for a scoring value.
+STRUCTURAL_CHANNEL_KEYS = frozenset({"emergency"})
 _BOUND_KEYS = ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum")
 
 
@@ -111,7 +122,7 @@ def _plausible_bounds() -> set[float]:
 def _forbidden_values() -> tuple[set[str], set[float]]:
     """The scoring-substrate values that may not appear as ``src/`` literals."""
     strings, numbers = _data_leaves()
-    forbidden_strings = strings - _input_domain_enums()
+    forbidden_strings = strings - _input_domain_enums() - STRUCTURAL_CHANNEL_KEYS
     discriminating = {n for n in numbers if abs(n) >= 10 or n != int(n)}
     forbidden_numbers = discriminating - _plausible_bounds()
     return forbidden_strings, forbidden_numbers
@@ -172,3 +183,15 @@ def test_guard_is_not_vacuous() -> None:
     strings, numbers = _scan_source(f"LABEL = {label!r}\nEDGE = {edge!r}\n")
     assert label in strings & forbidden_strings
     assert edge in numbers & forbidden_numbers
+
+
+def test_structural_channel_key_exemption_is_narrow() -> None:
+    """The channel-key exemption is ONE exact structural key, never a scoring value.
+
+    Phase 22 fixes the ``emergency`` state/interrupt key in its CONTEXT; the spelling is
+    also a loaded discriminator category, so it is exempted as a structural identifier.
+    Pinning the set here stops the exemption from quietly growing into a loophole.
+    """
+    assert STRUCTURAL_CHANNEL_KEYS == frozenset({"emergency"})
+    strings, _ = _data_leaves()
+    assert STRUCTURAL_CHANNEL_KEYS <= strings

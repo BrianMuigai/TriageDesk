@@ -31,6 +31,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 
+from triagedesk.core import emergency as emergency_module
 from triagedesk.core import schema as schema_module
 from triagedesk.core.schema import CaseInput
 from triagedesk.graph.nodes import NodeFn, ToolMap, case_id_for_note, make_nodes
@@ -54,6 +55,7 @@ __all__ = [
     "in_memory_checkpointer",
     "load_graph_tools",
     "open_checkpointer",
+    "route_after_emergency",
     "route_after_normalize",
     "route_after_score",
     "route_after_assess",
@@ -106,6 +108,7 @@ def assert_tool_allowlist(tool_names: Iterable[str]) -> None:
 # the serial-vitals recheck are part of the full safety spine (Plan 03-04).
 TRACER_NODES: tuple[str, ...] = (
     "ingest",
+    "emergency_check",
     "normalize",
     "retrieve",
     "score",
@@ -120,6 +123,19 @@ TRACER_NODES: tuple[str, ...] = (
     "clarify",
     "escalate",
 )
+
+def route_after_emergency(state: TriageState) -> str:
+    """Choose the fast or normal arm after the deterministic pre-check (EMERG-01).
+
+    A fired verdict goes straight to ``retrieve`` — extraction is skipped, the kernel is
+    not. Every other case (no structured case, incomplete vitals, out of scope, or a
+    colour below the most urgent band) takes the normal arm through ``normalize``, so no
+    value is ever guessed (EMERG-04).
+    """
+    verdict = state.get("emergency")
+    if verdict is not None and verdict.fired:
+        return "retrieve"
+    return "normalize"
 
 def route_after_normalize(state: TriageState) -> str:
     """Choose the next node after ``normalize`` — recovery vs the scored path (ORCH-04).
@@ -230,12 +246,14 @@ def _spanned(name: str, node: NodeFn) -> NodeFn:
 def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
     """Compile the tracer graph over the injected ``tools`` mapping (D-01, D-13).
 
-    ``START -> ingest -> normalize -> (retrieve -> score | escalate) ->
-    (score: escalate | request_missing_info | ground) -> (ground -> verify) ->
-    (verify -> recheck) -> assess -> (approval_gate -> commit -> handover |
-    escalate | request_missing_info) -> END``. The ``normalize``, ``score``, ``verify``
-    and ``assess`` edges are conditional; the recovery/abstention terminals have no edge
-    to ``commit``, and a deferral from ``assess`` only reaches those terminals (D8-12).
+    ``START -> ingest -> emergency_check -> (fast: retrieve | normal: normalize) ->
+    (retrieve -> score | escalate) -> (score: escalate | request_missing_info | ground) ->
+    (ground -> verify) -> (verify -> recheck) -> assess -> (approval_gate -> commit ->
+    handover | escalate | request_missing_info) -> END``. The ``emergency_check``,
+    ``normalize``, ``score``, ``verify`` and ``assess`` edges are conditional; the fast arm
+    skips ``normalize`` ONLY (EMERG-01) and rejoins the kernel at ``retrieve``. The
+    recovery/abstention terminals have no edge to ``commit``, and a deferral from
+    ``assess`` only reaches those terminals (D8-12).
     ``ground`` sits between ``score`` and ``verify`` and is ROUTING-NEUTRAL (D9-07/D9-08):
     it writes only its own ``evidence`` channel and is wired by a plain edge, so no router
     reads it and the path taken is unchanged. ``checkpointer`` is injected so the same
@@ -252,7 +270,12 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
         graph.add_node(name, _spanned(name, nodes[name]))
 
     graph.add_edge(START, "ingest")
-    graph.add_edge("ingest", "normalize")
+    graph.add_edge("ingest", "emergency_check")
+    graph.add_conditional_edges(
+        "emergency_check",
+        route_after_emergency,
+        {"retrieve": "retrieve", "normalize": "normalize"},
+    )
     graph.add_conditional_edges(
         "normalize",
         route_after_normalize,
@@ -392,14 +415,19 @@ async def checkpointed_graph(
 def _allowed_msgpack_modules() -> list[tuple[str, str]]:
     """The ONE allowlist of state types the checkpointer may (de)serialise.
 
-    Derived from the schema module rather than hand-listed, so a new state contract
-    is covered automatically (DRY). An allowlist — never ``True`` — so the
-    checkpointer cannot deserialise an arbitrary type from a tampered checkpoint.
+    Derived from the modules that declare state contracts — ``core.schema`` and
+    ``core.emergency`` — rather than hand-listed, so a new contract is covered
+    automatically (DRY). An allowlist — never ``True`` — so the checkpointer cannot
+    deserialise an arbitrary type from a tampered checkpoint. ``core.emergency`` is listed
+    explicitly because a blocked type is silently downgraded to a plain dict on resume,
+    which would erase the verdict's type (EMERG-05).
     """
+    state_modules = (schema_module, emergency_module)
     return [
-        (schema_module.__name__, name)
-        for name, obj in vars(schema_module).items()
+        (module.__name__, name)
+        for module in state_modules
+        for name, obj in vars(module).items()
         if isinstance(obj, type)
         and issubclass(obj, BaseModel)
-        and obj.__module__ == schema_module.__name__
+        and obj.__module__ == module.__name__
     ]

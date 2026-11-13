@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import TypedDict
 
+from triagedesk.core.emergency import EmergencyVerdict
 from triagedesk.core.schema import (
     CaseInput,
     ClarificationRequest,
@@ -29,7 +30,8 @@ class TriageState(TypedDict, total=False):
     """The single graph state channel (D-01).
 
     Every field is optional (``total=False``) so each node returns a partial
-    update: ``ingest`` seeds ``raw_note``/``attempt``; ``normalize`` adds ``case``;
+    update: ``ingest`` seeds ``raw_note``/``attempt``; ``emergency_check`` adds
+    ``emergency`` and the fast/normal ``route``; ``normalize`` adds ``case``;
     ``retrieve`` adds ``matched_ids``/``no_match``; ``score`` adds ``priority``;
     ``ground`` adds ``evidence``; ``verify`` sets ``route`` and records a failed
     check in ``attempt``; a failure is terminal. ``recheck`` adds ``second_look``;
@@ -51,6 +53,10 @@ class TriageState(TypedDict, total=False):
     clarification_questions: list[str]
     clarification_round: int
     priority: PriorityResult | None
+    # Deterministic emergency pre-check (EMERG-01/02, EMERG-05): written by
+    # ``emergency_check`` BEFORE ``normalize``. ``fired`` selects the fast arm, which skips
+    # extraction only; the verdict carries no colour and the kernel still scores.
+    emergency: EmergencyVerdict | None
     approval: dict | None
     commit_result: CommitResult | None
     handover: HandoverCard | None
