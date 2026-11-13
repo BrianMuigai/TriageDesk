@@ -134,10 +134,10 @@ async def test_fast_arm_payload_carries_the_bypass_fact(tmp_path: Path) -> None:
     )
 
     payload = result["__interrupt__"][0].value
-    assert payload["emergency"] is not None
-    assert payload["emergency"]["fired"] is True
-    assert payload["emergency"]["reason"]
-    assert payload["emergency"]["trigger"]
+    assert payload["emergency_verdict"] is not None
+    assert payload["emergency_verdict"]["fired"] is True
+    assert payload["emergency_verdict"]["reason"]
+    assert payload["emergency_verdict"]["trigger"]
 
 
 async def test_emergency_check_emits_one_span_with_the_trace_id() -> None:
@@ -178,7 +178,7 @@ async def test_normal_arm_runs_the_unchanged_sequence() -> None:
 
     expected = score_priority(COMPLETE_CASE, list(result.get("matched_ids") or []))
     assert result["priority"].colour == expected.colour
-    assert result["__interrupt__"][0].value["emergency"] is None
+    assert result["__interrupt__"][0].value["emergency_verdict"] is None
 
 
 # ------------------------------------------------------------ durable provenance
@@ -192,11 +192,11 @@ async def test_a_paused_run_reloads_the_verdict_as_a_typed_model(tmp_path: Path)
 
     async with checkpointed_graph(tools, db_path) as graph:
         result = await graph.ainvoke({"raw_note": NOTE, "case": EMERGENCY_CASE}, config)
-        assert result["emergency"].fired is True
+        assert result["emergency_verdict"].fired is True
 
     async with checkpointed_graph(tools, db_path) as reopened:
         snapshot = await reopened.aget_state(config)
 
-    verdict = snapshot.values["emergency"]
+    verdict = snapshot.values["emergency_verdict"]
     assert isinstance(verdict, EmergencyVerdict), "the checkpointer downgraded the verdict"
     assert verdict.fired is True

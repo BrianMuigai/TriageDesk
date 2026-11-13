@@ -16,7 +16,7 @@ covered_files:
   - tests/test_purity.py
   - tests/test_no_duplicated_sats.py
   - STATUS.md
-covered_digest: "v4:sha256:c3db7118c8a9131320d1c92ce089d375b0cf25af440ed3130b37a1749ea15e80"
+covered_digest: "v4:sha256:ce449b4b30dc3d84449b67f70a0addf4e37c1655f566e38b87be4291c62e2354"
 commands:
   - "uv run pytest -q -> 857 passed"
   - "uv run ruff check src tests -> All checks passed"

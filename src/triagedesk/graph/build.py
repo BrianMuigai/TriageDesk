@@ -132,7 +132,7 @@ def route_after_emergency(state: TriageState) -> str:
     colour below the most urgent band) takes the normal arm through ``normalize``, so no
     value is ever guessed (EMERG-04).
     """
-    verdict = state.get("emergency")
+    verdict = state.get("emergency_verdict")
     if verdict is not None and verdict.fired:
         return "retrieve"
     return "normalize"

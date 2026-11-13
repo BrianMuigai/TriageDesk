@@ -31,7 +31,7 @@ class TriageState(TypedDict, total=False):
 
     Every field is optional (``total=False``) so each node returns a partial
     update: ``ingest`` seeds ``raw_note``/``attempt``; ``emergency_check`` adds
-    ``emergency`` and the fast/normal ``route``; ``normalize`` adds ``case``;
+    ``emergency_verdict`` and the fast/normal ``route``; ``normalize`` adds ``case``;
     ``retrieve`` adds ``matched_ids``/``no_match``; ``score`` adds ``priority``;
     ``ground`` adds ``evidence``; ``verify`` sets ``route`` and records a failed
     check in ``attempt``; a failure is terminal. ``recheck`` adds ``second_look``;
@@ -56,7 +56,7 @@ class TriageState(TypedDict, total=False):
     # Deterministic emergency pre-check (EMERG-01/02, EMERG-05): written by
     # ``emergency_check`` BEFORE ``normalize``. ``fired`` selects the fast arm, which skips
     # extraction only; the verdict carries no colour and the kernel still scores.
-    emergency: EmergencyVerdict | None
+    emergency_verdict: EmergencyVerdict | None
     approval: dict | None
     commit_result: CommitResult | None
     handover: HandoverCard | None

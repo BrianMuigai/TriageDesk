@@ -134,11 +134,11 @@ async def test_fast_arm_reaches_the_gate_without_extraction() -> None:
 
     assert result.get("__interrupt__"), "the fast arm did not reach the gate"
     assert "normalize_case" not in _call_names(calls)
-    assert result["emergency"].fired is True
+    assert result["emergency_verdict"].fired is True
     payload = result["__interrupt__"][0].value
-    assert payload["emergency"] is not None
-    assert payload["emergency"]["fired"] is True
-    assert payload["emergency"]["trigger"]
+    assert payload["emergency_verdict"] is not None
+    assert payload["emergency_verdict"]["fired"] is True
+    assert payload["emergency_verdict"]["trigger"]
     assert result.get("commit_result") is None
 
 
@@ -154,8 +154,8 @@ async def test_normal_arm_still_extracts_and_carries_no_bypass_fact() -> None:
 
     assert result.get("__interrupt__")
     assert "normalize_case" in _call_names(calls)
-    assert result["emergency"].fired is False
-    assert result["__interrupt__"][0].value["emergency"] is None
+    assert result["emergency_verdict"].fired is False
+    assert result["__interrupt__"][0].value["emergency_verdict"] is None
 
 
 async def test_unstructured_note_takes_the_normal_arm() -> None:
@@ -166,13 +166,15 @@ async def test_unstructured_note_takes_the_normal_arm() -> None:
     result = await app.ainvoke({"raw_note": "40 year old, chest pain"})
 
     assert "normalize_case" in _call_names(calls)
-    assert result["emergency"].fired is False
+    assert result["emergency_verdict"].fired is False
 
 
 def test_route_after_emergency_selects_the_arm() -> None:
     """The ONE router maps the verdict to the fast or normal arm."""
-    assert route_after_emergency({"emergency": EmergencyVerdict(fired=True)}) == "retrieve"
-    assert route_after_emergency({"emergency": EmergencyVerdict(fired=False)}) == "normalize"
+    fired = EmergencyVerdict(fired=True)
+    not_fired = EmergencyVerdict(fired=False)
+    assert route_after_emergency({"emergency_verdict": fired}) == "retrieve"
+    assert route_after_emergency({"emergency_verdict": not_fired}) == "normalize"
     assert route_after_emergency({}) == "normalize"
 
 

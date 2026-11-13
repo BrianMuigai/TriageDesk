@@ -164,7 +164,7 @@ def emergency_check(state: TriageState) -> dict[str, Any]:
             reason="no structured case is available; the pre-check does not fire",
         )
     return {
-        "emergency": verdict,
+        "emergency_verdict": verdict,
         "route": _ROUTE_FAST if verdict.fired else _ROUTE_NORMAL,
     }
 
@@ -419,7 +419,7 @@ def approval_gate(state: TriageState) -> dict[str, Any]:
     """
     priority = state["priority"]
     second_look = state.get("second_look")
-    emergency = state.get("emergency")
+    emergency = state.get("emergency_verdict")
     # The bypass fact is reported ONLY when it fired: a clinician sees that this case
     # skipped extraction and why, while a normal case carries no emergency noise (EMERG-05).
     emergency_fact = (
@@ -438,7 +438,7 @@ def approval_gate(state: TriageState) -> dict[str, Any]:
         "matched_ids": list(state.get("matched_ids") or []),
         "no_match": bool(state.get("no_match")),
         "second_look": second_look.model_dump(mode="json") if second_look is not None else None,
-        "emergency": emergency_fact,
+        "emergency_verdict": emergency_fact,
     }
     approval = interrupt(payload)
     return {"approval": approval}
