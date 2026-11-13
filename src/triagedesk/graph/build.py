@@ -49,6 +49,7 @@ __all__ = [
     "CHECKPOINTS_DB_PATH",
     "DOMAIN_DB_PATH",
     "OWNED_TOOL_ALLOWLIST",
+    "PLANNER_NODES",
     "TRACER_NODES",
     "assert_tool_allowlist",
     "build_graph",
@@ -135,6 +136,16 @@ TRACER_NODES: tuple[str, ...] = (
     "escalate",
 )
 
+# The four nodes that exist ONLY on the adaptive arm (MEAS-02). The baseline arm omits them
+# and wires ``retrieve -> finish_investigation`` directly, so it is exactly the v1.2 path.
+# Declared once so the builder and the structural proof read the same set (DRY).
+PLANNER_NODES: tuple[str, ...] = (
+    "plan",
+    "gather_evidence",
+    "ask_question",
+    "re_extract",
+)
+
 def route_after_emergency(state: TriageState) -> str:
     """Choose the fast or normal arm after the deterministic pre-check (EMERG-01).
 
@@ -171,6 +182,11 @@ def route_after_retrieve(state: TriageState) -> str:
     Both arms enter the kernel through ``finish_investigation``, which is what keeps
     ``predecessors("score") == {"finish_investigation"}`` exact rather than approximate
     (ADAPT-03).
+
+    This router is used ONLY by the adaptive arm. The baseline arm
+    (``build_graph(..., planner=False)``) has no ``plan`` node and wires ``retrieve`` to
+    ``finish_investigation`` with a plain edge, so the baseline is exactly the v1.2 path
+    (MEAS-02).
     """
     verdict = state.get("emergency_verdict")
     if verdict is not None and verdict.fired:
@@ -288,7 +304,7 @@ def _spanned(name: str, node: NodeFn) -> NodeFn:
     return wrapped
 
 
-def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
+def build_graph(tools: ToolMap, checkpointer: Any = None, planner: bool = True) -> Any:
     """Compile the tracer graph over the injected ``tools`` mapping (D-01, D-13).
 
     ``START -> ingest -> emergency_check -> (fast: retrieve | normal: normalize) ->
@@ -309,6 +325,14 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
     reads it and the path taken is unchanged. ``checkpointer`` is injected so the same
     builder serves both the in-memory test graph and the durable SQLite graph (D-09).
 
+    ``planner=False`` selects the **baseline arm** (MEAS-02): the four planner nodes are not
+    added and ``retrieve`` is wired straight to ``finish_investigation`` with a plain edge —
+    exactly the v1.2 path, no model proposal and no investigation. The kernel, the gate and
+    the commit are identical on both arms, so ``predecessors("score")`` and
+    ``predecessors("commit")`` are unchanged by the switch; only what happens *before* the
+    kernel differs. That is what makes the adaptive-vs-baseline measurement a comparison of
+    the envelope, not of the safety spine.
+
     The injected tool surface is asserted against the allowlist FIRST, so a drifted or
     unexpected tool fails loudly at composition rather than silently reaching the
     agent (SAFE-03, T-03-23).
@@ -316,7 +340,10 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
     assert_tool_allowlist(tools.keys())
     nodes = make_nodes(tools)
     graph: StateGraph = StateGraph(TriageState)
-    for name in TRACER_NODES:
+    node_names = TRACER_NODES if planner else tuple(
+        name for name in TRACER_NODES if name not in PLANNER_NODES
+    )
+    for name in node_names:
         graph.add_node(name, _spanned(name, nodes[name]))
 
     graph.add_edge(START, "ingest")
@@ -334,24 +361,29 @@ def build_graph(tools: ToolMap, checkpointer: Any = None) -> Any:
     # ``retrieve`` is the fork between the deterministic bypass and the bounded
     # investigation loop (ADAPT-01). Both arms converge on ``finish_investigation``, the
     # kernel's ONLY inbound edge, so the emergency arm skips ``plan`` and nothing else.
-    graph.add_conditional_edges(
-        "retrieve",
-        route_after_retrieve,
-        {"finish_investigation": "finish_investigation", "plan": "plan"},
-    )
-    # The plan's edge map is DERIVED from the closed action set: every action's value is the
-    # node that implements it, so the router cannot name a node the planner cannot choose.
-    graph.add_conditional_edges(
-        "plan",
-        route_after_plan,
-        {action.value: action.value for action in PlanAction},
-    )
-    # The investigation actions are read-only and all but the exit loop back: evidence and a
-    # re-extraction return to the planner, a question returns to retrieval so the answer is
-    # matched. None of them has an edge to ``score`` (ADAPT-03).
-    graph.add_edge("gather_evidence", "plan")
-    graph.add_edge("ask_question", "retrieve")
-    graph.add_edge("re_extract", "retrieve")
+    # The baseline arm (``planner=False``) has no loop at all: every case goes straight to
+    # ``finish_investigation``, which is the v1.2 path (MEAS-02).
+    if planner:
+        graph.add_conditional_edges(
+            "retrieve",
+            route_after_retrieve,
+            {"finish_investigation": "finish_investigation", "plan": "plan"},
+        )
+        # The plan's edge map is DERIVED from the closed action set: every action's value is the
+        # node that implements it, so the router cannot name a node the planner cannot choose.
+        graph.add_conditional_edges(
+            "plan",
+            route_after_plan,
+            {action.value: action.value for action in PlanAction},
+        )
+        # The investigation actions are read-only and all but the exit loop back: evidence and a
+        # re-extraction return to the planner, a question returns to retrieval so the answer is
+        # matched. None of them has an edge to ``score`` (ADAPT-03).
+        graph.add_edge("gather_evidence", "plan")
+        graph.add_edge("ask_question", "retrieve")
+        graph.add_edge("re_extract", "retrieve")
+    else:
+        graph.add_edge("retrieve", "finish_investigation")
     graph.add_edge("finish_investigation", "score")
     graph.add_conditional_edges(
         "score",

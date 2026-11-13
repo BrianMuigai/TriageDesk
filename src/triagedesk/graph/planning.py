@@ -164,8 +164,9 @@ def _make_ask_question(tools: ToolMap) -> NodeFn:
         and the ONE contract refuses to carry answers on anything but an acceptance, so this
         node cannot turn a refusal into a clinical fact. Only an acceptance appends to
         ``nurse_answers`` and spends the one clarification round; every other outcome appends
-        nothing, and its record is the tool's audit entry plus the outcome on this node's
-        ``decision`` span.
+        nothing, and its record is the tool's audit entry, the outcome on this node's
+        ``decision`` span, and the ``elicitation_outcome`` channel the eval harness reads
+        (MEAS-01).
 
         The call is deliberately not wrapped in a ``try``: on a 2026-07-28 connection the
         adapter pauses the run with an ``mcp_elicitation`` interrupt raised from inside the
@@ -187,10 +188,11 @@ def _make_ask_question(tools: ToolMap) -> NodeFn:
         ):
             pass
         if answer.outcome is not ElicitationOutcome.ACCEPTED or not answer.answers:
-            return {}
+            return {"elicitation_outcome": answer.outcome.value}
         return {
             "nurse_answers": [*list(state.get("nurse_answers") or []), *answer.answers],
             "clarification_round": int(state.get("clarification_round") or 0) + 1,
+            "elicitation_outcome": answer.outcome.value,
         }
 
     return ask_question

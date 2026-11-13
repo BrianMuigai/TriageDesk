@@ -118,6 +118,16 @@ def _build_parser() -> argparse.ArgumentParser:
     eval_parser.add_argument(
         "--case", dest="case_filter", default=None, help="run a single case id"
     )
+    eval_parser.add_argument(
+        "--no-planner",
+        dest="planner",
+        action="store_false",
+        default=True,
+        help=(
+            "run the baseline arm: retrieve -> finish_investigation, no planner and no "
+            "investigation (the v1.2 path, MEAS-02)"
+        ),
+    )
 
     demo_parser = subcommands.add_parser(
         "demo", help="run the scripted demo storyboard (offline by default)"
@@ -290,6 +300,7 @@ def main(argv: list[str] | None = None) -> int:
                 report_path=args.report,
                 offline=args.offline,
                 case_filter=args.case_filter,
+                planner=args.planner,
             )
         )
     if args.command == "demo":

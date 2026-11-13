@@ -93,3 +93,9 @@ class TriageState(TypedDict, total=False):
     # case facts, never an approval and never a colour. ONE writer (``ask_question``); the
     # ``retrieve`` node re-matches against the note plus these answers.
     nurse_answers: list[str]
+    # The four-way elicitation outcome seen on the last ``ask_question`` visit
+    # (``accepted`` / ``declined`` / ``cancelled`` / ``unavailable``), written on EVERY
+    # outcome — not only an acceptance — so the eval harness reports what actually happened
+    # instead of re-deriving it from the audit log (MEAS-01). Never read by a router and
+    # never a clinical fact: a decline is not a negative finding.
+    elicitation_outcome: str | None
