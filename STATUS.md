@@ -205,7 +205,7 @@ state-of-the-art *general* agent. The distance to "cutting edge" is almost entir
 | Approver authentication | recorded, not authenticated | ❌ gap (G4) |
 | MCP elicitation | static tool calls today; v1.3 elicits mid-call with four distinct outcomes | 🧪 proposed (v1.3, ELICIT-01..08) |
 | MCP sampling | never requests a client-side model call | ⛔ deliberate (G7 remainder) |
-| Deterministic emergency bypass | critical structured case skips extraction and the planner, never the kernel or the clinician | 🧪 proposed (v1.3, EMERG-01..05) |
+| Deterministic emergency bypass | critical structured case skips extraction and the planner, never the kernel or the clinician | ✅ present (v1.3, EMERG-01..05; proven by `tests/test_emergency_bypass.py`) |
 | Long-term / episodic memory | per-case only | ⛔ deliberate |
 | Multimodal (voice/vision) | text only | ⛔ deliberate (G8) |
 | Multi-agent (planner/executor/critic) | single graph + `verify` node | ⛔ deliberate |
