@@ -82,6 +82,11 @@ def _outcome(captured: dict[str, Any], expected: str) -> str | None:
     second_look = captured["second_look"]
     if second_look is not None and second_look.get("flag") and expected == "RECHECK":
         return "RECHECK"
+    # A bounded clarification (COV-03) is a first-class non-delivery: it asked a question
+    # and committed nothing. It is surfaced ahead of the escalation collapse, exactly like
+    # a recheck flag, so it is never misreported as a dead-end abstention.
+    if captured.get("clarification") is not None:
+        return "CLARIFY"
     if captured["escalation"]:
         return "ABSTAIN"
     if captured["recovery"]:
@@ -210,6 +215,7 @@ def _build_gate(report_cases: list[ReportCase]) -> GateResult:
         if not case.passed
         and not case.declared_failure
         and not (case.deferrals and all(deferral is True for deferral in case.deferrals))
+        and not (case.outcomes and all(outcome == "CLARIFY" for outcome in case.outcomes))
     ]
     return GateResult(
         passed=not violations and not unexpected,

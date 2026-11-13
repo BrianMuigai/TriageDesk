@@ -75,6 +75,15 @@ No discriminator matched / low confidence — nurse to confirm
 A case that cannot be confirmed from the vitals alone shows the same banner above a read-only
 card and **no decision controls** — nothing can be queued from it.
 
+When the complaint is *near* a discriminator but names none, the page asks **one bounded question**
+instead of dead-ending — e.g. a vague complaint in a known diabetic shows "Check: capillary glucose
+(mmol/L) and ketones". Answer it in the complaint field and resubmit; a second ambiguity defers rather
+than asking again. A clarification never shows a colour, a target or a decision control.
+
+A complaint that names **no** discriminator at all (a routine review, a sore throat) is not a
+clarification: the recorded vitals are the complete SATS basis, so the case is delivered normally with
+its baseline citation.
+
 ## What the surface never does
 
 - **A timeout is no approve.** If you do not decide, nothing is committed — there is no default

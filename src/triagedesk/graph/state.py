@@ -13,6 +13,7 @@ from typing import TypedDict
 
 from triagedesk.core.schema import (
     CaseInput,
+    ClarificationRequest,
     CommitResult,
     ConfidenceResult,
     Escalation,
@@ -42,6 +43,13 @@ class TriageState(TypedDict, total=False):
     case: CaseInput | None
     matched_ids: list[str]
     no_match: bool
+    # Retrieval coverage classification (COV-01): written by ``retrieve`` from the
+    # matcher's own contract. ``retrieval_status``/``candidates``/``questions`` decide
+    # ONLY whether ``assess`` asks for a clarification — they never add a scored id.
+    retrieval_status: str
+    candidates: list[str]
+    clarification_questions: list[str]
+    clarification_round: int
     priority: PriorityResult | None
     approval: dict | None
     commit_result: CommitResult | None
@@ -52,6 +60,9 @@ class TriageState(TypedDict, total=False):
     # Safe terminals (ORCH-05, D-03): a typed recovery/escalation the graph stops on.
     recovery: RecoveryRequest | None
     escalation: Escalation | None
+    # Bounded clarification terminal (COV-03): at most three questions, no colour,
+    # no gate, no commit. One answer round may follow before a deferral.
+    clarification: ClarificationRequest | None
     # Serial-vitals second look (GATE-04, D-07): the previous case and the flag it raises.
     previous_case: CaseInput | None
     second_look: RecheckFlag | None

@@ -214,16 +214,16 @@ async def test_delivered_run_records_its_colour_and_delivered(tmp_path: Path) ->
     assert case.passed is True
 
 
-async def test_deferred_case_records_a_terminal_and_no_delivery(tmp_path: Path) -> None:
-    """Under D8-11 E-08 defers: a terminal outcome with ``delivered=false``, never a colour."""
-    _, report = await _run_case(tmp_path, "E-08")
+async def test_ambiguous_case_records_a_clarification_and_no_delivery(tmp_path: Path) -> None:
+    """E-09 is ambiguous: a bounded CLARIFY terminal with ``delivered=false``, never a colour."""
+    _, report = await _run_case(tmp_path, "E-09")
     case = report.cases[0]
 
-    assert case.case_id == "E-08"
-    assert case.outcomes == ["ABSTAIN"] * 3
+    assert case.case_id == "E-09"
+    assert case.outcomes == ["CLARIFY"] * 3
     assert case.delivered == [False, False, False]
-    assert case.deferrals == [True, True, True]
-    assert case.passed is False, "a deferred case was counted as a delivered pass"
+    assert case.deferrals == [False, False, False]
+    assert case.passed is False, "a clarified case was counted as a delivered pass"
 
 
 # -------------------------------------------------- 3. an abort exits non-zero (the gate)

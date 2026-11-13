@@ -171,9 +171,12 @@ async def test_e09_grounding_is_an_honest_no_match_defer_with_no_write(memory_st
     assert evidence.no_match is True, "E-09's grounding was tuned green"
     assert evidence.passages == []
     assert spec.declared_failure is True
-    assert result.get("escalation") is not None, "E-09 did not reach a safe terminal"
+    # v1.2: the honest terminal is a bounded clarification, not a dead-end deferral. The
+    # grounding is still an explicit no-match and no colour is delivered — nothing is tuned.
+    assert result.get("clarification") is not None, "E-09 did not reach a safe terminal"
+    assert result.get("escalation") is None
     assert "commit_priority" not in [name for name, _ in calls]
-    assert memory_store.rows == [], "the deferred E-09 wrote a queue row"
+    assert memory_store.rows == [], "the clarified E-09 wrote a queue row"
 
 
 # ---------------------------------------------------- (vi) the delivered colour is unchanged

@@ -184,8 +184,17 @@ def match_discriminators(complaint: str) -> MatchResult:
             matched_ids=[],
             no_match=True,
             warning=substrate.no_match.warning,
+            # The matcher alone cannot tell "no discriminator applies" from "retrieval missed"
+            # — it has no note and no context. It reports the neutral closed-set fact; the
+            # composing tool overwrites this with the coverage verdict (COV-01).
+            retrieval_status="no_candidate",
         )
-    return MatchResult(matched_ids=sorted(matched), no_match=False, warning=None)
+    return MatchResult(
+        matched_ids=sorted(matched),
+        no_match=False,
+        warning=None,
+        retrieval_status="matched",
+    )
 
 
 def validate_discriminator_ids(ids: list[str]) -> list[str]:

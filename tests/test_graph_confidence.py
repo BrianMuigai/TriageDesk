@@ -31,8 +31,14 @@ NOTE = (
     "temperature 38.9, no trauma. Presenting with central chest pain."
 )
 
-# A complete-vitals case whose complaint matches no discriminator — the deferral class.
+# A complete-vitals case whose complaint matches no discriminator — the ambiguous class.
 NO_MATCH_CASE = COMPLETE_CASE.model_copy(update={"complaint": "feeling unwell"})
+# The same case with the chronic condition stated in the note: one glucose reading would
+# resolve it, which is exactly what the bounded clarification asks for.
+AMBIGUOUS_NOTE = (
+    "60 year old man, walking, alert, no trauma, known diabetic. RR 14, HR 80, "
+    "systolic BP 120, temperature 36.8. Complaint: feeling unwell."
+)
 
 
 def _config(thread: str) -> dict[str, Any]:
@@ -94,38 +100,64 @@ def test_route_after_assess_escalates_a_deferral_and_gates_a_neutral_signal() ->
 # ------------------------------------------------------- deferral on a committing case
 
 
-async def test_a_forced_deferral_ends_at_a_terminal_with_no_write(memory_store) -> None:
-    """A deferred otherwise-committing case ends at a terminal with zero writes (D8-12)."""
+async def test_an_ambiguous_case_clarifies_with_no_write(memory_store) -> None:
+    """An ambiguous otherwise-committing case asks ONE question, never commits (COV-03)."""
     calls: list[tuple[str, Any]] = []
     tools = build_graph_tools(case=NO_MATCH_CASE, calls=calls, store=memory_store)
     app = build_graph(tools, checkpointer=InMemorySaver())
 
-    result = await app.ainvoke({"raw_note": NOTE}, _config("deferral"))
+    result = await app.ainvoke(
+        {"raw_note": AMBIGUOUS_NOTE, "clarification_round": 0}, _config("clarify")
+    )
 
     signal = result.get("confidence")
-    assert signal is not None and signal.deferral is True, "the signal did not defer"
-    assert result.get("escalation") is not None, "the deferral did not reach a terminal"
+    assert signal is not None and signal.action == "clarify", "the signal did not clarify"
+    clarification = result.get("clarification")
+    assert clarification is not None, "the clarification terminal did not fire"
+    assert clarification.questions, "the clarification asked no question"
+    assert len(clarification.questions) <= clarification.max_questions
+    assert result.get("escalation") is None, "a clarification escalated instead of asking"
     assert result.get("commit_result") is None
-    assert not result.get("__interrupt__"), "a deferral must not reach the approval gate"
+    assert not result.get("__interrupt__"), "a clarification must not reach the approval gate"
     assert "commit_priority" not in [name for name, _ in calls]
-    assert memory_store.rows == [], "a deferral wrote a queue row"
+    assert memory_store.rows == [], "a clarification wrote a queue row"
+
+
+async def test_a_second_ambiguity_defers_instead_of_asking_again(memory_store) -> None:
+    """The loop is bounded: at clarification round 1 the same ambiguity defers (COV-03)."""
+    calls: list[tuple[str, Any]] = []
+    tools = build_graph_tools(case=NO_MATCH_CASE, calls=calls, store=memory_store)
+    app = build_graph(tools, checkpointer=InMemorySaver())
+
+    result = await app.ainvoke(
+        {"raw_note": AMBIGUOUS_NOTE, "clarification_round": 1}, _config("clarify-bounded")
+    )
+
+    signal = result.get("confidence")
+    assert signal is not None and signal.action == "defer"
+    assert result.get("clarification") is None, "a third question was asked"
+    assert result.get("escalation") is not None
+    assert memory_store.rows == []
 
 
 # --------------------------------------------------------------- E-09 end-to-end defer
 
 
-async def test_no_match_e09_defers_to_a_terminal_without_a_queue_row(memory_store) -> None:
-    """The declared failure E-09 is loudly deferred, not silently committed (D8-11)."""
+async def test_no_match_e09_clarifies_without_a_queue_row(memory_store) -> None:
+    """The declared failure E-09 asks for the glucose it needs, never commits (COV-03)."""
     spec = next(case for case in load_cases(CASES_DIR) if case.id == "E-09")
     calls: list[tuple[str, Any]] = []
     tools = build_graph_tools(case=spec.case, calls=calls, store=memory_store)
     app = build_graph(tools, checkpointer=InMemorySaver())
 
-    result = await app.ainvoke({"raw_note": spec.note}, _config("deferral-e09"))
+    result = await app.ainvoke({"raw_note": spec.note}, _config("clarify-e09"))
 
     signal = result.get("confidence")
-    assert signal is not None and signal.deferral is True
-    assert result.get("escalation") is not None
+    assert signal is not None and signal.action == "clarify"
+    clarification = result.get("clarification")
+    assert clarification is not None
+    assert any("glucose" in question for question in clarification.questions)
+    assert result.get("escalation") is None
     assert memory_store.rows == []
     assert "commit_priority" not in [name for name, _ in calls]
 

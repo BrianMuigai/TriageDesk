@@ -100,9 +100,11 @@ the unit is unclear, ask. Do not pass an °F magnitude into `temperature_c`.
 {"complaint": "coughing and fast breathing"}
 ```
 
-Use `match_discriminators(case.complaint)` as the authoritative closed-set match. The ids
+Use `match_discriminators(case.complaint, note)` as the authoritative closed-set match. The ids
 from `normalize_case` are model suggestions that the server has already filtered; the matcher
-is the deterministic source. A `no_match` is a coverage gap, **not** low acuity.
+is the deterministic source. A `no_match` is a coverage gap, **not** low acuity — the returned
+`retrieval_status` says whether a discriminator applies at all (`no_candidate`), is
+near but unnamed (`ambiguous`), or matched.
 
 ### 3. Score
 
@@ -116,10 +118,10 @@ Present the returned `colour`, `tews`, `target`, `destination`, and one `citatio
 ### 4. Ground and assess
 
 Call `retrieve_evidence(case.complaint)` to show attributed excerpts. Call
-`assess_confidence(matched_ids, no_match, priority)` with the **exact** `PriorityResult`
-object from step 3, on **every** scored case before asking for approval. The confidence
-result has `deferral`, a closed-set `level`, and components; it has no percentage, so never
-invent one.
+`assess_confidence(matched_ids, no_match, priority, retrieval_status, candidates, questions)`
+with the **exact** `PriorityResult` object from step 3, on **every** scored case before asking
+for approval. The result has `action` (`deliver` / `clarify` / `defer`), `deferral`, a
+closed-set `level`, and components; it has no percentage, so never invent one.
 
 `retrieve_evidence` shows grounding; it never sets a colour. The authoritative per-rule
 citations are the ones in `score_priority.citations`.
@@ -130,8 +132,9 @@ citations are the ones in `score_priority.citations`.
 | --- | --- | --- |
 | `out_of_scope: true` or `abstained: true` | paediatric, missing age, ambiguous age, or an unscorable case | Escalate to a clinician. Do not present an adult colour. |
 | `missing_vitals` is non-empty | a scored vital is absent | Ask for the missing vitals and re-measure. Do **not** present the colour as a decision or commit. The shipped graph routes to `request_missing_info` for exactly this reason. |
-| `no_match: true` | complaint outside the closed discriminator set | Show the coverage gap and defer/escalate. Never call it routine. |
-| `deferral: true` | the coverage signal is insufficient | Escalate or ask for missing information. Do not commit. |
+| `no_match: true` and `retrieval_status: "ambiguous"` | complaint is near a discriminator family but names none | Ask the bounded **clarification** questions (`action: "clarify"`), once. Never present a colour or commit. A second ambiguity defers. |
+| `no_match: true` and `retrieval_status: "no_candidate"` | no discriminator applies; the recorded vitals are the complete SATS basis | Present the vitals colour as a suggestion (`action: "deliver"`), with the coverage note. The human gate still decides. |
+| `deferral: true` or `action: "defer"` | the coverage signal is insufficient, or a clarification did not resolve the case | Escalate or ask for missing information. Do not commit. |
 | `flag: true` from recheck | serial vitals deteriorated | Require a second look. Never reorder the queue or re-colour from the flag. |
 | `refused: true` from commit | no token, malformed token, or a dismissal | Nothing was written. Show the reason. Never retry with an invented token. |
 

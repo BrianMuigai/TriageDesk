@@ -15,6 +15,14 @@ _BANNER_NO_MATCH_BODY = (
 _BANNER_LOW_CONFIDENCE_BODY = (
     "Confidence is low for this suggestion, so it may be incomplete. Confirm before you act."
 )
+# A no-discriminator-applies delivery is NOT an uncertainty alarm: the vitals are the complete
+# basis, so the note is quieter than the banner (COV-02). Showing the loud banner on every
+# routine case would train alarm fatigue.
+_BANNER_VITALS_ONLY_HEADLINE = "No discriminator applies — prioritised on the recorded vitals"
+_BANNER_VITALS_ONLY_BODY = (
+    "The complaint names no closed-set discriminator, so the suggested colour comes from the "
+    "recorded vitals alone. Confirm before you act."
+)
 _EMPTY_HEADING = "No case yet"
 _EMPTY_BODY = "Enter the patient's vitals and complaint, then choose Get suggested priority."
 _CARD_FRAMING = "This is a suggestion, not a decision. You confirm the priority."
@@ -33,6 +41,12 @@ _READ_ONLY_FRAMING = (
 )
 _NO_EVIDENCE_LINE = "No evidence excerpt matched this complaint."
 _DEFERRED_COPY = "This case was deferred for human review — no priority was committed."
+# The bounded clarification terminal (COV-03): one question round, then defer. It states
+# plainly that no priority was committed, because a question is not a decision.
+_CLARIFICATION_COPY = (
+    "One detail would resolve this case. Answer below and resubmit — no priority has been "
+    "committed."
+)
 # The word the read-only card shows instead of a colour (nurse stress test S2-3).
 _DEFERRED_BADGE = "DEFERRED"
 _ESCALATED_COPY = "This case was escalated for human review — no priority was committed."

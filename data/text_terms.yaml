@@ -17,6 +17,9 @@ negation_boundaries: ["and", "but", "however", "except", "although", "though", "
 mobility:
   - {term: "stretcher", value: "stretcher"}
   - {term: "trolley", value: "stretcher"}
+  - {term: "walking/help", value: "with_help"}
+  - {term: "walking / help", value: "with_help"}
+  - {term: "walk/help", value: "with_help"}
   - {term: "with help", value: "with_help"}
   - {term: "assisted", value: "with_help"}
   - {term: "walking", value: "walking"}
@@ -36,3 +39,64 @@ trauma_negative: ["no trauma", "no injury", "no injuries", "denies trauma", "wit
 trauma_positive:
   ["trauma", "injury", "injured", "accident", "fall", "assault", "stab", "gunshot",
    "burn", "collision", "mva", "rtc", "wound"]
+
+# --------------------------------------------------------------------------- #
+# Retrieval coverage terms (v1.2 COV-01/COV-04). These decide whether a
+# complaint that matched no alias is a *miss* (a discriminator probably applies)
+# or simply a case where no discriminator applies. They never set a colour.
+# --------------------------------------------------------------------------- #
+
+# Function words carry no clinical signal; they must not create a false
+# "ambiguous" verdict through incidental overlap with a discriminator phrase.
+stopwords:
+  ["a", "an", "the", "and", "or", "of", "to", "in", "on", "at", "for", "with",
+   "is", "are", "was", "were", "be", "been", "has", "have", "had", "this", "that",
+   "it", "its", "as", "by", "from", "than", "then", "no", "not", "only", "very",
+   "all", "any", "both", "each", "every", "most", "much", "many", "few", "other",
+   "another", "same", "own", "since", "about", "again", "also", "just", "still",
+   "patient", "pt", "complaint", "complains", "complaining", "says", "reports",
+   "reported", "states", "stated", "feels", "feeling", "looks", "appears", "seems"]
+
+# Generic severity/quality words: meaningful only alongside a finding. On their
+# own they must not make a vague complaint look like a retrievable discriminator.
+weak_terms:
+  ["low", "high", "fine", "okay", "ok", "well", "unwell", "better", "worse",
+   "pain", "discomfort", "sore", "mild", "moderate", "severe", "bad", "little",
+   "bit", "slight", "some", "more", "less", "need", "needs", "flag", "mark",
+   "everything", "anything", "something", "nothing", "check", "review", "now",
+   "earlier", "today", "yesterday", "morning", "afternoon", "evening"]
+
+# Routine OPD phrasing: a review/administrative visit, not an acute finding.
+# Checked against the whole complaint before any lexical overlap is considered.
+benign_phrases:
+  ["wound check", "wound review", "dressing change", "suture removal",
+   "follow up", "follow-up", "results", "medical certificate", "sick note",
+   "no complaints", "no concerns", "routine review", "medication collection"]
+
+# A stated chronic/risk condition maps a *vague* complaint to the discriminator
+# family that one measurement would resolve. This is how "feeling unwell" in a
+# known diabetic becomes a targeted question (capillary glucose) instead of a
+# dead-end deferral — and never a guessed colour. `clarify` is the question the
+# nurse is asked; it falls back to the discriminator label when absent.
+context_conditions:
+  - terms: ["diabetic", "diabetes", "type 1", "type 2", "insulin"]
+    discriminators: [hypoglycaemia, diabetic_hyperglycaemia_ketonuria,
+                     diabetic_hyperglycaemia_no_ketonuria]
+    clarify: "capillary glucose (mmol/L) and ketones"
+  - terms: ["pregnant", "pregnancy", "antenatal", "gravid"]
+    discriminators: [pregnancy_abdominal_pain, pregnancy_pv_bleed,
+                     pregnancy_with_trauma, pregnancy_abdominal_trauma]
+    clarify: "pregnancy status, abdominal pain and any vaginal bleeding"
+  - terms: ["anticoagulated", "warfarin", "on aspirin", "clopidogrel"]
+    discriminators: [uncontrolled_haemorrhage_arterial, controlled_haemorrhage]
+    clarify: "any active bleeding and whether it is controlled"
+
+# Conservative suffix rules for the retrieval classifier only. Applied to both
+# sides of the comparison, longest suffix first. The matcher's own alias rule is
+# unchanged: retrieval status never admits a discriminator into scoring.
+stems:
+  - {suffix: "ies", replacement: "y"}
+  - {suffix: "ing", replacement: ""}
+  - {suffix: "ed", replacement: ""}
+  - {suffix: "es", replacement: ""}
+  - {suffix: "s", replacement: ""}

@@ -224,21 +224,27 @@ a refusal, not a guess.
 ### `assess_confidence`
 
 ```json
-{"matched_ids": ["acute_shortness_of_breath"], "no_match": false, "priority": <PriorityResult>}
+{"matched_ids": ["acute_shortness_of_breath"], "no_match": false, "priority": <PriorityResult>,
+ "retrieval_status": "matched", "candidates": [], "questions": [], "clarification_round": 0}
 ```
 
-Returns `deferral`, a closed-set `level`, and per-component evidence. There is no percentage and no
-score field, by design.
+Returns `action` (`deliver` / `clarify` / `defer`), `deferral`, a closed-set `level`, and per-component
+evidence. A `clarify` action carries at most three targeted `questions`; it never carries a colour.
+There is no percentage and no score field, by design.
 
 ### `match_discriminators`
 
 ```json
-{"complaint": "chest pain and shortness of breath"}
+{"complaint": "chest pain and shortness of breath", "note": "<optional full note>"}
 ```
 
 ```json
-{"matched_ids": ["acute_shortness_of_breath", "chest_pain"], "no_match": false, "warning": null}
+{"matched_ids": ["acute_shortness_of_breath", "chest_pain"], "no_match": false, "warning": null,
+ "retrieval_status": "matched", "candidates": ["acute_shortness_of_breath", "chest_pain"], "questions": []}
 ```
+
+`retrieval_status` classifies coverage — `matched`, `ambiguous`, or `no_candidate` — and never adds an
+id to `matched_ids`.
 
 ### `retrieve_evidence`
 

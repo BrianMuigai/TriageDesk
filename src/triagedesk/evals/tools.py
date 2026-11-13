@@ -126,7 +126,9 @@ def _tool_map(
     )
 
     async def match_discriminators(inp: Mapping[str, Any]) -> Any:
-        return await server_module.match_discriminators(str(inp["complaint"]))
+        return await server_module.match_discriminators(
+            str(inp["complaint"]), str(inp.get("note") or "")
+        )
 
     async def score_priority(inp: Mapping[str, Any]) -> Any:
         parsed = CaseInput.model_validate(inp["case"])
@@ -144,6 +146,10 @@ def _tool_map(
             list(inp.get("matched_ids") or []),
             bool(inp.get("no_match")),
             PriorityResult.model_validate(inp["priority"]),
+            retrieval_status=str(inp.get("retrieval_status") or "matched"),
+            candidates=list(inp.get("candidates") or []),
+            questions=list(inp.get("questions") or []),
+            clarification_round=int(inp.get("clarification_round") or 0),
         )
 
     async def retrieve_evidence(inp: Mapping[str, Any]) -> Any:

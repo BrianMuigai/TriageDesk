@@ -1,0 +1,20 @@
+# Eval case E-17 — Two scored vitals missing (v1.2 COV-08).
+# Both RR and temperature are absent. The scorer reports BOTH names and the graph stops at
+# the recovery terminal: it fabricates neither value and commits nothing.
+id: E-17
+description: "Incomplete vitals (two missing)"
+note: >-
+  61 year old woman, walking, alert, no trauma. Heart rate 92, systolic BP 138.
+  No respiratory rate and no temperature recorded. Complaint: abdominal pain.
+case:
+  age_years: 61
+  mobility: walking
+  avpu: alert
+  heart_rate: 92
+  systolic_bp: 138
+  trauma: false
+  complaint: "abdominal pain"
+expected: RECOVER
+pass_criteria: "missing=[respiratory_rate, temperature]; names both; no colour; no commit"
+source: "v1.2 COV-08 (incomplete vitals)"
+declared_failure: false

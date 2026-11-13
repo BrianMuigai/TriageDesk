@@ -29,6 +29,7 @@ from triagedesk.core.approval import committed_or_scored
 from triagedesk.core.hashing import hash_value
 from triagedesk.core.schema import (
     CaseInput,
+    ClarificationRequest,
     CommitResult,
     ConfidenceResult,
     Escalation,
@@ -169,13 +170,27 @@ def _make_retrieve(tools: ToolMap) -> NodeFn:
     """Build the ``retrieve`` node over the injected tool mapping (D-05, D-06)."""
 
     async def retrieve(state: TriageState) -> dict[str, Any]:
-        """Resolve the deterministic discriminator set from the complaint (D-06)."""
+        """Resolve the deterministic discriminator set from the complaint (D-06).
+
+        The coverage classifier rides along on the matcher's own contract (COV-01):
+        ``retrieval_status``/``candidates``/``questions`` are copied into the state so
+        ``assess`` can decide whether one question would resolve the case. They never
+        add an id to ``matched_ids`` — the scored colour is unchanged.
+        """
         case = state["case"]
         match = parse_tool_result(
             MatchResult,
-            await tools["match_discriminators"]({"complaint": case.complaint}),
+            await tools["match_discriminators"](
+                {"complaint": case.complaint, "note": str(state.get("raw_note") or "")}
+            ),
         )
-        return {"matched_ids": list(match.matched_ids), "no_match": match.no_match}
+        return {
+            "matched_ids": list(match.matched_ids),
+            "no_match": match.no_match,
+            "retrieval_status": match.retrieval_status,
+            "candidates": list(match.candidates),
+            "clarification_questions": list(match.questions),
+        }
 
     return retrieve
 
@@ -231,6 +246,10 @@ def _make_assess(tools: ToolMap) -> NodeFn:
         payload = {
             "matched_ids": list(state.get("matched_ids") or []),
             "no_match": bool(state.get("no_match")),
+            "retrieval_status": str(state.get("retrieval_status") or "matched"),
+            "candidates": list(state.get("candidates") or []),
+            "questions": list(state.get("clarification_questions") or []),
+            "clarification_round": int(state.get("clarification_round") or 0),
             "priority": state["priority"].model_dump(),
         }
         signal = parse_tool_result(
@@ -269,6 +288,38 @@ def request_missing_info(state: TriageState) -> dict[str, Any]:
     priority = state.get("priority")
     missing = list(priority.missing_vitals) if priority is not None else []
     return {"recovery": RecoveryRequest(missing_vitals=missing, reason=_RECOVERY_REASON)}
+
+
+def clarify(state: TriageState) -> dict[str, Any]:
+    """Stop on the bounded clarification terminal (COV-03) — ask, never guess.
+
+    Produces at most :attr:`ClarificationRequest.max_questions` targeted questions and
+    the closed-set candidates they would resolve. There is no colour and no edge to
+    ``commit``; one answer round may re-run the case, after which a second ambiguity
+    defers through ``escalate``.
+    """
+    signal = state.get("confidence")
+    questions = (
+        list(signal.questions)
+        if signal is not None
+        else list(state.get("clarification_questions") or [])
+    )
+    candidates = (
+        list(signal.candidates)
+        if signal is not None
+        else list(state.get("candidates") or [])
+    )
+    return {
+        "clarification": ClarificationRequest(
+            questions=questions[: ClarificationRequest.max_questions],
+            candidates=candidates,
+            reason=(
+                signal.reason
+                if signal is not None and signal.reason
+                else "the complaint does not name a discriminator confidently"
+            ),
+        )
+    }
 
 
 def escalate(state: TriageState) -> dict[str, Any]:
@@ -441,5 +492,6 @@ def make_nodes(tools: ToolMap) -> dict[str, NodeFn]:
         "commit": _make_commit(tools),
         "handover": handover,
         "request_missing_info": request_missing_info,
+        "clarify": clarify,
         "escalate": escalate,
     }

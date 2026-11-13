@@ -17,6 +17,7 @@ colour (Pitfall 2).
 
 from __future__ import annotations
 
+from triagedesk.core.coverage import MAX_CLARIFICATION_QUESTIONS
 from triagedesk.core.rules import get_discriminators, get_tews
 from triagedesk.core.schema import (
     ConfidenceComponent,
@@ -149,21 +150,35 @@ def assess(
     matched_ids: list[str],
     no_match: bool,
     priority: PriorityResult,
+    *,
+    retrieval_status: str = "matched",
+    candidates: list[str] | None = None,
+    questions: list[str] | None = None,
+    clarification_round: int = 0,
 ) -> ConfidenceResult:
-    """Return the deterministic coverage/deferral signal for one scored case (D8-01).
+    """Return the deterministic coverage signal for one scored case (D8-01, COV-02/03).
 
     Every component in ``COMPONENT_NAMES`` is computed from already-typed objects:
     vitals coverage, discriminator coverage, the override-vs-TEWS path and the TEWS
-    distance from the band edge. ``no_match`` forces a deferral regardless of the others
-    (D8-11) — a case where no discriminator matched is never reported as high confidence.
-    Otherwise a case defers when fewer than ``DEFERRAL_MIN_SATISFIED_COMPONENTS``
-    components are satisfied. The signal never returns a colour and never a
-    probability (D8-02, D8-12).
+    distance from the band edge. The three-way action then follows the retrieval
+    coverage classification:
 
-    The signal reads only the scored ``priority`` and the retrieved discriminator facts —
-    it takes no ``CaseInput``, so the tool/node contract cannot carry a field the
-    computation ignores (WR-03): the scored ``PriorityResult`` already carries every
-    fact the signal reads.
+    * ``no_candidate`` — no discriminator applies, so the recorded vitals are the
+      complete SATS basis. The case is **delivered** with a ``vitals-only`` reason;
+      the band-distance and override components are not applicable to a case the
+      closed set does not implicate.
+    * ``ambiguous`` — one targeted question could resolve a discriminator family, so
+      the case is a **clarification** (no colour, no gate, no commit). On the second
+      round the case **defers** rather than asking again.
+    * ``matched`` — the original rule: fewer than
+      ``DEFERRAL_MIN_SATISFIED_COMPONENTS`` satisfied components defers. A legacy
+      caller that passes ``no_match=True`` with the default status keeps the historical
+      deferral, so no existing reader changes behaviour.
+
+    Under every path the signal reads only the scored ``priority`` and the retrieved
+    facts — it takes no ``CaseInput``, so the tool/node contract cannot carry a field
+    the computation ignores (WR-03). It never returns a colour and never a probability
+    (D8-02, D8-12).
     """
     components = [
         _vitals_component(priority),
@@ -171,23 +186,69 @@ def assess(
         _override_component(priority),
         _band_component(priority),
     ]
-    if no_match:
+    candidate_ids = list(candidates or [])
+    if retrieval_status == "ambiguous" and no_match:
+        if clarification_round >= 1:
+            return _defer(
+                components,
+                "clarification did not resolve the ambiguity; deferring for human review",
+            )
         return ConfidenceResult(
-            deferral=True,
+            deferral=False,
+            action="clarify",
             level="low",
             components=components,
-            reason="no discriminator matched the complaint; deferring for human review",
+            reason="the complaint is near a discriminator family but names none",
+            questions=list(questions or [])[:MAX_CLARIFICATION_QUESTIONS],
+            candidates=candidate_ids,
+        )
+    if retrieval_status == "no_candidate" and no_match:
+        # Defence in depth: the graph diverts a missing-vital case before ``assess``, but a
+        # direct tool caller could reach here. The signal can only make the system MORE
+        # cautious, so an incomplete case never delivers on "vitals-only".
+        if priority.missing_vitals:
+            return _defer(
+                components,
+                "no discriminator applies, but a scored vital is missing; re-measure",
+            )
+        return ConfidenceResult(
+            deferral=False,
+            action="deliver",
+            level="moderate",
+            components=components,
+            reason=(
+                "no discriminator applies; delivering on the recorded vitals "
+                "(vitals-only basis)"
+            ),
+        )
+    if no_match:
+        return _defer(
+            components,
+            "no discriminator matched the complaint; deferring for human review",
         )
     satisfied_count = sum(1 for component in components if component.satisfied)
-    deferral = satisfied_count < DEFERRAL_MIN_SATISFIED_COMPONENTS
-    reason = (
-        f"only {satisfied_count} of {len(components)} coverage components satisfied"
-        if deferral
-        else ""
-    )
+    if satisfied_count < DEFERRAL_MIN_SATISFIED_COMPONENTS:
+        return _defer(
+            components,
+            f"only {satisfied_count} of {len(components)} coverage components satisfied",
+        )
     return ConfidenceResult(
-        deferral=deferral,
+        deferral=False,
+        action="deliver",
         level=_level_for(satisfied_count),
+        components=components,
+        reason="",
+    )
+
+
+def _defer(
+    components: list[ConfidenceComponent], reason: str
+) -> ConfidenceResult:
+    """The one deferral shape — ``deferral`` and ``action`` always move together."""
+    return ConfidenceResult(
+        deferral=True,
+        action="defer",
+        level="low",
         components=components,
         reason=reason,
     )

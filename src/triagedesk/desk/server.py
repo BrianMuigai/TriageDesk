@@ -372,6 +372,12 @@ class DeskHandler(BaseHTTPRequestHandler):
             # Defence in depth: any coercion failure that somehow bypassed the schema's own
             # validator is still reported, never an approve (the surface's stated contract).
             return self._page(error=_FAILURE_COPY, form_values=form)
+        # The clarification round the previous page carried (1 when it asked a question). It is
+        # a presentation marker, not a clinical value: a malformed value degrades to round 0.
+        try:
+            clarification_round = 1 if int(form.get("clarification_round", "0")) >= 1 else 0
+        except (TypeError, ValueError):
+            clarification_round = 0
         try:
             if self.server.online:
                 # Resolve the extraction FIRST, outside the write lock: a cache hit is free,
@@ -381,10 +387,17 @@ class DeskHandler(BaseHTTPRequestHandler):
                     self._online_extraction(case.complaint)
                 )
                 pending = submit_case(
-                    case, self.server.db_path, extraction=extraction
+                    case,
+                    self.server.db_path,
+                    extraction=extraction,
+                    clarification_round=clarification_round,
                 )
             else:
-                pending = submit_case(case, self.server.db_path)
+                pending = submit_case(
+                    case,
+                    self.server.db_path,
+                    clarification_round=clarification_round,
+                )
             # ONE loop, one in-loop write lock: the checkpoint file still needs one writer
             # at a time, but the waiting happens inside the loop (IN-03).
             paused = self.server.loop.run(self.server.serialised(pending))

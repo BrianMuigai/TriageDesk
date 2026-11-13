@@ -1,0 +1,23 @@
+# Eval case E-16 — Contradictory complaint and vitals (v1.2 COV-08).
+# The patient denies pain; the objective vitals are shocked (RR 30, HR 130, SBP 70 ->
+# TEWS 9). The colour must follow the recorded vitals, never the reassuring complaint:
+# a denial is not evidence of stability. Expected RED.
+id: E-16
+description: "Contradictory complaint and vitals"
+note: >-
+  44 year old man, walking, alert, no trauma. RR 30, HR 130, systolic BP 70, temperature
+  37.0. Complaint: no pain at all, feels fine.
+case:
+  age_years: 44
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 30
+  heart_rate: 130
+  systolic_bp: 70
+  temperature_c: 37.0
+  trauma: false
+  complaint: "no pain at all, feels fine"
+expected: RED
+pass_criteria: "colour=RED; cites the recorded vitals; the denial does not lower the priority"
+source: "v1.2 COV-08 (contradictory vitals)"
+declared_failure: false

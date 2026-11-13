@@ -26,8 +26,8 @@ criterion stays partially met because **no clinician or triage nurse has reviewe
 that is the single largest remaining score gap. The interview itself is now prepared — eight questions,
 drafted responses, and the module each answer depends on
 ([`docs/CLINICIAN-INTERVIEW.md`](docs/CLINICIAN-INTERVIEW.md)) — but it is **unattested**: it shortens
-the conversation, it does not replace it. The latency figure is pessimistic (measured under
-host load) and a quiet-machine re-run is pending.
+the conversation, it does not replace it. The measured p50 is 17.83 s and p95 59.98 s on the local
+model; the deterministic scorer is instant, and the p95 tail is the one remaining performance gap.
 
 | Dimension | Status | Basis |
 | --- | --- | --- |
@@ -36,11 +36,11 @@ host load) and a quiet-machine re-run is pending.
 | "What to submit" (5 items) | 🟡 **5/5 delivered** — video on Google Drive; the brief's YouTube/Vimeo wording is a residual caveat (G1) | measured |
 | Judging criteria (100 pts) | 🟡 **est. 83–93** (mid-80s to low-90s) | **estimate** |
 | Instant disqualifiers (8) | ✅ none triggered | measured |
-| Test suite | ✅ **600 passed** | measured (`uv run pytest -q`) |
-| Measured evaluation | ✅ 19/19 colour-expected runs correct · under-triage 0 · over-triage 0 · gate delivery 16/16 · E-09 declared failure · E-11 recorded gate failure | measured (digest `8b600014`, [`EVALS.md`](EVALS.md) §3) |
+| Test suite | ✅ **647 passed** | measured (`uv run pytest -q`) |
+| Measured evaluation | ✅ 48/48 colour-expected runs correct · under-triage 0 · over-triage 0 · coverage 48/60 delivered · 9/60 clarified · **0/60 deferred** · gate delivery 24/24 · E-09 the one declared failure | measured (digest `0ae3dde6`, [`EVALS.md`](EVALS.md) §3) |
 
 *Test caveat:* a gitignored root `spans.jsonl` left by an earlier demo or eval run makes
-`test_no_spans_artifact_is_written_to_the_repo_root` fail until it is deleted. The 600-pass figure
+`test_no_spans_artifact_is_written_to_the_repo_root` fail until it is deleted. The 647-pass figure
 above is from a clean tree.
 
 ---
@@ -67,7 +67,7 @@ Not counted, because the brief makes it optional: a frontier-model comparison on
 | Demo video < 3 min, uploaded publicly | 🟡 **delivered** — `docs/assets/triagedesk-demo.mp4` (2:28, measured) is a real unedited screen recording with the seven owned tools' calls on screen, the measured evaluation, and the declared E-09 failure. It was **uploaded to Google Drive during submission** ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)). The brief names YouTube/Vimeo, so the hosting platform is the residual caveat (G1) |
 | ~300-word description | ✅ `DESCRIPTION.md`, within ±10% of 300 words, guarded by `tests/test_docs_final.py` |
 | `ARCHITECTURE.md` — one page | ✅ one page, guarded (≤ 700 words and ≤ 110 lines) by the same test |
-| `EVALS.md` — 8+ tasks, plus one failure not fixed and what you would try next | ✅ 16 cases; E-09 declared with a "what we would try next" list |
+| `EVALS.md` — 8+ tasks, plus one failure not fixed and what you would try next | ✅ 24 cases; E-09 declared with a "what we would try next" list |
 
 All five artefacts exist in the repository. The only partially-met item is the **hosting platform**
 of the video, not its content or its existence.
@@ -79,7 +79,7 @@ of the video, not its content or its existence.
 | Agentic depth & MCP craft | 30 | **27–29** | Seven reusable tool contracts, an explicit graph, one fail-closed evidence check, and three recovery paths (missing vital, tool failure, out-of-scope). Docked for: no MCP sampling/elicitation, and a fixed graph rather than dynamic planning — a deliberate safety choice that still reads as less "agentic depth" than a planner |
 | Open-source rigour | 20 | **18–19** | One command from a clean clone, committed lock, CI smoke test, honest status docs, and a desk package split by responsibility. Docked for: the borrowed server needs Node and a one-time `npx` fetch, and only Linux/macOS is exercised |
 | **Fit to the triage desk** | 20 | **12–16** | A real desk surface now ships (acuity-ordered read-only waiting room, keyboard-first vitals, real approve/edit/dismiss gate, background precompute) — but **no clinician or triage-nurse review** (G2), it is a single-machine loopback prototype (G9), English-only, and model latency is not yet "seconds" on a loaded machine (G3) |
-| Evaluation & reliability | 15 | **13–14** | Measured and honest: 3 runs/case, safety invariants on every run, one declared failure, one recorded gate failure, variation and cost reported. Docked for: E-09 unfixed, E-11 still failing the gate, roughly half the reached-assess runs deferring, and no online eval or drift monitoring (G6) |
+| Evaluation & reliability | 15 | **13–14** | Measured and honest: 24 cases × 3 runs, safety invariants on every run, one declared failure, no gate failure, variation and cost reported; coverage rose to 48/60 delivered with 0 deferrals, and E-11 is 9/9 stable. Docked for: E-09 still unresolved as a colour, the p95 tail, and no online eval or drift monitoring (G6) |
 | Defensibility | 10 | **9–10** | Deterministic SATS scorer, exact citations, hash-chained audit, known cost per run. Nothing material is missing |
 | Demo | 5 | **4–5** | Complete 2:28 recording, tool calls on screen, the measured eval and the declared failure shown. Docked only if the brief's YouTube/Vimeo wording is enforced (G1) |
 | **Total** | **100** | **83–93** | **estimate** — the band is wide because three criteria turn on facts outside the repository (clinician access, hosting platform, a quiet machine) |
@@ -98,21 +98,21 @@ real and digest-stamped · greenfield and disclosed.
    ([`docs/CLINICIAN-INTERVIEW.md`](docs/CLINICIAN-INTERVIEW.md)) with one real triage-nurse or
    clinician, sign its attestation, and add the attributed quote to `EVALS.md` §7. The prep work is
    done; the conversation is not. This is the single biggest available score mover.
-2. **G3 — Latency is not yet "seconds" on a loaded machine.** The measured p50 is 19.98 s and p95 is
-   55.03 s, but that re-run happened under host load (load average 8.4–10.9 on 12 cores); a
-   single-case re-check on the same code gave 13.5–17.0 s. Treat the published figure as
-   **pessimistic**; a quiet-machine re-run is pending. The deterministic scorer is instant — local
-   model extraction dominates.
+2. **G3 — The p95 tail is not yet "seconds".** The measured p50 is 17.83 s and p95 59.98 s across the
+   24-case run; the deterministic scorer is instant, so local model extraction dominates. The E-11
+   repeat (9 runs) measured 11.1–15.9 s, so the tail depends on host load. Treat p95 as the honest
+   worst case; a quiet-machine re-run and a faster extraction path are the next steps.
 3. **G1 — Demo hosting platform.** The video is delivered and uploaded, but to Google Drive. The
    brief names YouTube/Vimeo. Re-hosting the existing 2:28 file there closes it; the content does
    not change. *(Residual caveat, not a blocker.)*
 4. **G4 — Approver identity is recorded, not authenticated.** The gate captures `approved_by` and
    `role`; it cannot prove who typed them. An authenticated approver (SSO/badge) is a production
    requirement, declared in [`SECURITY.md`](SECURITY.md) T-8.
-5. **G5 — Two evaluation misses remain visible.** E-09 (vague complaint, discriminator not retrieved)
-   is the declared failure; it now **defers** rather than under-triaging. E-11 is the one recorded
-   gate failure. E-13 (prompt injection) is no longer a gate failure — it defers as reduced
-   coverage. Details and the full table live in [`EVALS.md`](EVALS.md) §4 and §6.
+5. **G5 — One declared evaluation failure remains.** E-09 (vague complaint, discriminator not
+   retrieved) is the only miss: it now asks a **bounded clarification** (capillary glucose/ketones)
+   instead of dead-ending, and delivers no colour. There is **no recorded gate failure** — E-11 is
+   stable 9/9 and the early E-13 deferral is now a delivered pass. Details and the full table live in
+   [`EVALS.md`](EVALS.md) §4 and §6.
 6. **G6 — No online evaluation, drift monitoring, or calibrated probability.** The report is an
    offline measurement. Calibration is a declared small-sample ECE, explicitly **not** a validated
    calibrated probability.
@@ -184,7 +184,7 @@ state-of-the-art *general* agent. The distance to "cutting edge" is almost entir
 | Guardrails / safety | structural: no dx/rx tools, citation invariant, gate, fail-closed evidence check | ✅ present (strong) |
 | Prompt-injection resistance | prose-as-data + deterministic scorer; E-13 adds no evidence | ✅ present |
 | Reproducibility | hashing, pinned deps, deterministic scorer, sealed schema hash | ✅ present |
-| Evaluation | 16 cases, invariants, honest failures | 🟡 strong offline; no online eval or drift (G6) |
+| Evaluation | 24 cases, invariants, honest failures | 🟡 strong offline; no online eval or drift (G6) |
 | Dynamic planning / adaptive routing | fixed graph (bounded) | 🟡 partial — deliberate |
 | Knowledge grounding (RAG) | deterministic lexical retrieval over the YAML KB (no embeddings); evidence is display-only | ✅ present |
 | Grounded extraction | Phase 14 grounds every extracted sign in the complaint text, with a fail-closed check | ✅ present |

@@ -206,6 +206,8 @@ def analyse(report: Report, *, urgency: Mapping[str, int] | None = None) -> Anal
     deferral_count = 0
     deferral_runs = 0
     deferral_cases: list[str] = []
+    clarification_count = 0
+    clarification_cases: list[str] = []
 
     for case in cases:
         (colour_stable if case.colour_stable else colour_unstable).append(case.case_id)
@@ -221,6 +223,11 @@ def analyse(report: Report, *, urgency: Mapping[str, int] | None = None) -> Anal
                 deferral_runs += 1
                 if flag:
                     deferral_count += 1
+
+        clarified = sum(1 for outcome in case.outcomes if outcome == "CLARIFY")
+        if clarified:
+            clarification_count += clarified
+            clarification_cases.append(case.case_id)
 
         expected_is_colour = case.expected in ranks
         if expected_is_colour and case.expected == most_urgent:
@@ -307,6 +314,11 @@ def analyse(report: Report, *, urgency: Mapping[str, int] | None = None) -> Anal
         deferral_runs=deferral_runs,
         deferral_rate=(deferral_count / deferral_runs) if deferral_runs else 0.0,
         deferral_cases=deferral_cases,
+        delivered_runs=colour_runs,
+        coverage_rate=(colour_runs / deferral_runs) if deferral_runs else 0.0,
+        clarification_count=clarification_count,
+        clarification_rate=(clarification_count / deferral_runs) if deferral_runs else 0.0,
+        clarification_cases=clarification_cases,
         calibration=_calibration(cases),
     )
 
