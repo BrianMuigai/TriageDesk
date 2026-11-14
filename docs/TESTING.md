@@ -75,9 +75,9 @@ uv run python scripts/emit_evals.py --write   # refresh result cells from the re
 uv run python scripts/emit_evals.py --check   # exit 1 if EVALS.md is stale
 
 # §3.3 compares two sealed arms. The adaptive arm defaults to
-# evals/results/report.adaptive.json when it exists (the declared-subset case study) and falls
+# evals/results/report.adaptive.json when it exists (the full-suite adaptive arm) and falls
 # back to --report; the baseline arm is evals/results/report.baseline.json, produced with:
-#   uv run triagedesk eval --cases evals/cases.adaptive-subset --runs 1 \
+#   uv run triagedesk eval --cases evals/cases --runs 1 \
 #     --report evals/results/report.baseline.json --no-planner
 ```
 

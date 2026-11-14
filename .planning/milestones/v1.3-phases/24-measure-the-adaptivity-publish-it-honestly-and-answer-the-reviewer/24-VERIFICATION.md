@@ -3,6 +3,7 @@ phase: 24
 verified: "2026-11-14"
 status: passed
 score: "10/10 requirements"
+covered_digest: "v4:sha256:94516582b27c45b510e518f0fcfe2312d2c01f389675f43a5d8c4af272caa9e7"
 covered_files:
   - ARCHITECTURE.md
   - EVALS.md
@@ -16,10 +17,6 @@ covered_files:
   - docs/assets/architecture.mmd
   - docs/assets/architecture.pdf
   - docs/assets/architecture.svg
-  - evals/cases.adaptive-subset/E-09.yaml
-  - evals/cases.adaptive-subset/E-12.yaml
-  - evals/cases.adaptive-subset/E-15.yaml
-  - evals/cases.adaptive-subset/H-03.yaml
   - evals/results/report.adaptive.json
   - evals/results/report.baseline.json
   - scripts/emit_evals.py
@@ -32,14 +29,6 @@ covered_files:
   - src/triagedesk/graph/state.py
   - tests/test_eval_adaptive.py
   - tests/test_observability.py
-  - .planning/phases/24-measure-the-adaptivity-publish-it-honestly-and-answer-the-reviewer/24-01-PLAN.md
-  - .planning/phases/24-measure-the-adaptivity-publish-it-honestly-and-answer-the-reviewer/24-01-SUMMARY.md
-  - .planning/phases/24-measure-the-adaptivity-publish-it-honestly-and-answer-the-reviewer/24-02-PLAN.md
-  - .planning/phases/24-measure-the-adaptivity-publish-it-honestly-and-answer-the-reviewer/24-02-SUMMARY.md
-  - .planning/phases/24-measure-the-adaptivity-publish-it-honestly-and-answer-the-reviewer/24-03-PLAN.md
-  - .planning/phases/24-measure-the-adaptivity-publish-it-honestly-and-answer-the-reviewer/24-03-SUMMARY.md
-  - .planning/phases/24-measure-the-adaptivity-publish-it-honestly-and-answer-the-reviewer/24-SUMMARY.md
-covered_digest: "v4:sha256:eb96ee356c24b5dd8dafefb55dfb2b025dfaf16ee73403a16bc00cc7be958c73"
 ---
 
 # Phase 24 — VERIFICATION
@@ -47,7 +36,7 @@ covered_digest: "v4:sha256:eb96ee356c24b5dd8dafefb55dfb2b025dfaf16ee73403a16bc00
 | Requirement | Evidence | Verdict |
 | --- | --- | --- |
 | MEAS-01 | `ReportCase` carries per-run steps, actions, guard overrides, elicitation outcome and emergency bypass; the analyser derives the `adaptive` block; `tests/test_eval_adaptive.py` proves the facts are recorded and that a baseline run records none | PASS |
-| MEAS-02 | Two sealed arms on the declared subset, published side by side with the delta (mean steps 2.8 vs 0.0, overrides 1/4 vs 0/0, p50 38.06 s vs 14.32 s) — generated, not typed | PASS |
+| MEAS-02 | Two sealed arms on the full 24-case suite, published side by side with the delta (mean steps 2.1 vs 0.0, overrides 3/23 vs 0/0, p50 25.99 s vs 18.26 s, p95 50.47 s vs 24.06 s) — generated, not typed | PASS |
 | MEAS-03 | Both arms keep the `score`/`commit` predecessor sets; the offline full-suite run reports 48/48 colour-correct, under-triage `[]`, over-triage `[]`, INV-1..INV-4 true; E-09 remains the declared failure | PASS |
 | MEAS-04 | `scripts/emit_evals.py --check` exits 0 with EVALS.md regenerated from the sealed reports | PASS |
 | DOC-01 | ARCHITECTURE §3 states the two layers and why free-form ReAct is rejected (663 words, inside the guard) | PASS |
@@ -66,8 +55,7 @@ covered_digest: "v4:sha256:eb96ee356c24b5dd8dafefb55dfb2b025dfaf16ee73403a16bc00
 
 ## Honest gaps
 
-- The full 24-case suite was not re-run in real mode for the comparison (host cost ~90 s per call);
-  EVALS §3.3 says so explicitly and §3 remains the last full-suite real measurement.
+- The comparison is 1 run per arm; the 3-run stability measurement is §3 and is not repeated.
 - The eval harness has no MCP client, so `ask_question` records `unavailable` there; the live round-trip
   is proven at the adapter layer in Phase 21.
 - A four-state observation model is an outstanding limitation, declared and not drawn as implemented.

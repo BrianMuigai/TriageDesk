@@ -433,7 +433,7 @@ def _render_comparison_block(
         _CMP_BEGIN,
         f"> **Measured comparison:** {_arm_label(report)} (mode `{report.mode}`) vs "
         f"{_arm_label(baseline)} (mode `{baseline.mode}`), same {len(report.cases)} cases × "
-        f"{report.runs} runs.",
+        f"{report.runs} run(s).",
         "",
         "| Metric | Adaptive | Baseline | Delta |",
         "| --- | --- | --- | --- |",

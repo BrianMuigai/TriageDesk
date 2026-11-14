@@ -2,32 +2,31 @@
 
 **Status:** complete · **Commit:** `1b8cf76`
 
-## Measured arms (real mode, 1 run each)
+## Measured arms (real mode, full 24-case suite, 1 run each)
 
-The comparison uses the four cases where an investigation action is admissible at all — E-09 (ambiguous),
-E-12 (missing vitals), E-15 and H-03 (clarify). A routine matched case admits only
-`finish_investigation`, so it cannot distinguish the arms.
+> **Post-close update:** the phase initially published a declared 4-case subset because the host was
+> measuring ~90 s per model call. The host recovered; the comparison below is the **full suite**, and it
+> replaces the subset figures. The subset reports are removed.
 
 | Metric | Adaptive | Baseline | Delta |
 | --- | --- | --- | --- |
-| Colour correctness | 0/0 | 0/0 | +0.0 pp (no colour-expected case in the subset) |
+| Colour correctness | 16/16 | 16/16 | +0.0 pp |
+| Coverage (delivered/reached) | 16/20 | 16/20 | +0 runs |
 | Clarified | 3 | 3 | 0 |
 | Deferred | 0 | 0 | 0 |
-| Mean steps | 2.8 | 0.0 | +2.80 |
-| Guard overrides | 1/4 | 0/0 | +25.0 pp |
-| Latency p50 (s) | 38.06 | 14.32 | +23.74 |
-| Latency p95 (s) | 48.56 | 17.53 | +31.03 |
+| Mean steps | 2.1 | 0.0 | +2.10 |
+| Guard overrides | 3/23 | 0/0 | +13.0 pp |
+| Latency p50 (s) | 25.99 | 18.26 | +7.73 |
+| Latency p95 (s) | 50.47 | 24.06 | +26.41 |
 
-The adaptive actions were `gather_evidence` ×4, `ask_question` ×3, `finish_investigation` ×4; the three
+Adaptive actions: `gather_evidence` ×23, `ask_question` ×3, `finish_investigation` ×23. The three
 elicitation outcomes were `unavailable` (the eval harness is in-process and has no MCP client), so the
-planner asked and then finished. That is the honest result: on these cases the envelope changes
-**behaviour** and costs **latency**, and it does not change the clinical outcome.
+planner asked and then finished. Both arms fired the deterministic emergency bypass on the same case
+(E-16). Under-triage and over-triage are empty in both arms; the gate passes in both.
 
-## Why the full suite is not re-run in real mode
-
-The host measured ~90 s per local model call at the time of writing; a two-arm 24 × 3 re-run was not
-practical. `EVALS.md` §3 remains the last full-suite real measurement (v1.2 code, 3 runs, digest
-`0ae3dde6`); §3.3 states this explicitly rather than implying a fresh full-suite number.
+The honest reading: on the full suite the envelope changes **behaviour** and costs **latency**
+(+7.73 s p50, +26.41 s p95) without changing a single clinical outcome. It does not make the system more
+accurate on these cases; it makes it able to ask, gather and re-read.
 
 ## Publishing
 
