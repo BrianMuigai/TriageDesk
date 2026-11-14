@@ -37,11 +37,22 @@ from triagedesk.evals.report import Analysis, Report, ReportCase, compute_report
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REPORT = REPO_ROOT / "evals" / "results" / "report.json"
+DEFAULT_BASELINE = REPO_ROOT / "evals" / "results" / "report.baseline.json"
+# The §3.3 comparison pair. When the adaptive arm was measured on a declared subset it lives in
+# its own sealed report; the documented one-liner must still be able to check EVALS.md, so the
+# pair is resolved from these fixed paths rather than only from ``--report``.
+DEFAULT_COMPARISON_ADAPTIVE = REPO_ROOT / "evals" / "results" / "report.adaptive.json"
 DEFAULT_EVALS = REPO_ROOT / "EVALS.md"
 
 # The generated source block, fenced by stable markers so a re-run replaces it in place.
 _BEGIN = "<!-- BEGIN GENERATED: source -->"
 _END = "<!-- END GENERATED: source -->"
+
+# The generated §3.3 adaptive-vs-baseline comparison (MEAS-02). Fenced and anchored on the
+# hand-written heading so it can be inserted when first absent and refreshed in place after.
+_CMP_BEGIN = "<!-- BEGIN GENERATED: comparison -->"
+_CMP_END = "<!-- END GENERATED: comparison -->"
+_CMP_ANCHOR = "**Measured arms and delta.**"
 
 # The generated §6.1 coverage-deferral record. Fenced so a re-run replaces it in place;
 # anchored on the §6.1 heading so it can be inserted when first absent.
@@ -344,12 +355,129 @@ def _render_deferral_block(lines: list[str], report: Report, analysis: Analysis)
     return lines[: anchor + 1] + [""] + body + lines[anchor + 1 :]
 
 
-def render_evals(template: str, report: Report) -> str:
+def _arm_label(report: Report) -> str:
+    """The arm's honest name, from the report's own ``planner`` flag (MEAS-02)."""
+    return "adaptive arm `planner=True`" if report.planner else "baseline arm `planner=False`"
+
+
+def _arm_cells(report: Report, analysis: Analysis) -> dict[str, str]:
+    """The comparison cells for one arm — every value read from the sealed report (MEAS-02).
+
+    ``Colour`` is correct/runs, not a bare percentage: the denominator is the colour-expected
+    runs, and the gate verdict is published separately. ``Steps`` and ``Overrides`` come from
+    the ``adaptive`` block the analyser derived from the per-run facts, so a baseline report
+    (no planner) reads ``0.0`` and ``0/0`` honestly rather than being blank.
+    """
+    adaptive = analysis.adaptive
+    overrides = round(adaptive.guard_override_rate * adaptive.runs_with_investigation)
+    return {
+        "Colour correctness": f"{analysis.colour_correct}/{analysis.colour_runs}",
+        "Coverage (delivered/reached)": (
+            f"{analysis.delivered_runs}/{analysis.deferral_runs}"
+        ),
+        "Clarified": str(analysis.clarification_count),
+        "Deferred": str(analysis.deferral_count),
+        "Mean steps": f"{adaptive.mean_steps:.1f}",
+        "Guard overrides": (
+            f"{overrides}/{adaptive.runs_with_investigation}"
+            if adaptive.runs_with_investigation
+            else "0/0"
+        ),
+        "Latency p50 (s)": f"{analysis.latency_p50:.2f}",
+        "Latency p95 (s)": f"{analysis.latency_p95:.2f}",
+    }
+
+
+def _delta(metric: str, adaptive: dict[str, str], baseline: dict[str, str]) -> str:
+    """The signed difference for one metric, formatted for its unit (never a bare ``+``).
+
+    ``Colour correctness`` is a fraction difference in percentage points; ``Coverage`` is the
+    delivered-run difference; ``Mean steps`` and the latencies are numeric differences. The
+    delta is stated even when it is zero or negative — that is the point of the measurement
+    (MEAS-02).
+    """
+    if metric == "Colour correctness":
+        def rate(cells: dict[str, str]) -> float:
+            correct, _, runs = cells[metric].partition("/")
+            return (int(correct) / int(runs) * 100.0) if int(runs) else 0.0
+
+        return f"{rate(adaptive) - rate(baseline):+.1f} pp"
+    if metric == "Coverage (delivered/reached)":
+        def delivered(cells: dict[str, str]) -> int:
+            return int(cells[metric].partition("/")[0])
+
+        return f"{delivered(adaptive) - delivered(baseline):+d} runs"
+    if metric == "Guard overrides":
+        def ratio(cells: dict[str, str]) -> float:
+            count, _, runs = cells[metric].partition("/")
+            return (int(count) / int(runs) * 100.0) if int(runs) else 0.0
+
+        return f"{ratio(adaptive) - ratio(baseline):+.1f} pp"
+    return f"{float(adaptive[metric]) - float(baseline[metric]):+.2f}"
+
+
+def _render_comparison_block(
+    lines: list[str], report: Report, baseline: Report | None
+) -> list[str]:
+    """Insert (or refresh) the §3.3 adaptive-vs-baseline comparison from BOTH reports.
+
+    The section is generated in exactly one place and every cell is derived from the two
+    sealed reports through the ONE analyser (DRY). The arm labels carry the report's own
+    ``planner`` flag, so a baseline report can never be presented as the adaptive arm.
+    """
+    if baseline is None:
+        return lines
+    adaptive_cells = _arm_cells(report, analyse(report))
+    baseline_cells = _arm_cells(baseline, analyse(baseline))
+    body = [
+        _CMP_BEGIN,
+        f"> **Measured comparison:** {_arm_label(report)} (mode `{report.mode}`) vs "
+        f"{_arm_label(baseline)} (mode `{baseline.mode}`), same {len(report.cases)} cases × "
+        f"{report.runs} runs.",
+        "",
+        "| Metric | Adaptive | Baseline | Delta |",
+        "| --- | --- | --- | --- |",
+    ]
+    for metric in adaptive_cells:
+        body.append(
+            _render_row(
+                [
+                    metric,
+                    adaptive_cells[metric],
+                    baseline_cells[metric],
+                    _delta(metric, adaptive_cells, baseline_cells),
+                ]
+            )
+        )
+    body.append(_CMP_END)
+    if _CMP_BEGIN in lines:
+        start = lines.index(_CMP_BEGIN)
+        end = lines.index(_CMP_END)
+        return lines[:start] + body + lines[end + 1 :]
+    anchor = next(
+        (index for index, line in enumerate(lines) if line.startswith(_CMP_ANCHOR)),
+        None,
+    )
+    if anchor is None:
+        return lines
+    return lines[: anchor + 1] + [""] + body + lines[anchor + 1 :]
+
+
+def render_evals(
+    template: str,
+    report: Report,
+    baseline: Report | None = None,
+    adaptive: Report | None = None,
+) -> str:
     """Render *template* (the current ``EVALS.md``) with the report's measured cells.
 
     The narrative is preserved verbatim — only the result cells and the generated source
     block are rewritten. ``render_evals`` is idempotent: feeding its own output back
     produces byte-identical text. It calls the ONE analyser, so it never invents a number.
+
+    ``baseline`` is the second arm's sealed report (MEAS-02). When given, the §3.3
+    adaptive-vs-baseline comparison is generated from both reports; when ``None`` the
+    section is left untouched, so every pre-Phase-24 caller keeps its exact behaviour.
     """
     analysis = analyse(report)
     lines = template.splitlines()
@@ -359,6 +487,7 @@ def render_evals(template: str, report: Report) -> str:
     _assert_case_table_covers_report(lines, report)
     lines = _render_invariant_table(lines, report)
     lines = _render_deferral_block(lines, report, analysis)
+    lines = _render_comparison_block(lines, adaptive or report, baseline)
     return "\n".join(lines) + "\n"
 
 
@@ -374,6 +503,21 @@ def validate_report(report: Report) -> None:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Render EVALS.md result cells from a report.")
     parser.add_argument("--report", type=Path, default=DEFAULT_REPORT, help="report JSON path")
+    parser.add_argument(
+        "--baseline",
+        type=Path,
+        default=DEFAULT_BASELINE,
+        help="the baseline arm's report (default: evals/results/report.baseline.json)",
+    )
+    parser.add_argument(
+        "--comparison-adaptive",
+        type=Path,
+        default=None,
+        help=(
+            "the adaptive arm's report for the §3.3 comparison, when it differs from the "
+            "primary report (default: the --report file)"
+        ),
+    )
     parser.add_argument("--evals", type=Path, default=DEFAULT_EVALS, help="EVALS.md path")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
@@ -394,8 +538,27 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     report = Report.model_validate_json(args.report.read_text(encoding="utf-8"))
     validate_report(report)
+    if not args.baseline.is_file():
+        print(
+            f"baseline report missing: {args.baseline}\n"
+            "run the baseline arm first: uv run triagedesk eval --cases evals/cases "
+            "--runs 3 --report evals/results/report.baseline.json --no-planner",
+            file=sys.stderr,
+        )
+        return 2
+    baseline = Report.model_validate_json(args.baseline.read_text(encoding="utf-8"))
+    validate_report(baseline)
+    adaptive = None
+    comparison_path = args.comparison_adaptive
+    if comparison_path is None and DEFAULT_COMPARISON_ADAPTIVE.is_file():
+        comparison_path = DEFAULT_COMPARISON_ADAPTIVE
+    if comparison_path is not None:
+        adaptive = Report.model_validate_json(
+            comparison_path.read_text(encoding="utf-8")
+        )
+        validate_report(adaptive)
     current = args.evals.read_text(encoding="utf-8")
-    generated = render_evals(current, report)
+    generated = render_evals(current, report, baseline, adaptive)
 
     if args.check:
         if generated != current:

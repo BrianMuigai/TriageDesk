@@ -1,0 +1,25 @@
+# Eval case E-15 — Ambiguous complaint with a chronic condition (v1.2 COV-03).
+# "feeling unwell" names no discriminator, and the normal vitals cannot decide it. The note
+# states a chronic condition ("known type 2 diabetic"), so ONE measurement would resolve it:
+# a capillary glucose (and ketones). The bounded clarification asks for exactly that and
+# delivers no colour — it does not guess GREEN, and it is not a dead-end deferral.
+id: E-15
+description: "Ambiguous complaint with a chronic condition"
+note: >-
+  52 year old woman, walking, alert, no trauma, known type 2 diabetic. RR 16, HR 88,
+  systolic BP 130, temperature 36.9. Complaint: feeling unwell.
+case:
+  age_years: 52
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 16
+  heart_rate: 88
+  systolic_bp: 130
+  temperature_c: 36.9
+  trauma: false
+  complaint: "feeling unwell"
+expected: CLARIFY
+pass_criteria: >-
+  CLARIFY; asks for capillary glucose/ketones; emits no colour; no gate; no commit
+source: "v1.2 COV-03 (ambiguous + chronic condition)"
+declared_failure: false

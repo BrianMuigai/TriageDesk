@@ -73,6 +73,12 @@ its numbers into other docs.
 ```bash
 uv run python scripts/emit_evals.py --write   # refresh result cells from the report
 uv run python scripts/emit_evals.py --check   # exit 1 if EVALS.md is stale
+
+# §3.3 compares two sealed arms. The adaptive arm defaults to
+# evals/results/report.adaptive.json when it exists (the declared-subset case study) and falls
+# back to --report; the baseline arm is evals/results/report.baseline.json, produced with:
+#   uv run triagedesk eval --cases evals/cases.adaptive-subset --runs 1 \
+#     --report evals/results/report.baseline.json --no-planner
 ```
 
 `EVALS.md` is a hand-written narrative whose **result cells** are generated from

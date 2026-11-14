@@ -1,0 +1,27 @@
+# Eval case E-09 — Vague complaint (EVALS.md §4, §6). THE DECLARED, UNFIXED FAILURE.
+# Normal vitals (TEWS 0) => GREEN. "feeling unwell" is deliberately NOT a discriminator
+# alias (data/sats_discriminators.yaml header), so the matcher returns no_match and the
+# colour falls back to the vitals. The published expectation is ORANGE (a diabetes-related
+# SATS discriminator should fire for a known diabetic) — the system is EXPECTED TO FAIL.
+# This case must NOT be tuned green (D-04, D-05, Pitfall 11).
+id: E-09
+description: "Vague complaint"
+note: >-
+  60 year old man, known diabetic, walking, alert, no trauma. RR 14, HR 80, systolic
+  BP 120, temperature 36.8. Complaint: feeling unwell.
+case:
+  age_years: 60
+  mobility: walking
+  avpu: alert
+  respiratory_rate: 14
+  heart_rate: 80
+  systolic_bp: 120
+  temperature_c: 36.8
+  trauma: false
+  complaint: "feeling unwell"
+expected: ORANGE
+pass_criteria: >-
+  EXPECTED TO FAIL: the diabetes discriminator is not retrieved and the colour falls
+  back to the vitals (EVALS §6)
+source: "EVALS.md §4 E-09 / §6"
+declared_failure: true
