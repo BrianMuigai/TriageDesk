@@ -28,11 +28,13 @@ A **deterministic emergency check** runs before any model call: a critical struc
 model and the planner, never the kernel or the clinician.
 
 **Why not ReAct:** a small CPU model is an unreliable free agent; a bounded plan is reproducible (JC-1).
-The planner is bounded for the same reason (D31).
+The planner is bounded for the same reason (D31). The reviewer-facing answer — what the system
+decides, what it structurally cannot, and the measured adaptive-vs-baseline delta — is
+[`docs/AGENTIC.md`](docs/AGENTIC.md).
 
-**Diagrams:** [clinical workflow](docs/assets/architecture-workflow.pdf) ·
-[components](docs/assets/architecture-components.pdf) · [reference](docs/assets/architecture-v1.3.pdf) —
-all PROPOSED until v1.3 ships; source `.mmd` beside each, one renderer.
+**Diagrams:** canonical shipped render [reference](docs/assets/architecture.pdf) (source `.mmd`
+beside it) · [clinical workflow](docs/assets/architecture-workflow.pdf) ·
+[components](docs/assets/architecture-components.pdf) — all **shipped** in v1.3, one renderer.
 
 ## 4. MCP servers
 

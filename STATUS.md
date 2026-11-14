@@ -80,7 +80,7 @@ of the video, not its content or its existence.
 
 | Criterion | Pts | Est. | Why not full |
 | --- | --- | --- | --- |
-| Agentic depth & MCP craft | 30 | **27–29** | Seven reusable tool contracts, an explicit graph, one fail-closed evidence check, and three recovery paths (missing vital, tool failure, out-of-scope). Docked for: no MCP sampling/elicitation, and a fixed graph rather than dynamic planning — a deliberate safety choice that still reads as less "agentic depth" than a planner. 🧪 v1.3 closes both: a bounded planner over read-only actions, and server-side elicitation |
+| Agentic depth & MCP craft | 30 | **29–30** | Nine tool contracts, an explicit graph, a bounded planner over read-only investigation actions (model proposes, deterministic guard disposes), server-side MCP elicitation with four outcomes, a deterministic emergency bypass, one fail-closed evidence check, and three recovery paths. The kernel is structurally non-skippable: `finish_investigation` is the only edge into `score`. Residual: MCP sampling stays deliberately out of scope, and the planner's action set is closed (D31) |
 | Open-source rigour | 20 | **18–19** | One command from a clean clone, committed lock, CI smoke test, honest status docs, and a desk package split by responsibility. Docked for: the borrowed server needs Node and a one-time `npx` fetch, and only Linux/macOS is exercised |
 | **Fit to the triage desk** | 20 | **12–16** | A real desk surface now ships (acuity-ordered read-only waiting room, keyboard-first vitals, real approve/edit/dismiss gate, background precompute) — but **no clinician or triage-nurse review** (G2), it is a single-machine loopback prototype (G9), English-only, and model latency is not yet "seconds" on a loaded machine (G3) |
 | Evaluation & reliability | 15 | **13–14** | Measured and honest: 24 cases × 3 runs, safety invariants on every run, one declared failure, no gate failure, variation and cost reported; coverage rose to 48/60 delivered with 0 deferrals, and E-11 is 9/9 stable. Docked for: E-09 still unresolved as a colour, the p95 tail, and no online eval or drift monitoring (G6) |
@@ -120,13 +120,11 @@ real and digest-stamped · greenfield and disclosed.
 6. **G6 — No online evaluation, drift monitoring, or calibrated probability.** The report is an
    offline measurement. Calibration is a declared small-sample ECE, explicitly **not** a validated
    calibrated probability.
-7. **G7 — No MCP sampling or elicitation.** 🧪 **Closing in v1.3:** the server exposes static tool
-   contracts today; it never asks the client for a model call or a clarification mid-task. v1.3 adds
-   `request_clarification`, which elicits mid-call (ELICIT-01..08). **The two v1.3 substrate tools
-   (`plan_next_step`, `request_clarification`) now exist on the server and are allowlisted, but no
-   graph node calls either yet — the shipped path is still the seven tools until Phase 23 wires the
-   planner.** MCP **sampling** stays deliberately out of scope — the server must not borrow the
-   client's model.
+7. **G7 — Closed for elicitation; sampling stays out of scope.** ✅ The ninth owned tool
+   `request_clarification` asks at most three targeted questions **inside the tool call**, with the
+   question text derived from the closed discriminator set, and distinguishes `accepted` / `declined` /
+   `cancelled` / `unavailable`. A refusal is never converted into a clinical value. MCP **sampling**
+   remains a deliberate omission: the server must not borrow the client's model.
 8. **G8 — No multimodal intake.** Vitals and complaint are typed. Voice and a chart/cuff photo are
    the real desk interface and are absent.
 9. **G9 — The desk is a single-machine, loopback-only prototype.** `127.0.0.1`, one shared terminal,
@@ -186,7 +184,7 @@ state-of-the-art *general* agent. The distance to "cutting edge" is almost entir
 
 | SOTA agent pillar | TriageDesk | Verdict |
 | --- | --- | --- |
-| Tool use / MCP craft | 7 shipped owned tools + a borrowed SQLite MCP with exercised read paths; 2 more proposed for v1.3 | ✅ present (7) · 🧪 proposed (9) |
+| Tool use / MCP craft | 9 shipped owned tools + a borrowed SQLite MCP with exercised read paths | ✅ present (9) |
 | Explicit control flow / orchestration | LangGraph state machine | ✅ present |
 | Human-in-the-loop / approval gate | `interrupt()` gate; real approve/edit/dismiss desk surface; durable resume | ✅ present |
 | Reliability engineering | bounded extraction retry, deterministic fallback, idempotency, fail-closed terminals, invariants | ✅ present |
@@ -194,7 +192,7 @@ state-of-the-art *general* agent. The distance to "cutting edge" is almost entir
 | Prompt-injection resistance | prose-as-data + deterministic scorer; E-13 adds no evidence | ✅ present |
 | Reproducibility | hashing, pinned deps, deterministic scorer, sealed schema hash | ✅ present |
 | Evaluation | 24 cases, invariants, honest failures | 🟡 strong offline; no online eval or drift (G6) |
-| Dynamic planning / adaptive routing | fixed graph today; v1.3 adds a bounded planner over read-only investigation actions (model proposes, guard disposes) | 🧪 proposed (v1.3, ADAPT-01..08) |
+| Dynamic planning / adaptive routing | bounded `plan` node over a closed set of read-only actions; the model proposes, `core.planner` disposes, the loop is capped at 3 steps, and `finish_investigation` is the only edge into `score` | ✅ present (ADAPT-01..08; `tests/test_frozen_kernel.py`) |
 | Knowledge grounding (RAG) | deterministic lexical retrieval over the YAML KB (no embeddings); evidence is display-only | ✅ present |
 | Grounded extraction | Phase 14 grounds every extracted sign in the complaint text, with a fail-closed check | ✅ present |
 | Calibrated confidence + abstention | deterministic coverage/deferral signal; small-sample ECE, not a calibrated probability | 🟡 partial (G6) |
@@ -203,7 +201,7 @@ state-of-the-art *general* agent. The distance to "cutting edge" is almost entir
 | Online eval / calibration / drift | offline report only | ❌ gap (G6) |
 | Cost / latency management | cost reported; latency reported; a desk precompute cache exists; no model routing or budgets | ❌ gap (G3, G10) |
 | Approver authentication | recorded, not authenticated | ❌ gap (G4) |
-| MCP elicitation | static tool calls today; v1.3 elicits mid-call with four distinct outcomes | 🧪 proposed (v1.3, ELICIT-01..08) |
+| MCP elicitation | `request_clarification` elicits mid-call through the shipped adapter, with four distinct outcomes and an answer that is an observation, never an approval | ✅ present (ELICIT-01..08) |
 | MCP sampling | never requests a client-side model call | ⛔ deliberate (G7 remainder) |
 | Deterministic emergency bypass | critical structured case skips extraction and the planner, never the kernel or the clinician | ✅ present (v1.3, EMERG-01..05; proven by `tests/test_emergency_bypass.py`) |
 | Long-term / episodic memory | per-case only | ⛔ deliberate |
@@ -217,7 +215,7 @@ state-of-the-art *general* agent. The distance to "cutting edge" is almost entir
 1. **Calibrated confidence + abstention** (selective prediction) — the coverage signal is
    deterministic; the ECE is a declared small-sample bound, not a probability.
 2. **MCP elicitation** — the current spec's agent↔server negotiation; the natural home for the
-   clarifying question E-09 needs. 🧪 **Scheduled: v1.3, Phase 21** (sampling stays out of scope).
+   clarifying question E-09 needs. ✅ **Shipped in v1.3** (sampling stays out of scope).
 3. **Model routing / budgets / a real fallback path** — attacks desk latency and makes the
    `qwen3.5:4b` alternative operational instead of documented.
 4. **Online evaluation + drift monitoring.**

@@ -182,12 +182,13 @@ assess → approval_gate → commit → handover`, with `request_missing_info` a
 model is used only to structure language; the colour is computed deterministically from `data/*.yaml`.
 Node table and edges: [`ARCHITECTURE.md`](ARCHITECTURE.md) §3.
 
-**Proposed for v1.3 (not shipped).** A bounded planner sits between `retrieve` and `score`: it chooses
+**Shipped in v1.3 — the bounded planner.** A `plan` node sits between `retrieve` and `score`: it chooses
 one **read-only** investigation action from a closed set (`gather_evidence`, `ask_question`,
 `re_extract`, `finish_investigation`) inside a three-step budget. The model proposes; a deterministic
 guard disposes. `finish_investigation` is the only edge into `score`, so the safety kernel stays a
 non-skippable suffix. A deterministic emergency check may skip the model and the planner for a critical
-structured case — never the kernel or the clinician. See `.planning/REQUIREMENTS.md`.
+structured case — never the kernel or the clinician. The reviewer-facing answer, with the measured
+adaptive-vs-baseline delta, is [`docs/AGENTIC.md`](docs/AGENTIC.md).
 
 ## MCP implementation
 
@@ -198,15 +199,12 @@ swapped in one module. Rationale: [`docs/DECISIONS.md`](docs/DECISIONS.md) D5, D
 
 ## MCP tools & servers
 
-**Owned `triage` server — 7 tools shipped.** Read-only: `normalize_case`, `match_discriminators`,
-`retrieve_evidence`, `assess_confidence`. Acting: `score_priority`, `raise_recheck_flag`.
-Acting and gated: `commit_priority`. Three of the seven act, and **only `commit_priority` mutates the
-queue** — it refuses to run without a valid approval token.
-
-**Proposed for v1.3 — 2 more (not shipped).** `plan_next_step` (read-only: model proposal over a closed
-action set) and `request_clarification` (read-only: elicits one targeted question mid-call via
-`ctx.elicit()`, with accepted / declined / cancelled / unavailable distinguished). Neither takes an
-approval token or writes a queue row.
+**Owned `triage` server — 9 tools.** Read-only: `normalize_case`, `match_discriminators`,
+`retrieve_evidence`, `assess_confidence`, `plan_next_step` (model proposal over the closed action set),
+`request_clarification` (elicits up to three targeted questions mid-call, with accepted / declined /
+cancelled / unavailable distinguished). Acting: `score_priority`, `raise_recheck_flag`.
+Acting and gated: `commit_priority`. Only `commit_priority` mutates the queue — it refuses to run without
+a valid approval token — and the two elicitation/planning tools take no token and write no row.
 
 **Borrowed server.** A maintained SQLite MCP server (`mcp-sqlite@1.0.9`) for persistence — *"persistence,
 schema and query safety are solved; a hand-rolled DB adds zero triage value"* — its read paths are
