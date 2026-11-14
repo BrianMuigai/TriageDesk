@@ -132,39 +132,39 @@
 
 ### Measurement
 
-- [ ] **MEAS-01**: The eval harness records per-case investigation facts: steps taken, the action
+- [x] **MEAS-01**: The eval harness records per-case investigation facts: steps taken, the action
   sequence, whether an elicitation occurred, whether the guard overrode a proposal, and whether the
   emergency bypass fired.
 
-- [ ] **MEAS-02**: The report publishes an **adaptive-vs-baseline** comparison on the same suite (planner
+- [x] **MEAS-02**: The report publishes an **adaptive-vs-baseline** comparison on the same suite (planner
   enabled vs default-finish), with colour correctness, coverage, steps and latency side by side. The
   delta is stated even when it is zero or negative.
 
-- [ ] **MEAS-03**: All four safety invariants (INV-1..INV-4) hold on **every** adaptive run; no
+- [x] **MEAS-03**: All four safety invariants (INV-1..INV-4) hold on **every** adaptive run; no
   under-triage is introduced; the declared failure E-09 stays visible and is never tuned green.
 
-- [ ] **MEAS-04**: `EVALS.md` is regenerated only by `scripts/emit_evals.py` from `report.json`, and
+- [x] **MEAS-04**: `EVALS.md` is regenerated only by `scripts/emit_evals.py` from `report.json`, and
   `--check` exits 0.
 
 ### Documentation
 
-- [ ] **DOC-01**: `ARCHITECTURE.md` states the two-layer shape and why free-form ReAct is still rejected.
+- [x] **DOC-01**: `ARCHITECTURE.md` states the two-layer shape and why free-form ReAct is still rejected.
 
-- [ ] **DOC-02**: A reviewer-facing answer to *"is this a rules engine?"* ships in the docs, grounded in
+- [x] **DOC-02**: A reviewer-facing answer to *"is this a rules engine?"* ships in the docs, grounded in
   the measured adaptive-vs-baseline delta and the structural safety proof, not in adjectives.
 
-- [ ] **DOC-03**: `STATUS.md` closes **G7** (elicitation) and moves *dynamic planning* from partial to
+- [x] **DOC-03**: `STATUS.md` closes **G7** (elicitation) and moves *dynamic planning* from partial to
   present, while naming the honest residual limits (bounded action set, no free-form planning,
   CPU-model proposals).
 
-- [ ] **DOC-04**: `docs/DECISIONS.md` records D31 (bounded autonomy over a frozen kernel), D32 (model
+- [x] **DOC-04**: `docs/DECISIONS.md` records D31 (bounded autonomy over a frozen kernel), D32 (model
   proposes / guard disposes), D33 (server-side elicitation), D34 (deterministic emergency bypass), and the
   narrow revision to D1.
 
-- [ ] **DOC-05**: `docs/MCP.md` and the packaged `triagedesk-triage` skill document the elicitation
+- [x] **DOC-05**: `docs/MCP.md` and the packaged `triagedesk-triage` skill document the elicitation
   round-trip and the fail-closed stop rules.
 
-- [ ] **DOC-06**: The docs state which artefact is authoritative for queue handover (the committed queue row,
+- [x] **DOC-06**: The docs state which artefact is authoritative for queue handover (the committed queue row,
   not the printed card), that answering a clarification is not approval, that the approver's identity is
   recorded but not authenticated (G4), and that structured observations are currently two-state
   (stated / missing) with text-level negation handled — a four-state observation model is declared as an

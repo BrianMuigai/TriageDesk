@@ -2,20 +2,19 @@
 gsd_state_version: "1.0"
 milestone: v1.3
 milestone_name: Adaptive Triage
-current_phase: 24
-current_phase_name: Measure the adaptivity, publish it honestly, and answer the reviewer
-status: planning
-stopped_at: Phase 23 complete, ready to plan Phase 24
-last_updated: "2026-11-13T23:18:25.632Z"
+status: Awaiting next milestone
+stopped_at: Phase 24 complete — all phases complete
+last_updated: "2026-11-14T08:18:13.220Z"
 last_activity: 2026-11-14
-last_activity_desc: Phase 23 complete, transitioned to Phase 24
-state_head: 903b471464d72324a6b44c6f2f2b914034cfefd2
+last_activity_desc: Milestone v1.3 completed and archived
+state_head: 8b508038273f2db69e88261b61d7615343e7af44
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 14
+  completed_plans: 14
   percent: 67
+current_phase: 24
 ---
 
 # Project State
@@ -29,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 
 ## Current Position
 
-Phase: 24 — Measure the adaptivity, publish it honestly, and answer the reviewer
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-11-14 — Phase 23 complete, transitioned to Phase 24
+Phase: Milestone v1.3 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-11-14 — Milestone v1.3 completed and archived
 
 ## Reviewer Challenge (drives this milestone)
 
@@ -79,6 +78,7 @@ and **no MCP elicitation (G7)**. v1.3 answers with behaviour + a structural proo
 | 21 | 3 | - | - |
 | 22 | 3 | - | - |
 | 23 | 4 | - | - |
+| 24 | 4 | - | - |
 
 **Recent Trend:**
 
@@ -264,13 +264,10 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-14T00:00:00.000Z
-Stopped at: Phase 23 complete, ready to plan Phase 24
+Stopped at: Phase 24 complete — all phases complete
 Resume file: None
 
 ## Operator Next Steps
 
-- Branch is `feat/v1.3-adaptive-triage` (never work on `main`); open a PR to `main` when the milestone lands.
-- `/gsd-plan-phase 19` — the two diagrams, the shared legend and the honest-labelling pass.
-- Phases 19 → 24 are strictly sequential: docs contract → guard → tool → emergency bypass → graph → measurement.
-- The emergency bypass and the diagrams came from the owner's architecture review on 2026-11-13; both are
-  now requirements (EMERG-01..05, DIAG-01..06), not side notes.
+
+- Start the next milestone with /gsd-new-milestone
