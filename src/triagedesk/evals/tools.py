@@ -212,7 +212,7 @@ def offline_tools(case: CaseInput, recorder: UsageRecorder) -> dict[str, Any]:
 
     The entry point for a caller that has a structured case but no evaluation fixture (the desk
     submission and the durable resume): it needs no ``CaseSpec`` and no declared terminal, so it
-    fabricates none. The mapping is the same eight real owned tools as :func:`build_tools` —
+    fabricates none. The mapping is the same nine real owned tools as :func:`build_tools` —
     model stubbed offline with *case*'s own extraction and no injected fault — so the caller sees
     the shipped gate, never a copy (SOLID: L).
     """
@@ -228,7 +228,7 @@ def online_tools(
     and merges the nurse's form over it before calling here; this entry point hands that
     extraction to the graph's ``normalize`` node unchanged, so the model call happened once
     (in the background precompute or the submit path), never inside the graph run. The other
-    six tools are the same real owned tools :func:`offline_tools` returns (SOLID: L).
+    eight tools are the same real owned tools :func:`offline_tools` returns (SOLID: L).
     """
     return _tool_map(case, offline=False, inject=None, recorder=recorder, extraction=extraction)
 

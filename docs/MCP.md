@@ -29,11 +29,12 @@ This page does not restate them. **Prerequisites:**
 ```bash
 uv --version          # the lock is synced by `uv run`; no separate install step
 npx --version         # the borrowed server, fetched once on the first tool call
-ollama pull qwen2.5:1.5b   # ONLY needed for normalize_case
+ollama pull qwen2.5:1.5b   # needed for normalize_case; plan_next_step uses it when present
 ```
 
-No model is needed for the other six tools; the first call may fetch the pinned
-`mcp-sqlite@1.0.9` for the audit path (see §4).
+No model is needed for the other eight tools — without one, `plan_next_step` returns the guard's
+`finish_investigation`; the first call may fetch the pinned `mcp-sqlite@1.0.9` for the audit path
+(see §4).
 
 ## 2. Start it without a harness
 

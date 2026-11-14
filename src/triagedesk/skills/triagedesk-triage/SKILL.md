@@ -238,7 +238,7 @@ temperature. Do not present ORANGE as the decision and do not commit.
 | The nine tools are missing | Re-run the installer with `--write`; restart or reload the harness. |
 | `ModuleNotFoundError: triagedesk` | Launch from the checkout or install editable (`uv pip install -e .`). |
 | Every call fails, including read-only ones | The audit path needs `npx`; allow the first fetch of `mcp-sqlite@1.0.9`. |
-| `normalize_case` fails, the other six work | Start Ollama and pull `qwen2.5:1.5b`. |
+| `normalize_case` fails, the other eight work | Start Ollama and pull `qwen2.5:1.5b`. |
 | `commit_priority` returns `refused: true` | The token is missing, malformed, or a dismissal. Nothing was written. |
 | A call times out in the harness | Raise the harness timeout to 120 000 ms; CPU extraction is the slow path. |
 | Tools error on `data/*.yaml` | The server was installed as a wheel without the SATS substrate; use an editable install. |

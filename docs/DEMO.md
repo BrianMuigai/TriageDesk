@@ -2,9 +2,10 @@
 
 > **One unedited screen recording, tool calls on screen, no slides.** The submission video is a real
 > screen recording of the shipped CLI — every line is what `uv run triagedesk demo` prints. It is
-> **2:28** (`docs/assets/triagedesk-demo.mp4`): the seven owned tools' calls across the five beats, the
-> measured evaluation, and the declared E-09 failure. It is reproducible from the repository (see
-> *Rendering the video* below).
+> **2:28** (`docs/assets/triagedesk-demo.mp4`, recorded before v1.3): the seven owned tools' calls
+> across the five beats, the measured evaluation, and the declared E-09 failure. The current runner
+> also shows `plan_next_step` (see *Expected on-screen output per beat*). It is reproducible from the
+> repository (see *Rendering the video* below).
 >
 > **Upload status.** The video was uploaded to Google Drive during submission
 > ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)). The brief names
@@ -55,7 +56,9 @@ uv run triagedesk demo --beat failure
 The bare command runs all five beats in order, prints every owned tool call, and pauses at the
 approval gate. `--beat <name>` runs just that beat; the beat names are exactly those
 `uv run triagedesk demo --list` prints. Add `--online` only to drive the pulled local model instead of
-the offline golden fixture.
+the offline golden fixture. Every run opens with ONE mode line, so the screen says which path is live:
+offline prints `mode: offline — golden fixture (no model)`, online prints
+`mode: online — local model <tag> via Ollama` with the tag the model client actually uses.
 
 ## The measured eval on screen (not a live run)
 
@@ -165,13 +168,13 @@ Every line below is transcribed from the shipped runner (`uv run triagedesk demo
 a hand-written mock. Tool calls print as `[tool] <name> <inputs> -> <outputs>`; each beat closes with a
 `--- outcome ---` block carrying the **sourced priority** — colour, target, the matched discriminator
 ids, and the citation(s) behind the colour. Case ids are content-derived, so they are stable per case.
-The run shows **seven owned tools** — `normalize_case`, `match_discriminators`, `score_priority`,
-`retrieve_evidence`, `assess_confidence`, `raise_recheck_flag`, `commit_priority` — and only the
-`escalation` beat commits a queue row (at position 1).
+The run shows **eight of the nine owned tools** — every one except `request_clarification`, which is
+reached only when the planner chooses to ask a question (no storyboard beat does). The beats that
+reach a named approval (`routine`, `escalation`, `deterioration`) commit, and `refusal` writes no row.
 
-**`routine` (E-01 → GREEN, then delivered).** Five tool calls — `normalize_case`,
-`match_discriminators`, `score_priority`, `retrieve_evidence`, `assess_confidence` — then the named
-approval reaches the gated commit:
+**`routine` (E-01 → GREEN, then delivered).** Six tool calls — `normalize_case`,
+`match_discriminators`, `plan_next_step`, `score_priority`, `retrieve_evidence`, `assess_confidence`
+— then the named approval reaches the gated `commit_priority`:
 
 > **Narration cue:** "Watch the routine case score GREEN. The complaint names no discriminator, so the
 > recorded vitals are the complete SATS basis — it is delivered, and committed only after the named
@@ -190,7 +193,7 @@ approval reaches the gated commit:
 applies, so the case is **not** deferred. (The recorded 2:28 video predates v1.2 and shows the earlier
 deferral here; the shipped behaviour is the delivery above.)
 
-**`escalation` (E-02 → ORANGE, committed under the named nurse).** Six tool calls — the five above plus
+**`escalation` (E-02 → ORANGE, committed under the named nurse).** The same six calls plus
 `commit_priority` — and three citations:
 
 > **Narration cue:** "Watch an ORANGE escalation commit at queue position 1 — only after a named
@@ -208,8 +211,9 @@ deferral here; the shipped behaviour is the delivery above.)
   handover card: {"case_id":"9300336d37c3651c","colour":"ORANGE","target":"< 10 min", ...}
 ```
 
-**`deterioration` (E-07 → second look, delivered).** Six tool calls — the five above plus
-`raise_recheck_flag` — which flags the serial-vitals change **without re-classifying** the patient:
+**`deterioration` (E-07 → second look, delivered).** The same six calls plus
+`raise_recheck_flag` and the gated `commit_priority` — the flag marks the serial-vitals change
+**without re-classifying** the patient:
 
 > **Narration cue:** "Watch the second look raise a recheck flag without re-classifying the patient.
 > Since v1.2 the vitals colour is delivered with that flag; the gate still waits for a named human."

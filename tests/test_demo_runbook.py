@@ -6,7 +6,8 @@ from what a presenter will actually run:
 * every ``--beat`` the runbook documents exists in ``uv run triagedesk demo --list``;
 * every beat the CLI exposes is documented (no exposed beat the runbook omits);
 * the honesty clauses are present — the recording is declared a **HUMAN** action, and the
-  **E-09** declared failure is shown.
+  **E-09** declared failure is shown;
+* the mode line the CLI opens every run with appears verbatim in the runbook.
 
 The CLI is driven through its public ``main`` surface (the same entry point the console
 script calls), never by importing a private helper — the test proves the runbook matches
@@ -125,3 +126,17 @@ def test_runbook_documents_the_dismissal_refusal_the_cli_prints(
     assert DISMISSAL_REFUSAL in _runbook_text(), (
         "docs/DEMO.md does not document the dismissal refusal the CLI prints"
     )
+
+
+def test_runbook_documents_the_mode_line_the_cli_prints(
+    capsys: CaptureFixture[str],
+) -> None:
+    """The offline mode header the CLI prints first appears verbatim in ``docs/DEMO.md``.
+
+    Couples the CLI output to the runbook exactly like the dismissal-refusal test: the line is
+    read from the real ``demo`` run, never typed here, so the doc and the screen cannot drift.
+    """
+    assert main(["demo", "--beat", "routine"]) == 0
+    first = capsys.readouterr().out.splitlines()[0]
+    assert first.startswith("mode: offline")
+    assert first in _runbook_text(), "docs/DEMO.md does not document the mode line the CLI prints"

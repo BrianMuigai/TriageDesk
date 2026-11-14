@@ -34,7 +34,8 @@ uv run python -m triagedesk.mcp.server
 ```
 
 Prerequisites: `uv`, `npx`, and for `normalize_case` only, `ollama serve` +
-`ollama pull qwen2.5:1.5b`. The other six tools need no model and no network.
+`ollama pull qwen2.5:1.5b`. The other eight tools need no model and no network;
+without a model, `plan_next_step` falls back to the guard's `finish_investigation`.
 
 > **Golden rule:** the graph's safety lives *above* the tools. A raw MCP caller can
 > call `score_priority` directly and skip routing. Always test the tool contract a
