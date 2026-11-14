@@ -5,7 +5,8 @@ fixtures: each beat runs through the REAL graph via the shipped seams
 (``evals.case.load_cases`` + ``evals.tools.build_tools`` + ``graph.build.build_graph``),
 every owned tool call is printed (name + inputs -> outputs) so the tool path is visible
 on screen (D-07), the run pauses at the approval gate, and the gated commit is shown
-REFUSING without a named nurse.
+REFUSING without a named nurse. Every run opens with ONE ``mode_line`` header naming the path
+that is actually live — the offline golden fixture or the local model tag the client uses.
 
 Like ``evals.runner.run_eval``, the runner installs the store through the ONE seam context
 manager (``mcp.server.store_seam``), which restores the borrowed default on exit, so the
@@ -31,6 +32,7 @@ from triagedesk.evals.outcome import capture_outcome
 from triagedesk.evals.tools import ToolMap, build_tools
 from triagedesk.evals.usage import UsageRecorder
 from triagedesk.graph.build import CHECKPOINTS_DB_PATH, build_graph, in_memory_checkpointer
+from triagedesk.llm.client import DEFAULT_MODEL
 from triagedesk.mcp import server as server_module
 from triagedesk.store import Store
 from triagedesk.store.memory import InMemoryStore
@@ -69,6 +71,17 @@ def list_beats(path: str | Path = STORYBOARD_PATH) -> int:
     for beat in load_storyboard(path):
         print(f"{beat.name}\t{beat.label}")
     return 0
+
+
+def mode_line(*, offline: bool) -> str:
+    """The demo's ONE mode header: which path — fixture or local model — is running.
+
+    The online text names ``DEFAULT_MODEL``, the tag both model calls default to (there is no
+    env/config override), so the screen names the model actually used and never a re-typed one.
+    """
+    if offline:
+        return "mode: offline — golden fixture (no model)"
+    return f"mode: online — local model {DEFAULT_MODEL} via Ollama"
 
 
 def _render(value: Any) -> str:
@@ -291,6 +304,9 @@ async def run_demo(
         return 2
 
     cases = {case.id: case for case in load_cases(fixture_dir)}
+    # ONE header per run, from the SAME ``offline`` flag that selects ``build_tools`` — the
+    # screen cannot claim a different path than the one running (T-io6-01).
+    print(mode_line(offline=offline))
     if durable:
         return await _run_durable(
             selected, cases, offline=offline, store=store, db_path=db_path
@@ -314,5 +330,6 @@ __all__ = [
     "Beat",
     "list_beats",
     "load_storyboard",
+    "mode_line",
     "run_demo",
 ]

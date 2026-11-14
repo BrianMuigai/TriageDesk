@@ -13,13 +13,16 @@ No graph, store or decision-shape logic lives here: the durable decision rule is
 ``main``'s FIRST statement is ``observability.offline.harden_offline`` — the ONE place the
 transitive tracer environment is neutralised and asserted off, so no command egresses
 (D7-03). The command handlers are imported lazily *after* it, so no transitive dependency can
-prime a tracer from the environment at import time (WR-06).
+prime a tracer from the environment at import time (WR-06). Its SECOND statement is
+``_quiet_http_logs`` — the ONE place the ``httpx`` logger is raised to WARNING, so every
+command's screen shows the tool trace without per-request INFO lines.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import sqlite3
 import sys
 from collections.abc import Mapping
@@ -32,6 +35,19 @@ from triagedesk.observability.offline import harden_offline
 DEFAULT_CASES_DIR = "evals/cases"
 DEFAULT_REPORT_PATH = "evals/results/report.json"
 DEFAULT_RUNS = 3
+
+
+def _quiet_http_logs() -> None:
+    """Raise the ``httpx`` logger to WARNING — the ONE place it is set (SOLID: S).
+
+    Importing ``triagedesk.mcp.server`` constructs the mcp SDK's ``MCPServer``, which installs a
+    root RichHandler at INFO (via ``logging.basicConfig``). The httpx client the ``ollama``
+    package uses logs every request at INFO, so on an online run those ``HTTP Request`` lines
+    interleave with the ``[tool]`` lines on screen. Only the httpx logger is raised: the root
+    logger, the mcp handler and every WARNING-or-above record (transport failures) are
+    untouched, and the hash-chained audit is independent of logging altogether.
+    """
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 def _resume_policy(args: argparse.Namespace) -> Any:
@@ -265,6 +281,8 @@ def main(argv: list[str] | None = None) -> int:
     # prime a tracer from the environment at import time (D7-03, WR-06). The handlers are
     # imported lazily below this line, never at module import.
     harden_offline()
+    # SECOND: quiet the per-request httpx INFO lines for every command, from this one place.
+    _quiet_http_logs()
     args = _build_parser().parse_args(argv)
     if args.command == "skill":
         # Imported LAZILY inside ``main``, after ``harden_offline()`` has already run,
