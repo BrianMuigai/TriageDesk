@@ -48,7 +48,7 @@ risks** — items we cannot yet close, tracked honestly.
 
 | ID | Requirement (verbatim intent) | How we satisfy it | Artifact | Status |
 | --- | --- | --- | --- | --- |
-| BW-1 | **Your own MCP server**, three or more different tools | `triagedesk` server: `normalize_case`, `match_discriminators`, `retrieve_evidence`, `score_priority`, `assess_confidence`, `raise_recheck_flag`, `commit_priority` (7 tools) | ../ARCHITECTURE.md §4 | ✅ |
+| BW-1 | **Your own MCP server**, three or more different tools | `triagedesk` server, 9 tools — inventory and contracts in ../ARCHITECTURE.md §4 — including v1.3's read-only `plan_next_step` and `request_clarification` | ../ARCHITECTURE.md §4 | ✅ |
 | BW-2 | At least one tool **does something** — scores a priority, raises a re-check flag, routes a referral; read-only is not enough | `score_priority` (scores), `raise_recheck_flag` (flags), `commit_priority` (writes) are all acting tools | ../ARCHITECTURE.md §4 | ✅ |
 | BW-3 | **One MCP server you did not write** — community, official, or vendor + one line on why it beats writing it yourself | Borrow **SQLite MCP** (`mcp-sqlite@1.0.9`); "persistence, schema and query safety are solved — hand-rolling a DB adds zero triage value" | ../ARCHITECTURE.md §4 | ✅ (read paths exercised — MCP-01) |
 | BW-4 | **Open-source orchestration** — LangGraph / CrewAI / Pydantic AI / smolagents / Letta / Goose / n8n or equivalent; no closed no-code builders | **LangGraph** (open source) | DECISIONS.md D4 | ✅ |
@@ -67,7 +67,7 @@ risks** — items we cannot yet close, tracked honestly.
 | SB-2 | **OSI-approved licence** | Apache-2.0 | LICENSE | ✅ |
 | SB-3 | **README** that gets a stranger running in one command | `uv run triagedesk demo`; `uv run` auto-syncs from the committed `uv.lock`, so there is no separate install step | ../README.md | ✅ one command |
 | SB-4 | **Demo video under 3 minutes**, **uploaded to YouTube or Vimeo and publicly visible** | Recorded (`docs/assets/triagedesk-demo.mp4`, 2:28 — one complete candidate with the tool calls on screen) and **uploaded to Google Drive during submission** ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)) | docs/DEMO.md | ✅ delivered — STATUS G1 |
-| SB-5 | **Unedited agent run, tool calls on screen** — **not slides** | Real unedited terminal screen recording of `triagedesk demo` (offline), the seven owned tool calls on screen, incl. the declared E-09 failure | docs/assets/triagedesk-demo.mp4 | ✅ |
+| SB-5 | **Unedited agent run, tool calls on screen** — **not slides** | Real unedited terminal screen recording of `triagedesk demo` (offline), the seven owned tool calls on screen (recorded before v1.3; the server now ships nine — ../ARCHITECTURE.md §4), incl. the declared E-09 failure | docs/assets/triagedesk-demo.mp4 | ✅ |
 | SB-6 | **~300-word text description**: what it does, sub-theme, facility & workflow | DESCRIPTION.md — within ±10% of 300 (guarded by `tests/test_docs_final.py`) | DESCRIPTION.md | ✅ |
 | SB-7 | **ARCHITECTURE.md — one page**: agent shape, MCP servers built vs borrowed, why | ARCHITECTURE.md (one page) | ../ARCHITECTURE.md | ✅ |
 | SB-8 | **EVALS.md**: 8+ test tasks with pass/fail, plus one failure not fixed + what you'd try next | 24 cases; E-09 declared; no gate failure (E-11 stable 9/9) | ../EVALS.md | ✅ (counts reconciled) |
@@ -86,7 +86,7 @@ risks** — items we cannot yet close, tracked honestly.
 
 | ID | Criterion (pts) | What the judge checks | Our answer | Artifact |
 | --- | --- | --- | --- | --- |
-| JC-1 | Agentic depth & MCP craft (**30**) | Plans, calls tools, recovers — not one model call in a loop; tool boundaries a stranger could reuse | Explicit LangGraph plan with one deterministic evidence check whose failure is a fail-closed terminal (no gate, no commit, no card), missing-vital recovery, tool-failure recovery, safe abstention, and seven reusable tool contracts | ../ARCHITECTURE.md §3–4 |
+| JC-1 | Agentic depth & MCP craft (**30**) | Plans, calls tools, recovers — not one model call in a loop; tool boundaries a stranger could reuse | Explicit LangGraph plan with one deterministic evidence check whose failure is a fail-closed terminal (no gate, no commit, no card), missing-vital recovery, tool-failure recovery, safe abstention, a bounded planner over read-only investigation actions (model proposes, guard disposes), and nine reusable tool contracts | ../ARCHITECTURE.md §3–4 |
 | JC-2 | Open-source rigour (**20**) | Clone & run; README honest about unfinished | One-command run, synthetic fixture, CI smoke test, honest status table incl. unfinished items | README, EVALS |
 | JC-3 | Fit to triage desk (**20**) | Named nurse does a real thing faster, at the desk, under queue pressure; *did you talk to one?* | Models the real five-step SATS desk process with an assumption-labelled throughput model; a loopback desk surface now ships ([`DEMO.md`](DEMO.md), [`DESK.md`](DESK.md)) with online extraction, an acuity-ordered read-only waiting room, and keyboard-first vitals (Phase 13–14), while **no clinician interview available** remains a declared gap — the instrument is prepared but unattested ([`CLINICIAN-INTERVIEW.md`](CLINICIAN-INTERVIEW.md)) | PROJECT.md §3, §3.1; EVALS §7; STATUS §6 |
 | JC-4 | Evaluation & reliability (**15**) | Honest test set, not curated to pass; run-to-run variation measured or hidden | 24 cases; E-09 declared; no gate failure (E-11 stable 9/9); 3 runs/case; variation + latency + cost reported | ../EVALS.md |
@@ -98,7 +98,7 @@ risks** — items we cannot yet close, tracked honestly.
 | ID | Disqualifier (from brief) | Our structural safeguard | Status |
 | --- | --- | --- | --- |
 | DQ-1 | Chatbot wrapper with no autonomous tool use | Graph plans, calls acting tools, verifies, recovers; tools change state | ✅ |
-| DQ-2 | MCP server that proxies a single endpoint | Our server exposes seven distinct tools with real logic; the borrowed server is external storage, not a proxy | ✅ |
+| DQ-2 | MCP server that proxies a single endpoint | Our server exposes nine distinct tools with real logic; the borrowed server is external storage, not a proxy | ✅ |
 | DQ-3 | Agent that diagnoses / prescribes / moves a patient without approval | No dx/rx tools; queue write gated on named approval | ✅ |
 | DQ-4 | A priority level with no source | `verify` node blocks any uncited priority; INV-1 asserts it | ✅ |
 | DQ-5 | Real patient health data without consent | Synthetic only; no real data | ✅ |
@@ -113,7 +113,7 @@ Not required by the brief, tracked because the agent touches a clinical queue. F
 
 | ID | Item | How we satisfy it | Artifact | Status |
 | --- | --- | --- | --- | --- |
-| SW-1 | **Untrusted input treated as data** (prompt-injection resistance) | Complaint parsed to typed fields; deterministic scorer; citation invariant; no source = rejected; extraction grounding keeps an extracted discriminator only when one of its declared aliases occurs in the note, and a model-supplied numeric vital only when its own numeric token occurs in the note (or, for temperature, when the note states the Fahrenheit equivalent) | ../SECURITY.md §4, DECISIONS.md D15, [EVALS.md §4](../EVALS.md) | 🟡 shipped + unit-tested; the measured E-13 run is no longer a gate failure — it now defers as reduced coverage ([EVALS.md §4](../EVALS.md)) |
+| SW-1 | **Untrusted input treated as data** (prompt-injection resistance) | Complaint parsed to typed fields; deterministic scorer; citation invariant; no source = rejected; extraction grounding keeps an extracted discriminator only when one of its declared aliases occurs in the note, and a model-supplied numeric vital only when its own numeric token occurs in the note (or, for temperature, when the note states the Fahrenheit equivalent) | ../SECURITY.md §4, DECISIONS.md D15, [EVALS.md §4](../EVALS.md) | ✅ shipped + unit-tested; the measured E-13 run is a delivered pass ([EVALS.md §4](../EVALS.md)) |
 | SW-2 | **Least privilege** | Tool allowlist; no network/credentials; the gated write is the only mutation | ../SECURITY.md §5 | ✅ |
 | SW-3 | **Idempotent irreversible writes** | `commit_priority` keyed by `case_id` + content hash | ../SECURITY.md §7, DECISIONS.md D16 | ✅ (key breadth — integration-verified) |
 | SW-4 | **Approver identity + role recorded** | `approved_by`, `role`, `approved_at`, `decision`; authentication is a declared production requirement | ../SECURITY.md §6 | 🟡 authn deferred — G-8 |

@@ -125,6 +125,12 @@ measured, including when it is zero or negative.
 | Latency p95 (s) | 50.47 | 24.06 | +26.41 |
 <!-- END GENERATED: comparison -->
 
+**Reading the denominators.** Each arm above is one run per case, as the generated comparison line
+states, so *Colour correctness* counts the colour-expected runs that reached a colour in that single
+pass. §3's *Colour accuracy* counts the same quantity across every run of the report its *Measured
+source* line names (several runs per case), and §3's *Gate delivery* counts cases, not runs. The
+figures therefore differ by construction, not because the reports disagree.
+
 ## 4. Test cases
 
 > `TEWS` colour bands: `0–2` Green · `3–4` Yellow · `5–6` Orange · `7+` Red.

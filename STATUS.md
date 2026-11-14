@@ -53,7 +53,7 @@ above is from a clean tree.
 
 | Requirement | Evidence | Verdict |
 | --- | --- | --- |
-| Own MCP server, ≥3 different tools, ≥1 that acts | 7 tools in `src/triagedesk/mcp/server.py`: `normalize_case`, `match_discriminators`, `retrieve_evidence`, `score_priority`, `assess_confidence`, `raise_recheck_flag`, `commit_priority`. `score_priority` scores, `raise_recheck_flag` flags, `commit_priority` writes | ✅ |
+| Own MCP server, ≥3 different tools, ≥1 that acts | 9 tools in `src/triagedesk/mcp/server.py` (inventory: [`ARCHITECTURE.md`](ARCHITECTURE.md) §4), including v1.3's read-only `plan_next_step` and `request_clarification`. `score_priority` scores, `raise_recheck_flag` flags, `commit_priority` writes | ✅ |
 | One MCP server you did not write, + one line on why | borrowed, version-pinned `mcp-sqlite@1.0.9`; its read paths are genuinely exercised on the agent path, not merely declared; rationale in [`docs/DECISIONS.md`](docs/DECISIONS.md) D5 | ✅ |
 | Open-source orchestration | LangGraph state machine (`src/triagedesk/graph/`) — no closed no-code builder anywhere in the path | ✅ |
 | One full task on an open-weights model; data cannot leave the country | the whole end-to-end task runs locally on `qwen2.5:1.5b` via Ollama (the measured default, D3); no network egress in the agent path (`strace`-verified). `qwen3.5:4b` is a documented alternative, not an automatic fallback | ✅ |
@@ -68,7 +68,7 @@ Not counted, because the brief makes it optional: a frontier-model comparison on
 | Requirement | Status |
 | --- | --- |
 | Public repo + OSI licence + README that runs in one command | ✅ public, Apache-2.0; `uv run triagedesk demo` (`uv run` syncs from the committed `uv.lock`, so there is no separate install step) |
-| Demo video < 3 min, uploaded publicly | 🟡 **delivered** — `docs/assets/triagedesk-demo.mp4` (2:28, measured) is a real unedited screen recording with the seven owned tools' calls on screen, the measured evaluation, and the declared E-09 failure. It was **uploaded to Google Drive during submission** ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)). The brief names YouTube/Vimeo, so the hosting platform is the residual caveat (G1) |
+| Demo video < 3 min, uploaded publicly | 🟡 **delivered** — `docs/assets/triagedesk-demo.mp4` (2:28, measured) is a real unedited screen recording with the seven owned tools' calls on screen (recorded before v1.3; the server now ships nine — [`ARCHITECTURE.md`](ARCHITECTURE.md) §4), the measured evaluation, and the declared E-09 failure. It was **uploaded to Google Drive during submission** ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)). The brief names YouTube/Vimeo, so the hosting platform is the residual caveat (G1) |
 | ~300-word description | ✅ `DESCRIPTION.md`, within ±10% of 300 words, guarded by `tests/test_docs_final.py` |
 | `ARCHITECTURE.md` — one page | ✅ one page, guarded (≤ 700 words and ≤ 110 lines) by the same test |
 | `EVALS.md` — 8+ tasks, plus one failure not fixed and what you would try next | ✅ 24 cases; E-09 declared with a "what we would try next" list |

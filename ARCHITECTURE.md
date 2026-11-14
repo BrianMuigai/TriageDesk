@@ -38,18 +38,19 @@ beside it) · [clinical workflow](docs/assets/architecture-workflow.pdf) ·
 
 ## 4. MCP servers
 
-### Built by us — `triage` server (seven tools)
+### Built by us — `triage` server (nine tools)
 
 | Tool | Read/Act | Contract |
 | --- | --- | --- |
 | `normalize_case` | read | prose + vitals → structured JSON, `missing[]`, `out_of_scope` |
 | `match_discriminators` | read | complaint → discriminator ids + coverage status |
 | `retrieve_evidence` · `assess_confidence` | read | cited passages · deliver / clarify / defer |
+| `plan_next_step` · `request_clarification` | read | investigation state → one admissible next action (guard disposes) · ≤ 3 targeted questions via MCP elicitation |
 | `score_priority` | **act** | case → `colour`, `tews`, `citations[]`, `target_time` |
 | `raise_recheck_flag` | **act** | serial vitals → deterioration flag (**never** a verdict) |
 | `commit_priority` | **act + gated** | approved case → queue write + audit; **refuses without a token** |
 
-Three of seven act (BW-2); only the gated tool mutates the queue (BW-9).
+Three of nine act (BW-2); only the gated tool mutates the queue (BW-9).
 
 ### Borrowed — SQLite MCP
 

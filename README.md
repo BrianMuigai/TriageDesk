@@ -213,7 +213,7 @@ exercised behind the unchanged `Store` protocol. Full tool contracts: [`ARCHITEC
 **Installing it.** One command writes the block your harness expects — OpenCode, Claude Code, Claude
 Desktop, Cursor, VS Code, Codex, Gemini CLI, Zed, Windsurf/Devin — **and** installs the packaged
 `triagedesk-triage` usage skill beside it, so the agent knows the safe call sequence and the
-fail-closed rules. [`docs/MCP.md`](docs/MCP.md) has the worked call shape for each of the seven tools
+fail-closed rules. [`docs/MCP.md`](docs/MCP.md) has the worked call shape for each of the nine tools
 and the gated approval token.
 
 ```bash
