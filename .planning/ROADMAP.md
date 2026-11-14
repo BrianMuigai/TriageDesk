@@ -103,7 +103,7 @@ model and the planner — never the kernel or the clinician.
 **Goal:** A judge understands the clinical workflow in under a minute and an engineer can trace a model call, an MCP interaction, a database access, a checkpoint write and an audit record — with every element marked implemented, tested, proposed or outstanding.
 **Requirements**: DIAG-01, DIAG-02, DIAG-03, DIAG-04, DIAG-05, DIAG-06
 **Depends on:** Phase 18
-**Plans:** 1/0 plans complete
+**Plans:** 3/3 plans complete — completed 2026-11-14
 
 Plans:
 
@@ -116,7 +116,7 @@ Plans:
 **Goal:** A planner decision is a typed contract over a closed action set, proposed by the local model and validated by a deterministic guard that can only narrow what happens next — with the bounded-step policy implemented and tested before any graph edge moves.
 **Requirements**: ADAPT-02, ADAPT-04, ADAPT-06, ADAPT-08
 **Depends on:** Phase 19
-**Plans:** 4/3 plans complete
+**Plans:** 3/3 plans complete — completed 2026-11-14
 
 Plans:
 
@@ -129,7 +129,7 @@ Plans:
 **Goal:** The owned server genuinely asks the human for the missing measurement inside a tool call, the shipped adapter turns that into a LangGraph `interrupt()`, and all four outcomes are distinguished — with a refusal never treated as an answer.
 **Requirements**: ELICIT-01, ELICIT-02, ELICIT-03, ELICIT-04, ELICIT-05, ELICIT-06, ELICIT-07, ELICIT-08
 **Depends on:** Phase 20
-**Plans:** 4/3 plans complete — completed 2026-11-14
+**Plans:** 3/3 plans complete — completed 2026-11-14
 
 Plans:
 
@@ -142,7 +142,7 @@ Plans:
 **Goal:** A structured case that the pure scorer already puts in the most urgent band reaches the kernel without waiting for extraction or the planner — and still cannot commit without the clinician.
 **Requirements**: EMERG-01, EMERG-02, EMERG-03, EMERG-04, EMERG-05
 **Depends on:** Phase 21
-**Plans:** 2/2 plans complete
+**Plans:** 2/2 plans complete — completed 2026-11-14
 
 Plans:
 
@@ -154,7 +154,7 @@ Plans:
 **Goal:** The graph investigates adaptively before it scores — `plan → action → plan … → finish_investigation` inside a hard budget — and a structural test proves no investigation node can reach `score`, the gate or the commit, with every decision audited and re-extraction monotone.
 **Requirements**: ADAPT-01, ADAPT-03, ADAPT-05, ADAPT-07
 **Depends on:** Phase 22
-**Plans:** 4/3 plans complete
+**Plans:** 3/3 plans complete — completed 2026-11-14
 
 Plans:
 
@@ -167,10 +167,10 @@ Plans:
 **Goal:** The suite measures whether the planner earns its keep — adaptive vs default-finish on the same cases, with steps and latency — and the docs answer "is this a rules engine?" with the measured delta and the structural proof.
 **Requirements**: MEAS-01, MEAS-02, MEAS-03, MEAS-04, DOC-01, DOC-02, DOC-03, DOC-04, DOC-05, DOC-06
 **Depends on:** Phase 23
-**Plans:** 0/3 plans complete
+**Plans:** 3/3 plans complete — completed 2026-11-14
 
 Plans:
 
-- [ ] 24-01-PLAN.md — Eval facts: investigation steps, action sequence, elicitation outcome, guard override, emergency bypass; cases resolvable only by asking
-- [ ] 24-02-PLAN.md — Report: adaptive-vs-baseline block, invariants re-proven, `EVALS.md` regenerated (`--check` exits 0)
-- [ ] 24-03-PLAN.md — ARCHITECTURE/STATUS/README/DECISIONS/MCP.md + skill sweep; regenerate the canonical diagrams from shipped code; the written reviewer answer
+- [x] 24-01-PLAN.md — Eval facts: investigation steps, action sequence, elicitation outcome, guard override, emergency bypass; cases resolvable only by asking
+- [x] 24-02-PLAN.md — Report: adaptive-vs-baseline block, invariants re-proven, `EVALS.md` regenerated (`--check` exits 0)
+- [x] 24-03-PLAN.md — ARCHITECTURE/STATUS/README/DECISIONS/MCP.md + skill sweep; regenerate the canonical diagrams from shipped code; the written reviewer answer
