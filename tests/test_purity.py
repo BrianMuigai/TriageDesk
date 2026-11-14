@@ -97,6 +97,30 @@ def test_core_imports_nothing_from_llm_mcp_or_store(path: Path) -> None:
     )
 
 
+def test_planner_module_is_pure() -> None:
+    """``core/planner.py`` imports nothing from ``llm`` / ``mcp`` / ``store`` (D-13).
+
+    The parametrised directory-wide test above already covers the file; this named test makes
+    the planner's purity a *stated* contract rather than an incidental one: the policy that
+    decides what happens next may never reach the model, the MCP client or storage.
+    """
+    planner = CORE_DIR / "planner.py"
+    assert planner.is_file(), "the planner policy module is missing"
+    assert _forbidden_in_file(planner) == []
+
+
+def test_emergency_module_is_pure() -> None:
+    """``core/emergency.py`` imports nothing from ``llm`` / ``mcp`` / ``store`` (EMERG-02).
+
+    The named sibling of the planner contract: the deterministic pre-check may read the
+    scorer, but it may never reach the model, the MCP client or storage — so the decision to
+    skip the model can never itself depend on one.
+    """
+    emergency = CORE_DIR / "emergency.py"
+    assert emergency.is_file(), "the emergency pre-check module is missing"
+    assert _forbidden_in_file(emergency) == []
+
+
 def test_guard_detects_absolute_and_relative_forbidden_imports() -> None:
     """The guard is not vacuous: it flags every forbidden import form."""
     source = (

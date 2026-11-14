@@ -17,13 +17,14 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from triagedesk.core import confidence, coverage, matcher, recheck, retrieval, scorer
+from triagedesk.core import confidence, coverage, matcher, planner, recheck, retrieval, scorer
 from triagedesk.core.approval import committed_colour, target_for_colour
 from triagedesk.core.schema import (
     ApprovalToken,
     CaseInput,
     CommitResult,
     ExtractionResult,
+    InvestigationState,
     PriorityResult,
 )
 from triagedesk.mcp import server as server_module
@@ -212,25 +213,39 @@ def async_return(value: Any) -> Callable[..., Awaitable[Any]]:
     return stub
 
 
+def stub_planner_seam(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make the planner's model propose nothing — the deterministic baseline arm.
+
+    A test that stubs only ``extract_async`` still leaves the planner's own model call
+    reachable (the investigation loop asks for a proposal before scoring), and the autouse
+    ``_model_seam_is_stubbed`` guard correctly fails such a run. Stubbing the proposal to
+    ``None`` exercises the SHIPPED guard's missing-proposal path, which substitutes
+    ``finish_investigation``, so the test observes the same deterministic run it did before
+    the loop existed — without pretending a model answered.
+    """
+    monkeypatch.setattr(server_module, "propose_plan_async", async_return(None))
+
+
 @pytest.fixture(autouse=True)
 def _model_seam_is_stubbed() -> Iterator[None]:
-    """Fail loudly when a test forgets to stub the async model call.
+    """Fail loudly when a test forgets to stub the async model calls.
 
-    ``normalize_case`` awaits ``server_module.extract_async``; this autouse fixture
-    replaces it with a stub that raises, so a missed patch site fails the test instead of
-    reaching Ollama. A test's own ``monkeypatch.setattr`` runs after this fixture and
-    therefore wins.
+    ``normalize_case`` awaits ``server_module.extract_async`` and ``plan_next_step`` awaits
+    ``server_module.propose_plan_async``; this autouse fixture replaces BOTH with stubs that
+    raise, so a missed patch site fails the test instead of reaching Ollama. A test's own
+    ``monkeypatch.setattr`` runs after this fixture and therefore wins.
     """
-    original = server_module.extract_async
+    originals = (server_module.extract_async, server_module.propose_plan_async)
 
     async def unpatched(*args: Any, **kwargs: Any) -> Any:
         raise AssertionError("unpatched model call")
 
     server_module.extract_async = unpatched
+    server_module.propose_plan_async = unpatched
     try:
         yield
     finally:
-        server_module.extract_async = original
+        server_module.extract_async, server_module.propose_plan_async = originals
 
 
 @pytest.fixture(autouse=True)
@@ -261,6 +276,23 @@ COMPLETE_CASE = CaseInput(
     temperature_c=38.9,
     trauma=False,
     complaint="central chest pain",
+)
+
+# A complete adult case whose derived TEWS lands in the most urgent band (RR 30 -> 3,
+# HR 130 -> 3, systolic 70 -> 3; the rest 0). Used by the emergency-bypass suites: the
+# pre-check must fire on it and skip extraction, while the kernel still scores it. The
+# complaint deliberately matches no discriminator, so the fast arm's colour is the pure
+# vitals result.
+EMERGENCY_CASE = CaseInput(
+    age_years=44,
+    mobility="walking",
+    avpu="alert",
+    respiratory_rate=30,
+    heart_rate=130,
+    systolic_bp=70,
+    temperature_c=37.0,
+    trauma=False,
+    complaint="feels fine",
 )
 
 
@@ -333,6 +365,22 @@ def build_graph_tools(
             return retrieve_impl(inp)
         return retrieval.retrieve(str(inp["complaint"]))
 
+    async def plan_next_step(inp: dict[str, Any]) -> Any:
+        # The planner substrate is allowlisted but not yet called by any node (Phase 23 wires
+        # it). The fake is the offline baseline: it never calls a model, so the graph suites
+        # stay deterministic even if a node starts calling it.
+        calls.append(("plan_next_step", inp))
+        return planner.default_plan(InvestigationState.model_validate(inp["investigation"]))
+
+    async def request_clarification(inp: dict[str, Any]) -> Any:
+        # Allowlisted, not yet called by any node (Phase 23). It calls the REAL owned tool with
+        # no client, so the fake and the shipped tool cannot drift: the honest in-process answer
+        # is ``unavailable``, never a fabricated answer.
+        calls.append(("request_clarification", inp))
+        return await server_module.request_clarification(
+            list(inp.get("candidates") or []), None
+        )
+
     async def commit_priority(inp: dict[str, Any]) -> CommitResult:
         calls.append(("commit_priority", inp))
         token = inp.get("approval_token")
@@ -376,6 +424,8 @@ def build_graph_tools(
         "match_discriminators": match_discriminators,
         "score_priority": score_priority,
         "raise_recheck_flag": raise_recheck_flag,
+        "plan_next_step": plan_next_step,
+        "request_clarification": request_clarification,
         "assess_confidence": assess_confidence,
         "retrieve_evidence": retrieve_evidence,
         "commit_priority": commit_priority,

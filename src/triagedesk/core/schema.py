@@ -11,6 +11,7 @@ closed set — it never computes a TEWS score or a colour (D-03).
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -313,6 +314,75 @@ class ClarificationRequest(BaseModel):
     reason: str
 
 
+class InterruptType(StrEnum):
+    """The two interrupt-payload discriminators — declared ONCE, here (ELICIT-05).
+
+    A paused run's payload carries a ``type`` so a surface can tell a **decision** from a
+    **question** without inspecting keys: ``approval`` is minted by
+    ``graph.nodes.approval_gate`` and answered with an ``ApprovalToken``-shaped decision;
+    ``mcp_elicitation`` is minted by the shipped ``langchain.mcp`` interrupt driver and
+    answered with ``{"responses": {...}}``. The values are the wire contract, so they live in
+    the ONE schema module: ``durable``, the CLI and the desk compare against these members
+    instead of repeating a literal, and a drift from the adapter's own constant is caught by
+    a test. There is deliberately no third member — an interrupt this system cannot answer is
+    not representable.
+    """
+
+    APPROVAL = "approval"
+    ELICITATION = "mcp_elicitation"
+
+
+class ElicitationOutcome(StrEnum):
+    """The FOUR outcomes of asking a human a question mid-tool-call (ELICIT-03).
+
+    ``accepted`` is the only outcome that carries an answer. ``declined`` and ``cancelled``
+    are the client's refusals, and ``unavailable`` means the client *could not* elicit at all
+    (no capability, no back-channel, or no protocol era that can carry the round) — which is
+    emphatically **not** a refusal by the nurse and **not** a negative clinical finding. The
+    distinction exists so a transport limitation can never be mistaken for a clinical answer.
+    """
+
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    CANCELLED = "cancelled"
+    UNAVAILABLE = "unavailable"
+
+
+class ClarificationAnswer(BaseModel):
+    """What one mid-call clarification returns — an observation, never a decision (ELICIT-08).
+
+    ``outcome`` is the transport's four-way answer (never a clinical one), ``answers`` are the
+    human's typed replies **in question order** and only for an ``accepted`` outcome, and
+    ``reason`` explains a non-answer (a skipped candidate, a missing capability) so a reader
+    never has to guess. There is deliberately no colour, priority, target, queue or approval
+    field, and ``extra="forbid"`` rejects one at construction: an answer is an observation
+    appended to the case facts, so it is *unrepresentable* as a clinical decision rather than
+    merely discouraged from becoming one (mirrors :class:`EvidencePassage`).
+    """
+
+    # An undeclared field is rejected rather than silently carried (ELICIT-08).
+    model_config = ConfigDict(extra="forbid")
+
+    outcome: ElicitationOutcome
+    answers: list[str] = Field(default_factory=list)
+    reason: str | None = None
+
+    @model_validator(mode="after")
+    def _only_an_acceptance_carries_answers(self) -> ClarificationAnswer:
+        """Reject answers on a refusal — a decline/cancel/unavailable is never a value.
+
+        This makes the safety property structural: a caller cannot build a
+        ``ClarificationAnswer`` that turns "the client declined" into a clinical fact
+        (ELICIT-03). Only ``accepted`` may carry answers.
+        """
+        if self.outcome is not ElicitationOutcome.ACCEPTED and self.answers:
+            raise ValueError(
+                f"a {self.outcome.value!r} elicitation cannot carry answers; "
+                "only 'accepted' carries a human's reply"
+            )
+        return self
+
+
 class Escalation(BaseModel):
     """A safe abstention/escalation terminal (ORCH-05, D-03).
 
@@ -323,6 +393,126 @@ class Escalation(BaseModel):
     """
 
     reason: str
+
+
+# The bounded investigation loop (ADAPT-06). Declared ONCE, here, beside the contract whose
+# default budget reads it: ``core.planner`` re-exports this name as the policy's own
+# constant, so the contract default and the guard can never disagree about the bound. Three
+# is derived from the desk's cost, not from a fixture: a nurse can afford at most three
+# extra read-only steps (one retrieval, one question round, one re-extraction) before the
+# deterministic kernel must answer, and each extra step costs CPU-bound model latency on
+# the demo host.
+MAX_INVESTIGATION_STEPS: int = 3
+
+
+class PlanAction(StrEnum):
+    """The CLOSED set of investigation actions (ADAPT-02, ADAPT-08).
+
+    Exactly four members, and none of them can score, approve or commit: the planner's whole
+    vocabulary is "gather one more fact" or "stop". ``finish_investigation`` is the ONLY exit
+    to the deterministic kernel, and it is the default. There is deliberately no synonym
+    (``stop`` / ``done`` / ``finish``) and no ``score`` / ``approval_gate`` / ``commit``
+    member, so a planner decision is *unable* to express a queue effect rather than merely
+    discouraged from one (ADAPT-08: one name, no synonym drift).
+    """
+
+    GATHER_EVIDENCE = "gather_evidence"
+    ASK_QUESTION = "ask_question"
+    RE_EXTRACT = "re_extract"
+    FINISH_INVESTIGATION = "finish_investigation"
+
+
+class InvestigationState(BaseModel):
+    """The planner tool's narrow input (ADAPT-02, ADAPT-06, SOLID: I).
+
+    Exactly the facts the pure policy reads — the complaint, the retrieval classification and
+    its candidates/questions, the missing scored vitals, whether evidence is already in hand,
+    the step counter, the remaining budget, the clarification round and the actions already
+    taken. ``extra="forbid"`` makes the narrowness structural: a caller cannot smuggle a field
+    (a colour, a priority, an approval) into the planner's input, so the policy cannot be
+    steered by data it does not read (mirrors :class:`EvidencePassage`).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    complaint: str
+    # The matcher's own classification (COV-01), reused rather than restated: ``ambiguous``
+    # is the only status that can make a clarifying question admissible.
+    retrieval_status: RetrievalStatus = "matched"
+    candidates: list[str] = Field(default_factory=list)
+    questions: list[str] = Field(default_factory=list)
+    missing_vitals: list[str] = Field(default_factory=list)
+    has_evidence: bool = False
+    step: int = Field(default=0, ge=0)
+    budget_left: int = Field(default=MAX_INVESTIGATION_STEPS, ge=0)
+    clarification_round: int = Field(default=0, ge=0)
+    history: list[PlanAction] = Field(default_factory=list)
+
+
+class PlanProposal(BaseModel):
+    """What the MODEL returns — a proposal, never an authority (ADAPT-02).
+
+    ``action`` is the model's choice from the closed set; ``rationale``/``signals`` are
+    advisory text for the audit record. ``focus`` is a hint the guard deliberately does NOT
+    forward: an action's input is derived from the typed state, so a model string can never
+    steer a tool call. ``extra="forbid"`` rejects an undeclared field at construction, so a
+    smuggled colour or priority cannot ride along with a proposal.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    action: PlanAction
+    rationale: str = ""
+    focus: str | None = None
+    signals: list[str] = Field(default_factory=list)
+
+
+class PlanDecision(BaseModel):
+    """What the GUARD returns — always an admissible action (ADAPT-02, ADAPT-04).
+
+    ``action`` has passed :func:`triagedesk.core.planner.validate_proposal`, so it is always a
+    member of ``admissible_actions(state)``. ``proposed_action`` records what the model said
+    (audit only — ``None`` when nothing parseable was proposed) and ``overridden`` is ``True``
+    exactly when the guard replaced that proposal. ``step``/``budget_left`` are the counters
+    AFTER this decision: the budget decreases monotonically and is floored at zero, so a loop
+    cannot spin (ADAPT-06).
+
+    The field set is additive (no ``extra="forbid"``), like :class:`CommitResult`, so a later
+    phase may add an investigation fact without breaking a reader. It carries no colour, no
+    priority, no queue and no approval field: an investigation action is read-only by
+    construction (ADAPT-04).
+    """
+
+    action: PlanAction
+    rationale: str = ""
+    signals: list[str] = Field(default_factory=list)
+    step: int
+    budget_left: int
+    proposed_action: PlanAction | None = None
+    overridden: bool = False
+    override_reason: str | None = None
+
+
+class InvestigationFacts(BaseModel):
+    """The investigation accumulator the graph carries across the bounded loop (ADAPT-01/06).
+
+    ``steps`` is the number of plan decisions already taken — the ONE counter the next
+    ``InvestigationState`` derives its ``step`` and ``budget_left`` from, so the budget cannot
+    be reset by a node that forgets to decrement it. ``history`` is the ordered list of chosen
+    actions (the policy never offers an action twice); ``answers`` are the nurse's accepted
+    clarifications (observations, never a decision); ``guard_overrides`` counts how often the
+    deterministic guard replaced the model's proposal — the measured cost of a weak model.
+
+    Like :class:`PlanDecision` it carries no colour, priority, approval, queue or commit field,
+    so an investigation fact is *unable* to express a clinical decision (ADAPT-04). It lives in
+    the ONE schema module, which is also where ``graph/build`` derives the checkpointer's
+    state-type allowlist, so a paused investigation round-trips with no second list to maintain.
+    """
+
+    steps: int = Field(default=0, ge=0)
+    history: list[PlanAction] = Field(default_factory=list)
+    answers: list[str] = Field(default_factory=list)
+    guard_overrides: int = Field(default=0, ge=0)
 
 
 class ApprovalToken(BaseModel):

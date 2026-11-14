@@ -1,7 +1,7 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v1.1 — Score Uplift",
+  "milestone": "v1.3 — Adaptive Triage",
   "phases": [
     {
       "number": "1",
@@ -62,12 +62,32 @@
       "number": "12",
       "name": "Live Review, Demo & Milestone-Close Documentation",
       "status": "complete"
+    },
+    {
+      "number": "15",
+      "name": "Deterministic coverage classification",
+      "status": "complete"
+    },
+    {
+      "number": "16",
+      "name": "Three-way confidence and the bounded clarification terminal",
+      "status": "complete"
+    },
+    {
+      "number": "17",
+      "name": "Extraction completeness",
+      "status": "complete"
+    },
+    {
+      "number": "18",
+      "name": "Eval expansion, honest measurement and docs",
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "/gsd:progress",
+    "command": "/gsd-progress",
     "label": "Show progress",
     "reason": "Unsure of state — showing progress"
   },
-  "updated_at": "2026-10-13T13:49:55.199Z"
+  "updated_at": "2026-11-14T08:18:13.235Z"
 }

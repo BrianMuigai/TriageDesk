@@ -1,72 +1,93 @@
-%% TriageDesk architecture diagram with embedded flow story.
-%% The "Flow story" panel below is the numbered narrative; the agent nodes carry the same numbers.
+%% TriageDesk v1.3 architecture — SHIPPED (the canonical reference diagram).
+%% Rendered by docs/render-architecture.sh to architecture-v1.3.svg / .pdf.
+%% The canonical architecture.mmd is regenerated from the shipped code in Phase 22;
+%% this file exists so the design can be reviewed before it is built.
+%% Two layers, one rule: the planner may only decide HOW MUCH to investigate.
+%% It has no vocabulary for WHAT the answer is. The colour is still produced in
+%% exactly one place (score_priority), and commit still has one inbound edge.
 flowchart TD
-    TITLE["TriageDesk: Architecture and Flow Story"]
+    TITLE["TriageDesk v1.3: Adaptive Envelope around a Frozen Kernel<br/>shipped — regenerated from the code"]
 
     subgraph HITL["Human in the loop"]
         NURSE["Triage nurse<br/>enters vitals and a one line complaint"]
+        ANSWER["Triage nurse answers a targeted question<br/>or declines it"]
         CLIN["Named clinician<br/>approves, edits, or dismisses"]
     end
 
-    subgraph AGENT["LangGraph Agent (orchestrator)"]
-        N1["1. ingest<br/>validate the case"] --> N2["2. normalize<br/>structure the complaint"] --> N3["3. retrieve<br/>match SATS discriminators"] --> N4["4. score<br/>deterministic TEWS + citations"] --> N5["5. verify<br/>reject any uncited priority"] --> N6["6. recheck<br/>flag a second look, never reclassify"] --> N7["7. approval gate<br/>pause for a named clinician"] --> N8["8. commit<br/>gated queue write"] --> N9["9. handover<br/>render the sourced case card"]
+    subgraph ENVELOPE["Adaptive envelope (new) — may only choose read-only investigation"]
+        N1["1. ingest<br/>validate the case"] --> EM["1a. emergency_check<br/>deterministic · no model · no planner"]
+        EM -->|"critical structured case"| N3
+        EM -->|"otherwise"| N2["2. normalize<br/>structure the complaint"] --> N3["3. retrieve<br/>match discriminators + coverage"]
+        N3 --> PLAN["4. plan<br/>choose ONE next action from a closed set<br/>model proposes, guard disposes"]
+        PLAN -->|gather_evidence| EV["4a. gather_evidence<br/>retrieve cited passages"]
+        PLAN -->|ask_question| ASK["4b. ask_question<br/>request_clarification"]
+        PLAN -->|re_extract| REX["4c. re_extract<br/>re-read the note with a hint"]
+        PLAN -->|finish_investigation| CONC["4d. finish_investigation<br/>stop investigating"]
+        EV -->|back to plan| PLAN
+        ASK -->|answer appended| N3
+        REX -->|case changed| N3
     end
 
+    subgraph KERNEL["Frozen safety kernel (unchanged) — non-skippable suffix"]
+        direction LR
+        CONC --> N4["5. score<br/>deterministic TEWS + citations"] --> N5["6. ground<br/>advisory evidence, no colour"] --> N6["7. verify<br/>reject any uncited priority"]
+        N6 --> N7["8. recheck<br/>flag a second look, never reclassify"] --> N8["9. assess<br/>deliver, clarify, or defer"] --> N9["10. approval gate<br/>pause for a named clinician"]
+        N9 --> N10["11. commit<br/>gated queue write"] --> N11["12. handover<br/>render the sourced case card"]
+    end
+
+    TERM["Safe terminals: clarify · request_missing_info · escalate<br/>no colour, no gate, no commit"]
+
     subgraph LLM["Local LLM (offline)"]
-        QWEN["Ollama: Qwen3 4B<br/>fallback Qwen2.5<br/>structured JSON output"]
+        QWEN["Ollama: qwen2.5:1.5b (measured default)<br/>qwen3.5:4b (documented fallback)<br/>structured JSON output"]
     end
 
     subgraph MCPCLIENT["MCP client"]
-        ADAPTER["langchain.mcp adapter<br/>stdio"]
+        ADAPTER["langchain.mcp adapter<br/>stdio · arms elicitation as interrupt()"]
     end
 
-    subgraph OWNED["Owned Triage MCP server"]
-        subgraph TOOLS["Tools (act)"]
+    subgraph OWNED["Owned Triage MCP server (9 tools)"]
+        subgraph TOOLS["Tools"]
             T1["normalize_case"]
             T2["match_discriminators"]
-            T3["score_priority"]
-            T4["raise_recheck_flag"]
-            T5["commit_priority (gated)"]
-        end
-        subgraph RES["Resources (read-only)"]
-            R1["sats://tews"]
-            R2["sats://discriminators"]
-            R3["sats://discriminators/{id}"]
-            R4["sats://version"]
-        end
-        subgraph PROMPTS["Prompts"]
-            P1["normalize_case"]
-            P2["verify_priority"]
+            T3["retrieve_evidence"]
+            T4["assess_confidence"]
+            T5["plan_next_step (new)"]
+            T6["request_clarification (new, elicits)"]
+            T7["score_priority (act)"]
+            T8["raise_recheck_flag (act)"]
+            T9["commit_priority (act + gated)"]
         end
     end
 
     subgraph BORROWED["Borrowed SQLite MCP server"]
-        B1["query tools"]
-        B2["table resources"]
+        B1["read paths: db_info · list_tables · get_table_schema · read_records"]
+        B2["queue write through the Store seam"]
     end
 
     subgraph DATA["Data sources"]
         Y1["data/sats_tews.yaml"]
         Y2["data/sats_discriminators.yaml"]
+        Y3["data/text_terms.yaml"]
         FIX["synthetic fixtures"]
         DB1[("triage.db<br/>cases + queue + audit")]
         DB2[("checkpoints.db<br/>runtime state")]
-        LOG["log/audit.jsonl<br/>hash chain"]
+        LOG["spans.jsonl<br/>hash chained audit"]
     end
 
     subgraph STORY["Flow story"]
         direction TB
-        ST0["Human in the loop: the nurse enters data at the start, the clinician approves at the gate."]
+        ST0["Human in the loop: the nurse enters data and answers at most one question round; the clinician decides at the gate."]
         ST1["1. The case is ingested and the fields are validated."]
         ST2["2. The local offline model turns the complaint into typed fields."]
-        ST3["3. The triage server matches SATS discriminators for the complaint."]
-        ST4["4. Deterministic code computes TEWS and returns a colour with citations."]
-        ST5["5. A verifier rejects any priority that arrives without a citation."]
-        ST6["6. Worsening vitals raise a second look flag, never a reclassification."]
-        ST7["7. The case pauses until a named clinician approves, edits, or dismisses it."]
-        ST8["8. Only after approval is a queue position written, by the gated tool."]
-        ST9["9. A sourced case card is rendered for the nurse."]
-        ST10["Every tool call is written to the hash chained audit log. The whole path runs offline on synthetic data, with no external API."]
+        ST3["3. The triage server matches SATS discriminators and classifies coverage."]
+        ST4["4. NEW: the planner decides what to do next. The model proposes one action from a closed set; a deterministic guard rejects anything inadmissible, malformed, or over budget and falls back to finish_investigation."]
+        ST5["4a. It may gather cited evidence, or 4b. ask the nurse one targeted question through MCP elicitation, or 4c. re-read the note, or 4d. stop."]
+        ST6["5. Deterministic code computes TEWS and returns a colour with citations. No investigation action can produce a colour."]
+        ST7["6-7. Evidence is surfaced without setting a colour; a verifier rejects any priority that arrives without a citation."]
+        ST8["8-9. Worsening vitals raise a second look; coverage decides deliver, clarify, or defer."]
+        ST9["10-12. Only a named clinician's approval writes a queue position, then a sourced case card is rendered."]
+        ST10["Structural proof: finish_investigation is the only edge into score, commit keeps exactly one inbound edge, and the planner's action set contains no score, gate, or commit."]
+        ST11["Every tool call is written to the hash chained audit log and the span stream. The whole path runs offline on synthetic data, with no external API."]
     end
 
     EXT["External APIs: none (offline)"]
@@ -74,20 +95,23 @@ flowchart TD
     TITLE --- NURSE
     NURSE --> N1
     N2 -. structured output .-> QWEN
-    N5 -. critic .-> QWEN
-    AGENT --> ADAPTER
+    PLAN -. proposes an action .-> QWEN
+    N6 -. critic .-> QWEN
+    ASK -->|ctx.elicit| ADAPTER
+    ADAPTER -->|interrupt mcp_elicitation| ANSWER
+    ANSWER -->|resume with the answer| ASK
     ADAPTER --> TOOLS
-    ADAPTER --> RES
-    ADAPTER --> PROMPTS
     ADAPTER --> BORROWED
-    RES --> Y1
-    RES --> Y2
-    Y1 --> T3
-    Y2 --> T3
-    T5 --> B1 --> DB1
-    AGENT --> DB2
-    T5 --> LOG
-    N7 --> CLIN
-    CLIN --> N8
+    T3 --> Y2
+    T2 --> Y2
+    T2 --> Y3
+    T7 --> Y1
+    T7 --> Y2
+    T9 --> B2 --> DB1
+    ADAPTER --> DB2
+    T9 --> LOG
+    N9 --> CLIN
+    CLIN --> N10
+    N8 --> TERM
     FIX --> N1
     ADAPTER -. no network .-> EXT

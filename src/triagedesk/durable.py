@@ -23,7 +23,7 @@ Design rules honoured here (DRY/SOLID):
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -31,12 +31,17 @@ from typing import Any
 
 from langgraph.types import Command
 
-from triagedesk.core.schema import CaseInput
+from triagedesk.core.schema import CaseInput, InterruptType
 from triagedesk.graph.build import checkpointed_graph
 from triagedesk.graph.nodes import ToolMap, case_id_for_note
 
 # The decisions the gate accepts (mirrors ``ApprovalToken.decision``).
 _DECISIONS = ("approve", "edit", "dismiss")
+
+# The ONE policy contract: given an interrupt payload, return the value to resume with — or
+# ``None`` to leave the run paused so the caller can present it. A policy is how the CLI, the
+# desk and the eval runner answer different payload types without a second pause/resume loop.
+RespondPolicy = Callable[[Mapping[str, Any]], Mapping[str, Any] | None]
 
 
 class DurableError(RuntimeError):
@@ -77,18 +82,80 @@ async def invoke_graph(
     initial: Mapping[str, Any],
     config: Mapping[str, Any],
     decision: Mapping[str, Any],
+    *,
+    respond: RespondPolicy | None = None,
 ) -> tuple[Mapping[str, Any], dict[str, Any] | None]:
-    """Invoke the graph once, resuming past the gate if it paused — the shared primitive.
+    """Invoke the graph, then answer every interrupt it raises — the shared primitive.
 
-    The one invoke→interrupt→resume step, so the eval runner and the demo share a single
-    implementation (each caller keeps its OWN ``thread_id`` policy — SOLID: S). Returns
-    the final state and the interrupt payload (``None`` when the run never paused).
+    The one invoke→interrupt→resume step, so the eval runner, the demo and the durable
+    resume share a single implementation (each caller keeps its OWN ``thread_id`` policy —
+    SOLID: S). Returns the final state and the FIRST interrupt payload (``None`` when the
+    run never paused) — the payload the caller presents.
+
+    ``respond`` decides what each payload is answered with, and returning ``None`` from it
+    leaves the run paused. The default policy is the existing approval behaviour: it
+    resumes an approval with *decision* and **stops** at an elicitation, so no current
+    caller changes and an approval is never used to answer a question (ELICIT-05).
     """
+    policy = respond or _approval_only(decision)
     result = await graph.ainvoke(initial, config)
+    return await _drive(graph, config, result, policy)
+
+
+def pending_interrupt(snapshot: Any) -> dict[str, Any] | None:
+    """The value of the first pending interrupt in a checkpoint *snapshot*, or ``None``.
+
+    The ONE reader of LangGraph's snapshot shape, so no caller reaches into
+    ``snapshot.tasks[*].interrupts`` itself and a resume can decide what it is answering
+    (an approval or a question) without guessing.
+    """
+    for task in getattr(snapshot, "tasks", ()) or ():
+        for pending in getattr(task, "interrupts", ()) or ():
+            value = getattr(pending, "value", None)
+            if isinstance(value, Mapping):
+                return dict(value)
+    return None
+
+
+def _approval_only(decision: Mapping[str, Any]) -> RespondPolicy:
+    """The DEFAULT policy: answer an approval, stop at a question (ELICIT-05).
+
+    Before elicitation existed the graph interrupted once, at the gate. Keeping this policy
+    as the default means every current caller behaves exactly as before, while a question is
+    never answered with an approval token — it is left paused for a surface to present.
+    """
+
+    def policy(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
+        # Read the ONE declaration in ``core.schema.InterruptType`` (not a literal), so the
+        # discriminator cannot drift from the payload the graph and the adapter mint.
+        if payload.get("type") == InterruptType.ELICITATION:
+            return None
+        return dict(decision)
+
+    return policy
+
+
+async def _drive(
+    graph: Any,
+    config: Mapping[str, Any],
+    result: Mapping[str, Any],
+    policy: RespondPolicy,
+) -> tuple[Mapping[str, Any], dict[str, Any] | None]:
+    """Answer interrupts until the run settles — the ONE pause/resume loop.
+
+    Each round hands the payload to *policy*; a returned mapping resumes the graph, and
+    ``None`` stops (the run stays paused and the caller presents the payload it already
+    has). The FIRST payload is remembered, because that is what a caller shows a human.
+    """
     payload: dict[str, Any] | None = None
-    if result.get("__interrupt__"):
-        payload = dict(result["__interrupt__"][0].value)
-        result = await graph.ainvoke(Command(resume=dict(decision)), config)
+    while result.get("__interrupt__"):
+        value = dict(result["__interrupt__"][0].value)
+        if payload is None:
+            payload = value
+        answer = policy(value)
+        if answer is None:
+            break
+        result = await graph.ainvoke(Command(resume=dict(answer)), config)
     return result, payload
 
 
@@ -146,14 +213,23 @@ async def resume_paused(
     tools: ToolMap,
     *,
     thread_id: str,
-    decision: Mapping[str, Any],
+    decision: Mapping[str, Any] | None = None,
     db_path: str | Path,
+    respond: RespondPolicy | None = None,
 ) -> Mapping[str, Any]:
-    """Resume a paused thread to a committed handover, or refuse if nothing is pending.
+    """Resume a paused thread, answering each interrupt through the ONE policy.
 
     The pending-gate check runs BEFORE the graph is invoked, so an absent thread touches
     no store (and launches no borrowed subprocess) — it raises :class:`DurableError`.
+
+    *decision* is the pre-built resume value (the historical shape: one approval). *respond*
+    is the policy form: it receives the pending payload and returns the resume value, or
+    ``None`` to leave the run paused — which is what a surface does when answering a question
+    reveals an approval gate it must not decide. Exactly one of them is required.
     """
+    if decision is None and respond is None:
+        raise DurableError("a decision or a respond policy is required to resume a thread")
+    policy = respond or _approval_only(decision or {})
     config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
     async with checkpointed_graph(tools, Path(db_path)) as graph:
         snapshot = await graph.aget_state(config)
@@ -161,7 +237,17 @@ async def resume_paused(
             raise DurableError(
                 f"no pending approval gate for thread_id {thread_id} in {db_path}"
             )
-        return await graph.ainvoke(Command(resume=dict(decision)), config)
+        # An explicit ``decision`` answers the PENDING payload (the historical shape); the
+        # policy then decides what any FURTHER payload is answered with. With no decision the
+        # policy answers the pending one too, which is how a surface answers whichever type
+        # happens to be paused without guessing.
+        pending = pending_interrupt(snapshot)
+        answer = dict(decision) if decision is not None else policy(pending or {})
+        if answer is None:
+            return dict(snapshot.values)
+        result = await graph.ainvoke(Command(resume=answer), config)
+        final, _payload = await _drive(graph, config, result, policy)
+        return final
 
 
 def approval_decision(
@@ -210,10 +296,11 @@ def approval_decision(
 async def resume_thread(
     *,
     thread_id: str,
-    decision: Mapping[str, Any],
+    decision: Mapping[str, Any] | None = None,
     db_path: str | Path,
+    respond: RespondPolicy | None = None,
 ) -> Mapping[str, Any]:
-    """Resume a durable thread from the CLI — the ONE place the resume tools are built.
+    """Resume a durable thread from a surface — the ONE place the resume tools are built.
 
     The tool mapping is built in-process from a bare ``CaseInput`` (``evals.tools.offline_tools``
     — no harness fixture and no declared terminal); the owned tools are called in-process, so no
@@ -221,22 +308,32 @@ async def resume_thread(
     the case are short-circuited by the checkpoint. The store is NOT resolved or injected here:
     the gated commit and its audit interceptor resolve it through the ONE existing seam
     (``mcp.server.resolve_store``), so there is exactly one store-resolution path.
+
+    *decision* is the historical pre-built resume value; *respond* is the policy form the CLI
+    and the desk use to answer whichever payload is pending. Both are forwarded to the ONE
+    ``resume_paused``.
     """
     from triagedesk.evals.tools import offline_tools
     from triagedesk.evals.usage import UsageRecorder
 
     tools = offline_tools(CaseInput(), UsageRecorder())
     return await resume_paused(
-        tools, thread_id=thread_id, decision=decision, db_path=db_path
+        tools,
+        thread_id=thread_id,
+        decision=decision,
+        db_path=db_path,
+        respond=respond,
     )
 
 
 __all__ = [
     "DurableError",
     "PausedRun",
+    "RespondPolicy",
     "approval_decision",
     "derive_thread_id",
     "invoke_graph",
+    "pending_interrupt",
     "resume_paused",
     "resume_thread",
     "run_to_gate",

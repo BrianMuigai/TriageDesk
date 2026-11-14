@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import TypedDict
 
+from triagedesk.core.emergency import EmergencyVerdict
 from triagedesk.core.schema import (
     CaseInput,
     ClarificationRequest,
@@ -19,6 +20,8 @@ from triagedesk.core.schema import (
     Escalation,
     EvidenceResult,
     HandoverCard,
+    InvestigationFacts,
+    PlanDecision,
     PriorityResult,
     RecheckFlag,
     RecoveryRequest,
@@ -29,7 +32,8 @@ class TriageState(TypedDict, total=False):
     """The single graph state channel (D-01).
 
     Every field is optional (``total=False``) so each node returns a partial
-    update: ``ingest`` seeds ``raw_note``/``attempt``; ``normalize`` adds ``case``;
+    update: ``ingest`` seeds ``raw_note``/``attempt``; ``emergency_check`` adds
+    ``emergency_verdict`` and the fast/normal ``route``; ``normalize`` adds ``case``;
     ``retrieve`` adds ``matched_ids``/``no_match``; ``score`` adds ``priority``;
     ``ground`` adds ``evidence``; ``verify`` sets ``route`` and records a failed
     check in ``attempt``; a failure is terminal. ``recheck`` adds ``second_look``;
@@ -51,6 +55,10 @@ class TriageState(TypedDict, total=False):
     clarification_questions: list[str]
     clarification_round: int
     priority: PriorityResult | None
+    # Deterministic emergency pre-check (EMERG-01/02, EMERG-05): written by
+    # ``emergency_check`` BEFORE ``normalize``. ``fired`` selects the fast arm, which skips
+    # extraction only; the verdict carries no colour and the kernel still scores.
+    emergency_verdict: EmergencyVerdict | None
     approval: dict | None
     commit_result: CommitResult | None
     handover: HandoverCard | None
@@ -75,3 +83,19 @@ class TriageState(TypedDict, total=False):
     # needs no reducer: ``ground`` is the only writer and its value is a pure function of
     # the complaint (last-write-wins is correct).
     evidence: EvidenceResult | None
+    # The bounded investigation loop (ADAPT-01/06). ``plan`` is the current decision and
+    # ``investigation`` the typed accumulator; both have exactly ONE writer — the ``plan``
+    # node — so the step counter and the action history cannot be advanced twice. The
+    # emergency arm skips ``plan`` entirely, so both stay unset on that path.
+    plan: PlanDecision | None
+    investigation: InvestigationFacts
+    # The nurse's accepted clarification answers (ELICIT-08): observations appended to the
+    # case facts, never an approval and never a colour. ONE writer (``ask_question``); the
+    # ``retrieve`` node re-matches against the note plus these answers.
+    nurse_answers: list[str]
+    # The four-way elicitation outcome seen on the last ``ask_question`` visit
+    # (``accepted`` / ``declined`` / ``cancelled`` / ``unavailable``), written on EVERY
+    # outcome — not only an acceptance — so the eval harness reports what actually happened
+    # instead of re-deriving it from the audit log (MEAS-01). Never read by a router and
+    # never a clinical fact: a decline is not a negative finding.
+    elicitation_outcome: str | None

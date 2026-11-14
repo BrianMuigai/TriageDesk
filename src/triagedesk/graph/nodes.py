@@ -26,6 +26,7 @@ from langgraph.types import interrupt
 from pydantic import BaseModel, ValidationError
 
 from triagedesk.core.approval import committed_or_scored
+from triagedesk.core.emergency import EmergencyVerdict, assess_emergency
 from triagedesk.core.hashing import hash_value
 from triagedesk.core.schema import (
     CaseInput,
@@ -36,6 +37,7 @@ from triagedesk.core.schema import (
     EvidenceResult,
     ExtractionResult,
     HandoverCard,
+    InterruptType,
     MatchResult,
     PriorityResult,
     RecheckFlag,
@@ -62,6 +64,12 @@ _ESCALATION_REASON = "case could not be safely scored; escalating for human revi
 _EXTRACTION_FAILED_REASON = (
     "extraction failed after the bounded retry and no structured fields were available"
 )
+
+# The two pre-check route tokens (EMERG-01), declared ONCE. The loaded discriminator
+# substrate already uses the word "emergency" as a category, so the internal route token
+# deliberately differs — the SATS DRY guard forbids repeating a loaded value under src/.
+_ROUTE_FAST = "fast"
+_ROUTE_NORMAL = "normal"
 
 
 def parse_tool_result[ModelT: BaseModel](model: type[ModelT], payload: Any) -> ModelT:
@@ -137,6 +145,30 @@ def _structured_case(state: TriageState) -> CaseInput | None:
         return None
 
 
+def emergency_check(state: TriageState) -> dict[str, Any]:
+    """Decide whether this case may skip extraction — no model, no colour (EMERG-01/02).
+
+    Reads the already-structured ``case`` and delegates the decision to the pure
+    :func:`triagedesk.core.emergency.assess_emergency`. It writes the ``emergency``
+    verdict and the ``route`` token that selects the fast or normal arm; it never scores,
+    never writes a colour and never touches a store. With no structured case it returns a
+    non-firing verdict, so an unstructured note always takes the normal extraction path
+    (EMERG-04).
+    """
+    case = state.get("case")
+    if isinstance(case, CaseInput):
+        verdict = assess_emergency(case)
+    else:
+        verdict = EmergencyVerdict(
+            fired=False,
+            reason="no structured case is available; the pre-check does not fire",
+        )
+    return {
+        "emergency_verdict": verdict,
+        "route": _ROUTE_FAST if verdict.fired else _ROUTE_NORMAL,
+    }
+
+
 def _make_normalize(tools: ToolMap) -> NodeFn:
     """Build the ``normalize`` node over the injected tool mapping (D-02, ORCH-04)."""
 
@@ -166,6 +198,20 @@ def _make_normalize(tools: ToolMap) -> NodeFn:
     return normalize
 
 
+def _rematch_text(text: str, answers: list[str]) -> str:
+    """The complaint plus the nurse's accepted answers — the text ``retrieve`` matches against.
+
+    A clarification answer is an observation about this patient (ELICIT-08), so it belongs in
+    the text the matcher reads: that is what lets one question resolve an ambiguous complaint
+    on the next ``retrieve``. The matcher's closed-set authority reads the *complaint*
+    argument, so the answer joins that text — the recorded ``case`` (and the note) are never
+    rewritten. With no answers the text is returned unchanged, so a routine case matches
+    exactly what it matched before the investigation loop existed.
+    """
+    extra = " ".join(answer.strip() for answer in answers if answer.strip())
+    return f"{text} {extra}".strip() if extra else text
+
+
 def _make_retrieve(tools: ToolMap) -> NodeFn:
     """Build the ``retrieve`` node over the injected tool mapping (D-05, D-06)."""
 
@@ -176,12 +222,22 @@ def _make_retrieve(tools: ToolMap) -> NodeFn:
         ``retrieval_status``/``candidates``/``questions`` are copied into the state so
         ``assess`` can decide whether one question would resolve the case. They never
         add an id to ``matched_ids`` — the scored colour is unchanged.
+
+        The complaint text is the case's complaint plus any accepted clarification answer
+        (``_rematch_text``), so re-entering this node after ``ask_question`` re-matches
+        against the freshest facts. The matcher is still the ONLY authority for which ids
+        match, and the note stays the recorded clinical note.
         """
         case = state["case"]
         match = parse_tool_result(
             MatchResult,
             await tools["match_discriminators"](
-                {"complaint": case.complaint, "note": str(state.get("raw_note") or "")}
+                {
+                    "complaint": _rematch_text(
+                        case.complaint, list(state.get("nurse_answers") or [])
+                    ),
+                    "note": str(state.get("raw_note") or ""),
+                }
             ),
         )
         return {
@@ -210,8 +266,13 @@ def _make_score(tools: ToolMap) -> NodeFn:
     return score
 
 
-def _make_ground(tools: ToolMap) -> NodeFn:
-    """Build the ``ground`` node over the injected tool mapping (D9-07, D9-08)."""
+def make_ground(tools: ToolMap) -> NodeFn:
+    """Build the ``ground`` node over the injected tool mapping (D9-07, D9-08).
+
+    Public because the investigation loop's ``gather_evidence`` action IS this node: the
+    "retrieve the attributable evidence" behaviour has exactly ONE implementation, shared by
+    the adaptive step and the post-score advisory step (DRY, SOLID: S).
+    """
 
     async def ground(state: TriageState) -> dict[str, Any]:
         """Surface attributable retrieval evidence in its OWN channel (D9-07, D9-08).
@@ -222,7 +283,13 @@ def _make_ground(tools: ToolMap) -> NodeFn:
         advisory retrieval can never touch the scored colour. The node touches NO model
         and writes NO store. ``ground`` runs once per scored case because ``verify`` has
         no retry edge; it still writes only ``evidence``.
+
+        When evidence is already in hand — ``gather_evidence`` ran in the investigation
+        loop — it writes nothing: the value is a pure function of the complaint, so a
+        second fetch would be identical work and a duplicate audit record.
         """
+        if state.get("evidence") is not None:
+            return {}
         case = state["case"]
         result = parse_tool_result(
             EvidenceResult,
@@ -374,10 +441,29 @@ def approval_gate(state: TriageState) -> dict[str, Any]:
     function must remain side-effect-free: the queue write and its audit belong in
     the *next* node, never here (D-04, T-03-02). The resumed value is stored in
     ``approval`` for the commit node to validate.
+
+    The payload carries ``type: "approval"`` (ELICIT-05). The field is additive — every
+    existing reader keeps working — and it exists so a surface can tell this **decision**
+    from an MCP **question** (``type: "mcp_elicitation"``) without inspecting keys. The
+    literal comes from the ONE declaration, ``core.schema.InterruptType``.
+
+    The additive ``emergency`` key carries the deterministic bypass fact — ``fired``, the
+    reason and the trigger facts — but ONLY when the pre-check actually fired; a normal
+    case carries ``None`` (EMERG-05). The bypass is therefore visible to the clinician
+    without a second audit writer.
     """
     priority = state["priority"]
     second_look = state.get("second_look")
+    emergency = state.get("emergency_verdict")
+    # The bypass fact is reported ONLY when it fired: a clinician sees that this case
+    # skipped extraction and why, while a normal case carries no emergency noise (EMERG-05).
+    emergency_fact = (
+        emergency.model_dump(mode="json")
+        if emergency is not None and emergency.fired
+        else None
+    )
     payload = {
+        "type": InterruptType.APPROVAL.value,
         "case_id": case_id_for_note(state["raw_note"]),
         "colour": priority.colour,
         "target": priority.target,
@@ -387,6 +473,7 @@ def approval_gate(state: TriageState) -> dict[str, Any]:
         "matched_ids": list(state.get("matched_ids") or []),
         "no_match": bool(state.get("no_match")),
         "second_look": second_look.model_dump(mode="json") if second_look is not None else None,
+        "emergency_verdict": emergency_fact,
     }
     approval = interrupt(payload)
     return {"approval": approval}
@@ -478,13 +565,22 @@ def make_nodes(tools: ToolMap) -> dict[str, NodeFn]:
     The mapping is the graph's ONLY dependency on the outside world; the tool
     callables are injected here and never imported, so the graph stays decoupled
     from the adapter (SOLID: D).
+
+    The bounded investigation nodes (``graph/planning.py``) are merged in here so the
+    composition root still has ONE node-assembly function. ``planning`` imports this
+    module's primitives (``ToolMap``/``NodeFn``/``parse_tool_result``/``make_ground``), so
+    the import is deferred to call time: the dependency runs one way at module load and the
+    cycle exists only while a graph is being built.
     """
+    from triagedesk.graph.planning import make_planning_nodes
+
     return {
         "ingest": ingest,
+        "emergency_check": emergency_check,
         "normalize": _make_normalize(tools),
         "retrieve": _make_retrieve(tools),
         "score": _make_score(tools),
-        "ground": _make_ground(tools),
+        "ground": make_ground(tools),
         "assess": _make_assess(tools),
         "verify": verify,
         "recheck": _make_recheck(tools),
@@ -494,4 +590,5 @@ def make_nodes(tools: ToolMap) -> dict[str, NodeFn]:
         "request_missing_info": request_missing_info,
         "clarify": clarify,
         "escalate": escalate,
+        **make_planning_nodes(tools),
     }

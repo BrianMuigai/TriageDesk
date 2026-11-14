@@ -28,7 +28,14 @@ from collections.abc import Mapping, Sequence
 from triagedesk.core.confidence import COMPONENT_COUNT
 from triagedesk.core.rules import get_tews
 from triagedesk.evals.case import ABORT_OUTCOME, TERMINAL_OUTCOMES
-from triagedesk.evals.report import Analysis, Calibration, Report, ReportCase, RiskCoveragePoint
+from triagedesk.evals.report import (
+    Adaptive,
+    Analysis,
+    Calibration,
+    Report,
+    ReportCase,
+    RiskCoveragePoint,
+)
 
 # The divisor that normalises the per-run ordinal scalar for the offline ECE ONLY is read
 # from its ONE owner (``core.confidence``), never restated as a literal: the scalar never
@@ -154,6 +161,47 @@ def _calibration(cases: Sequence[ReportCase]) -> Calibration:
         ece=_expected_calibration_error(calibration_cases),
         ece_bins=_ECE_BINS,
         small_sample_caveat=caveat,
+    )
+
+
+def _adaptive(cases: Sequence[ReportCase]) -> Adaptive:
+    """Aggregate the per-run adaptivity facts (MEAS-01, MEAS-02).
+
+    Reads ONLY the recorded per-run facts — never re-runs the graph. A baseline report has
+    ``investigation_steps == [None, …]`` for every case, so every figure is zero and the two
+    arms stay comparable through the same analyser.
+    """
+    steps = [
+        step
+        for case in cases
+        for step in case.investigation_steps
+        if step is not None and step > 0
+    ]
+    runs_with_investigation = len(steps)
+    action_counts: dict[str, int] = {}
+    elicitation_counts: dict[str, int] = {}
+    overrides = 0
+    bypass_cases: list[str] = []
+    for case in cases:
+        for actions in case.plan_actions:
+            for action in actions:
+                action_counts[action] = action_counts.get(action, 0) + 1
+        overrides += sum(case.guard_overrides)
+        for outcome in case.elicitation_outcomes:
+            if outcome is not None:
+                elicitation_counts[outcome] = elicitation_counts.get(outcome, 0) + 1
+        if any(case.emergency_bypass):
+            bypass_cases.append(case.case_id)
+    return Adaptive(
+        runs_with_investigation=runs_with_investigation,
+        mean_steps=(sum(steps) / runs_with_investigation) if runs_with_investigation else 0.0,
+        max_steps=max(steps) if steps else 0,
+        action_counts=action_counts,
+        guard_override_rate=(
+            overrides / runs_with_investigation if runs_with_investigation else 0.0
+        ),
+        elicitation_counts=elicitation_counts,
+        emergency_bypass_cases=bypass_cases,
     )
 
 
@@ -320,6 +368,7 @@ def analyse(report: Report, *, urgency: Mapping[str, int] | None = None) -> Anal
         clarification_rate=(clarification_count / deferral_runs) if deferral_runs else 0.0,
         clarification_cases=clarification_cases,
         calibration=_calibration(cases),
+        adaptive=_adaptive(cases),
     )
 
 

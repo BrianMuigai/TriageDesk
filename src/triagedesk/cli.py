@@ -22,7 +22,9 @@ import argparse
 import asyncio
 import sqlite3
 import sys
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from triagedesk.observability.offline import harden_offline
 
@@ -30,6 +32,64 @@ from triagedesk.observability.offline import harden_offline
 DEFAULT_CASES_DIR = "evals/cases"
 DEFAULT_REPORT_PATH = "evals/results/report.json"
 DEFAULT_RUNS = 3
+
+
+def _resume_policy(args: argparse.Namespace) -> Any:
+    """Build the ONE respond policy for ``resume`` — the CLI's whole answer logic (ELICIT-05).
+
+    The policy receives each interrupt payload and returns what to resume with:
+
+    * an **elicitation** is answered with ``--answer`` values, one per question in the order
+      they were asked; with no ``--answer`` it is **declined** — the documented default,
+      because a refusal is never converted into a value;
+    * an **approval** is answered with ``--decision`` through the ONE
+      ``durable.approval_decision`` (which rejects a blank identity or a missing colour), and a
+      missing ``--decision`` names the flag rather than inventing a decision.
+
+    Both imports are lazy: this function runs inside ``main`` after ``harden_offline()``, so no
+    transitive dependency can prime a tracer from the environment at import time (D7-03).
+    """
+    from triagedesk.durable import DurableError, approval_decision
+    from triagedesk.mcp.elicitation import (
+        CLARIFICATION_REQUEST_KEY,
+        accept_responses,
+        answer_fields,
+        answers_in_order,
+        decline_responses,
+        form_requests,
+        is_elicitation,
+    )
+
+    def policy(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
+        if is_elicitation(payload):
+            requests = form_requests(payload)
+            request = requests[0] if requests else {}
+            key = str(request.get("key") or CLARIFICATION_REQUEST_KEY)
+            if args.answer and request:
+                return accept_responses(
+                    key, answers_in_order(answer_fields(request), args.answer)
+                )
+            return decline_responses(key)
+        if decision is None:
+            raise DurableError(
+                "--decision is required when the paused case is an approval gate"
+            )
+        return decision
+
+    # Validate the decision EAGERLY when one was supplied, so a blank identity or a missing
+    # edit colour is refused before the checkpoint is even opened (T-06-05, WR-06). An
+    # elicitation-only resume supplies no ``--decision`` and is therefore not validated here.
+    decision = (
+        approval_decision(
+            args.decision,
+            approver=args.approver,
+            role=args.role,
+            colour=args.colour,
+        )
+        if args.decision
+        else None
+    )
+    return policy
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -57,6 +117,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     eval_parser.add_argument(
         "--case", dest="case_filter", default=None, help="run a single case id"
+    )
+    eval_parser.add_argument(
+        "--no-planner",
+        dest="planner",
+        action="store_false",
+        default=True,
+        help=(
+            "run the baseline arm: retrieve -> finish_investigation, no planner and no "
+            "investigation (the v1.2 path, MEAS-02)"
+        ),
     )
 
     demo_parser = subcommands.add_parser(
@@ -105,8 +175,8 @@ def _build_parser() -> argparse.ArgumentParser:
     resume_parser.add_argument(
         "--decision",
         choices=["approve", "edit", "dismiss"],
-        required=True,
-        help="the clinician's decision at the gate",
+        default=None,
+        help="the clinician's decision at the gate (required when an approval is pending)",
     )
     resume_parser.add_argument(
         "--approver", default=None, help="the named clinician (required for approve/edit)"
@@ -116,6 +186,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     resume_parser.add_argument(
         "--colour", default=None, help="the edited colour (required for an edit decision)"
+    )
+    resume_parser.add_argument(
+        "--answer",
+        action="append",
+        default=None,
+        metavar="ANSWER",
+        help=(
+            "one answer per question, in the order the questions were asked (repeatable). "
+            "An elicitation with no --answer is declined"
+        ),
     )
     resume_parser.add_argument(
         "--db",
@@ -206,9 +286,10 @@ def main(argv: list[str] | None = None) -> int:
     # without the full graph/model stack. They are still imported after
     # ``harden_offline()``, never at module import (D7-03, WR-06).
     from triagedesk.demo.run import list_beats, run_demo
-    from triagedesk.durable import approval_decision, resume_thread
+    from triagedesk.durable import resume_thread
     from triagedesk.evals.runner import run_eval
     from triagedesk.graph.build import CHECKPOINTS_DB_PATH
+    from triagedesk.mcp.elicitation import is_elicitation
     from triagedesk.replay import replay_case
 
     if args.command == "eval":
@@ -219,6 +300,7 @@ def main(argv: list[str] | None = None) -> int:
                 report_path=args.report,
                 offline=args.offline,
                 case_filter=args.case_filter,
+                planner=args.planner,
             )
         )
     if args.command == "demo":
@@ -235,17 +317,12 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.command == "resume":
         try:
-            decision = approval_decision(
-                args.decision,
-                approver=args.approver,
-                role=args.role,
-                colour=args.colour,
-            )
             result = asyncio.run(
                 resume_thread(
                     thread_id=args.thread_id,
-                    decision=decision,
+                    decision=None,
                     db_path=args.db or CHECKPOINTS_DB_PATH,
+                    respond=_resume_policy(args),
                 )
             )
         except (ValueError, RuntimeError, sqlite3.Error, ExceptionGroup) as exc:
@@ -256,6 +333,18 @@ def main(argv: list[str] | None = None) -> int:
             # exit rather than a raw traceback (WR-04).
             print(str(exc), file=sys.stderr)
             return 1
+        # A resume can answer a QUESTION and leave the case at the gate: say so, because
+        # "nothing was committed" is the fact the operator must not have to infer (ELICIT-05).
+        pending = result.get("__interrupt__")
+        if pending:
+            payload = dict(pending[0].value)
+            at = "a question" if is_elicitation(payload) else "the approval gate"
+            print(
+                f"paused again at {at}; nothing has been committed. "
+                "Run resume again to continue.",
+                file=sys.stderr,
+            )
+            return 0
         # Surface the gate's outcome so a refused approve/edit is never mistaken for a
         # commit (WR-02): a ``dismiss`` refusal is legitimate and exits 0; any other
         # refusal exits non-zero. The reason is the ONE ``CommitResult.reason`` the gate

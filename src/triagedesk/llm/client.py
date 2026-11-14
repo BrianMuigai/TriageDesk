@@ -17,9 +17,10 @@ from typing import Any
 
 import ollama
 
-from triagedesk.core.schema import ExtractionResult
+from triagedesk.core.planner import admissible_actions
+from triagedesk.core.schema import ExtractionResult, InvestigationState, PlanProposal
 from triagedesk.llm.notes import grounded_case
-from triagedesk.llm.prompts import EXTRACTION_PROMPT
+from triagedesk.llm.prompts import EXTRACTION_PROMPT, PLAN_PROMPT
 from triagedesk.observability import span
 
 # The injectable usage seam (D-08, Pitfall 16): a caller may supply a sink that is
@@ -214,3 +215,61 @@ async def extract_async(
     if usage_sink is not None:
         usage_sink(attrs["tokens_in"], attrs["tokens_out"])
     return _parsed(response, note)
+
+
+def _proposal(response: Any) -> PlanProposal | None:
+    """Validate one planner response — ``None`` on any empty/unparsable/schema-invalid payload.
+
+    The planner path DEGRADES rather than raises: a transport or schema failure becomes
+    ``None`` so :func:`triagedesk.core.planner.validate_proposal` can substitute the default
+    (ADAPT-02). The extraction path keeps its fail-loud :class:`ExtractionError` contract,
+    because there is no safe default extraction — there is a safe default action.
+    """
+    raw = _response_text(response)
+    if not raw.strip():
+        return None
+    try:
+        return PlanProposal.model_validate_json(raw)
+    except ValueError:  # pydantic's ValidationError is a ValueError
+        return None
+
+
+async def propose_plan_async(
+    state: InvestigationState,
+    *,
+    model: str = DEFAULT_MODEL,
+    usage_sink: UsageSink | None = None,
+) -> PlanProposal | None:
+    """Ask the local model to PROPOSE the next investigation action (ADAPT-02).
+
+    Structured output only: the grammar is ``PlanProposal.model_json_schema()``, sent as the
+    ``format=`` constraint exactly as the extraction call does, through the SAME lazily-built
+    async client and the SAME ``model`` span with the same minimal attributes (never the note,
+    the prompt or the completion — D7-08).
+
+    The prompt's admissible list comes from :func:`triagedesk.core.planner.admissible_actions`
+    — the guard's own policy — so the prompt cannot drift from the validator that judges the
+    answer (DRY).
+
+    Returns ``None`` when the model is unavailable or its payload is empty, unparsable or
+    schema-invalid. The caller (``plan_next_step``) hands that ``None`` to the guard, which
+    substitutes ``finish_investigation``; this function never raises and never returns
+    unvalidated data.
+    """
+    schema = PlanProposal.model_json_schema()
+    admissible = ", ".join(sorted(action.value for action in admissible_actions(state)))
+    prompt = PLAN_PROMPT.format(
+        schema=schema,
+        admissible=admissible,
+        state=state.model_dump_json(indent=2),
+    )
+    attrs: dict[str, Any] = {"model": model}
+    with span("model", model, attributes=attrs):
+        try:
+            response = await _async_generate(model=model, prompt=prompt, schema=schema)
+        except Exception:  # noqa: BLE001 — a transport failure degrades to the guard (ADAPT-02)
+            return None
+        _usage_attrs(response, attrs)
+    if usage_sink is not None:
+        usage_sink(attrs["tokens_in"], attrs["tokens_out"])
+    return _proposal(response)

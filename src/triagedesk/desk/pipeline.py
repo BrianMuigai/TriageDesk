@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from triagedesk.core.schema import CaseInput, ExtractionResult
+from triagedesk.desk.clarification import answers_from_form
 from triagedesk.desk.extraction import merge_case
 from triagedesk.durable import (
     PausedRun,
@@ -19,6 +20,11 @@ from triagedesk.durable import (
 )
 from triagedesk.evals.tools import offline_tools, online_tools
 from triagedesk.evals.usage import UsageRecorder
+from triagedesk.mcp.elicitation import (
+    CLARIFICATION_REQUEST_KEY,
+    accept_responses,
+    decline_responses,
+)
 
 
 def _tools_for(case: CaseInput, extraction: ExtractionResult | None = None) -> dict[str, Any]:
@@ -81,3 +87,31 @@ async def decide(
         colour=form.get("colour"),
     )
     return await resume_thread(thread_id=thread_id, decision=decision, db_path=db_path)
+
+
+async def answer_clarification(
+    thread_id: str, form: Mapping[str, str], db_path: str | Path
+) -> Mapping[str, Any]:
+    """Resume a paused **question** with the nurse's answers — never a decision (ELICIT-05/08).
+
+    The resume value is built by the ONE wire module (``mcp.elicitation``): an ``accept``
+    carries the posted answers keyed by their question field, and anything else — a decline,
+    a missing action, an unknown action — declines. A decline is the honest default because a
+    refusal is never converted into a value.
+
+    The run is resumed with that value and a policy that returns ``None``: whatever comes next
+    (the approval gate) is left PAUSED for the handler to render, so answering a question can
+    never approve a priority. The bridge re-implements no identity check, no scoring and no
+    queue write.
+    """
+    request_key = str(form.get("request_key") or CLARIFICATION_REQUEST_KEY)
+    if str(form.get("action") or "").strip() == "accept":
+        resume = accept_responses(request_key, answers_from_form(form))
+    else:
+        resume = decline_responses(request_key)
+    return await resume_thread(
+        thread_id=thread_id,
+        decision=resume,
+        db_path=db_path,
+        respond=lambda _payload: None,
+    )

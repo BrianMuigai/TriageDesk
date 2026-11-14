@@ -47,6 +47,9 @@ write**. Everything else is read-only or a pure computation.
 | T-8 | Approver impersonation | Record `approved_by` + `role`; **authenticated approver is a production requirement** | gap (demo records identity only) |
 | T-9 | Runaway cost / denial of service | Timeouts, retry cap, token budget | partial |
 | T-10 | Supply chain (model/tool provenance) | Pin + hash versions; disclose third parties | partial |
+| T-11 | **A clarification answer treated as approval** | An elicited answer is appended as an observation only: it never sets a colour, never advances the case past the gate, and is typed separately from the approval token (`ClarificationAnswer` has no colour/priority/approval field) | shipped (v1.3, ELICIT-08) |
+| T-12 | **Planner widens its own authority** | Closed action set with no score/gate/commit member; a deterministic admissibility guard rejects anything else and falls back to `finish_investigation`; a structural test proves `finish_investigation` is the only edge into `score` and `commit` keeps one inbound edge | shipped (v1.3, ADAPT-02/03) |
+| T-13 | **Emergency bypass skips a control** | The bypass skips only extraction and the planner; `verify`, `recheck`, `assess`, the gate and the commit are unchanged, and the bypass is audited (typed verdict + tool/decision spans) | shipped (v1.3, EMERG-03/05) |
 
 ## 4. Prompt-injection defense (defense in depth)
 
@@ -55,7 +58,15 @@ write**. Everything else is read-only or a pure computation.
    a patient (or a note) can contain can *make* itself red.
 3. **Citation requirement.** No priority without a rule citation — an injected "red" has no source and
    is rejected by `verify`.
-4. **Tool allowlist.** The agent may call only its seven defined tools; there is no shell and no HTTP.
+4. **Tool allowlist.** The agent may call only its declared tools; there is no shell and no HTTP. The
+   allowlist is asserted at **both** composition and discovery, so a missing or unexpected tool fails
+   loudly. **Shipped (9):** `normalize_case`, `match_discriminators`, `retrieve_evidence`,
+   `assess_confidence`, `plan_next_step`, `request_clarification`, `score_priority`,
+   `raise_recheck_flag`, `commit_priority`. All nine are on the graph's allowlist and reachable;
+   `plan_next_step` is reached on every non-emergency adaptive run, `request_clarification` only
+   when the planner chooses `ask_question`, and `raise_recheck_flag` only when a previous serial
+   case is supplied. The shipped inventory is also drawn in
+   [`ARCHITECTURE.md`](ARCHITECTURE.md) §4 and [`STATUS.md`](STATUS.md) §7.
 5. **No secrets in context.**
 6. **Tested.** Eval **E-13** injects instructions into a complaint and asserts the priority is unchanged.
 
@@ -76,6 +87,11 @@ Every approval records:
 
 **Production requirement:** the approver must be an **authenticated** identity (SSO/badge) before the
 approval token is issued. The demo records identity; authentication is deferred and declared.
+
+**What is authoritative.** The **committed queue row** written by `commit_priority` under that
+approval is the handover record — not the printed handover card, which is a rendering. **Answering a
+clarification is not approval:** an elicited answer is an observation and never advances the case
+past the gate.
 
 ## 7. Idempotency
 
@@ -131,6 +147,10 @@ Design rationale and the guaranteed properties are recorded once in
 - Approver **authentication** not implemented (identity recorded only).
 - No token/cost **budget enforcement**.
 - Borrowed MCP server reviewed but not OS-sandboxed.
+- **Structured observations are two-state today** — a sign is *stated* or *missing*, with
+  text-level negation handled in extraction/merge. A four-state model
+  (stated-present / stated-absent / unknown / not-assessed) is an outstanding limitation, not a
+  shipped feature, and the docs do not draw it as one.
 
 ## 12. Reporting
 

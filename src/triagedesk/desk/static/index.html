@@ -35,6 +35,7 @@ $state_panel
 $waiting
 $card
 $gate
+$clarification
 </main>
 <script>
 (function () {
@@ -99,6 +100,23 @@ $gate
       var panel = document.getElementById('gate-timeout');
       if (panel) { panel.hidden = false; }
     }, gateDeadlineMs);
+  }
+
+  // The question panel: a QUESTION, not a decision. Same double-submit guard as the gate
+  // (disable the siblings, keep the clicked submitter so its name/action still posts) but no
+  // deadline timer — a question has no timeout, and the decline control is always available.
+  var question = document.getElementById('clarification-form');
+  if (question) {
+    var questionButtons = question.querySelectorAll('button');
+    var questionSubmitted = false;
+    question.addEventListener('submit', function (event) {
+      if (questionSubmitted) { event.preventDefault(); return; }
+      questionSubmitted = true;
+      var submitter = event && event.submitter ? event.submitter : null;
+      for (var i = 0; i < questionButtons.length; i++) {
+        if (questionButtons[i] !== submitter) { questionButtons[i].disabled = true; }
+      }
+    });
   }
 })();
 </script>

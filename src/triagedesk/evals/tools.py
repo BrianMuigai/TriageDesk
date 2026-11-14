@@ -12,7 +12,7 @@ harness-free entry point for a caller that already has a structured ``CaseInput`
 fixture (the desk submission and the durable resume); :func:`online_tools` is the same
 harness-free entry point for a caller that has already resolved the complaint to an
 extraction (the desk's online mode). All three delegate to the ONE private ``_tool_map``
-core, so the mapping is assembled in exactly one place (DRY) and the seven tools and their
+core, so the mapping is assembled in exactly one place (DRY) and the eight tools and their
 order never drift.
 
 In real mode ``normalize_case`` drives the real owned server, whose module-level
@@ -26,7 +26,13 @@ from collections.abc import Awaitable, Callable, Iterator, Mapping
 from contextlib import contextmanager
 from typing import Any
 
-from triagedesk.core.schema import CaseInput, ExtractionResult, PriorityResult
+from triagedesk.core import planner
+from triagedesk.core.schema import (
+    CaseInput,
+    ExtractionResult,
+    InvestigationState,
+    PriorityResult,
+)
 from triagedesk.evals.case import CaseSpec, FaultInjection
 from triagedesk.evals.usage import UsageRecorder, recorded_extract_async
 from triagedesk.mcp import server as server_module
@@ -93,7 +99,7 @@ def _tool_map(
     """Build the injected tool mapping from a resolved ``CaseInput`` and fault — the ONE core.
 
     Both :func:`build_tools` (the harness path, ``CaseSpec``-shaped) and :func:`offline_tools`
-    (the harness-free path, ``CaseInput``-shaped) delegate here, so the seven-tool mapping is
+    (the harness-free path, ``CaseInput``-shaped) delegate here, so the eight-tool mapping is
     assembled in exactly one place (DRY). Every tool is the real owned tool called in-process;
     only ``normalize_case`` is stubbed in offline mode (returning *case*'s own extraction with
     no model call). The injected ``recorder`` is unused here directly — the caller patches the
@@ -155,6 +161,23 @@ def _tool_map(
     async def retrieve_evidence(inp: Mapping[str, Any]) -> Any:
         return await server_module.retrieve_evidence(str(inp["complaint"]))
 
+    async def plan_next_step(inp: Mapping[str, Any]) -> Any:
+        # Offline mode stubs the MODEL — and the planner's proposal is a model call too. The
+        # deterministic default is the baseline arm, so the offline CI gate never reaches
+        # Ollama and stays reproducible. Real mode calls the shipped tool, guard included.
+        state = InvestigationState.model_validate(inp["investigation"])
+        if offline:
+            return planner.default_plan(state)
+        return await server_module.plan_next_step(state)
+
+    async def request_clarification(inp: Mapping[str, Any]) -> Any:
+        # Allowlisted, not yet called by any node (Phase 23). ``ctx=None`` is the honest
+        # in-process answer: there is no MCP client here, so the shipped tool returns
+        # ``unavailable`` rather than fabricating an answer.
+        return await server_module.request_clarification(
+            list(inp.get("candidates") or []), None
+        )
+
     async def commit_priority(inp: Mapping[str, Any]) -> Any:
         case = CaseInput.model_validate(inp["case"])
         return await server_module.commit_priority(
@@ -166,6 +189,8 @@ def _tool_map(
         "match_discriminators": match_discriminators,
         "score_priority": score_priority,
         "raise_recheck_flag": raise_recheck_flag,
+        "plan_next_step": plan_next_step,
+        "request_clarification": request_clarification,
         "assess_confidence": assess_confidence,
         "retrieve_evidence": retrieve_evidence,
         "commit_priority": commit_priority,
@@ -187,7 +212,7 @@ def offline_tools(case: CaseInput, recorder: UsageRecorder) -> dict[str, Any]:
 
     The entry point for a caller that has a structured case but no evaluation fixture (the desk
     submission and the durable resume): it needs no ``CaseSpec`` and no declared terminal, so it
-    fabricates none. The mapping is the same seven real owned tools as :func:`build_tools` —
+    fabricates none. The mapping is the same eight real owned tools as :func:`build_tools` —
     model stubbed offline with *case*'s own extraction and no injected fault — so the caller sees
     the shipped gate, never a copy (SOLID: L).
     """

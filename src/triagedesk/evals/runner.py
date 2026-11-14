@@ -15,11 +15,12 @@ recorded instability, never averaged away or hidden behind a majority (Pitfall 1
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
+from triagedesk.core.schema import InvestigationFacts
 from triagedesk.evals.analysis import analyse
 from triagedesk.evals.case import ABORT_OUTCOME, CaseSpec, load_cases
 from triagedesk.evals.invariants import (
@@ -113,7 +114,7 @@ def _errored_invariant_report(message: str | None) -> InvariantReport:
 
 
 async def _run_once(
-    case: CaseSpec, run_index: int, tools: ToolMap
+    case: CaseSpec, run_index: int, tools: ToolMap, planner: bool
 ) -> tuple[dict[str, Any], float, Any]:
     """Invoke the graph once, resume past the gate if paused, and time the whole run.
 
@@ -124,10 +125,14 @@ async def _run_once(
     value comes from the ONE decision builder (``durable.approval_decision``) — a
     ``dismiss`` naming no approver — so the eval never bypasses the gate and the token
     shape cannot drift from ``triagedesk resume`` (D-05, IN-05).
+
+    ``planner`` selects the arm (MEAS-02): ``True`` is the shipped adaptive graph,
+    ``False`` the baseline graph whose ``retrieve`` goes straight to
+    ``finish_investigation``.
     """
     from triagedesk.durable import approval_decision, invoke_graph
 
-    graph = build_graph(tools, checkpointer=in_memory_checkpointer())
+    graph = build_graph(tools, checkpointer=in_memory_checkpointer(), planner=planner)
     config = {"configurable": {"thread_id": f"{case.id}-{run_index}"}}
     initial: dict[str, Any] = {"raw_note": case.note, "case": case.case}
     previous = getattr(case, "previous_case", None)
@@ -224,8 +229,38 @@ def _build_gate(report_cases: list[ReportCase]) -> GateResult:
     )
 
 
+def _adaptive_facts(
+    result: Mapping[str, Any],
+) -> tuple[int | None, list[str], int, str | None, bool]:
+    """Read one run's adaptive facts from its final state (MEAS-01).
+
+    Every fact is read from the graph's own channels — ``investigation`` (the accumulator
+    ``plan`` is the sole writer of), ``elicitation_outcome`` and ``emergency_verdict`` — never
+    re-derived. A baseline run has no ``investigation`` channel at all, so its step is
+    ``None`` and its action list empty; that is how the two arms stay distinguishable in the
+    same report schema.
+    """
+    facts = result.get("investigation")
+    if isinstance(facts, InvestigationFacts):
+        steps: int | None = facts.steps
+        actions = [action.value for action in facts.history]
+        overrides = facts.guard_overrides
+    else:
+        steps, actions, overrides = None, [], 0
+    verdict = result.get("emergency_verdict")
+    bypass = bool(verdict.fired) if verdict is not None else False
+    outcome = result.get("elicitation_outcome")
+    return steps, actions, overrides, (str(outcome) if outcome is not None else None), bypass
+
+
 async def _run_case(
-    case: CaseSpec, *, runs: int, offline: bool, factory: ToolFactory, store: Store
+    case: CaseSpec,
+    *,
+    runs: int,
+    offline: bool,
+    factory: ToolFactory,
+    store: Store,
+    planner: bool,
 ) -> ReportCase:
     """Run one case ``runs`` times and reduce the captures into a :class:`ReportCase`."""
     recorder = UsageRecorder()
@@ -235,6 +270,13 @@ async def _run_case(
     latency_s: list[float | None] = []
     invariant_reports: list[InvariantReport] = []
     run_errors: list[str | None] = []
+    # The per-run adaptive facts (MEAS-01), index-aligned with ``outcomes``. An errored run
+    # contributes the empty/neutral value so every list stays the same length.
+    investigation_steps: list[int | None] = []
+    plan_actions: list[list[str]] = []
+    guard_overrides: list[int] = []
+    elicitation_outcomes: list[str | None] = []
+    emergency_bypass: list[bool] = []
     tokens_in = 0
     tokens_out = 0
 
@@ -245,7 +287,7 @@ async def _run_case(
         rows_before = len(await store.read_queue_rows())
         try:
             with seam:
-                captured, latency, result = await _run_once(case, run_index, tools)
+                captured, latency, result = await _run_once(case, run_index, tools, planner)
         except Exception as exc:  # noqa: BLE001 — a run error must not abort the suite
             # A run whose invocation raised is surfaced explicitly (WR-04) rather than being
             # folded into the same ``None`` a legitimate short-circuit uses: its message lands
@@ -258,6 +300,11 @@ async def _run_case(
             run_latency: float | None = None
             run_errors.append(captured["error"])
             invariant_reports.append(_errored_invariant_report(captured["error"]))
+            investigation_steps.append(None)
+            plan_actions.append([])
+            guard_overrides.append(0)
+            elicitation_outcomes.append(None)
+            emergency_bypass.append(False)
         else:
             rows_after = len(await store.read_queue_rows())
             run_latency = latency
@@ -267,6 +314,12 @@ async def _run_case(
                 await evaluate(_evidence(case, result, store, rows_before, rows_after))
             )
             run_errors.append(None)
+            steps, actions, overrides, outcome, bypass = _adaptive_facts(result)
+            investigation_steps.append(steps)
+            plan_actions.append(actions)
+            guard_overrides.append(overrides)
+            elicitation_outcomes.append(outcome)
+            emergency_bypass.append(bypass)
         captures.append(captured)
         latency_s.append(run_latency)
         run_in, run_out = recorder.totals()
@@ -342,6 +395,11 @@ async def _run_case(
         deferrals=deferrals,
         confidence_satisfied=confidence_satisfied,
         run_errors=run_errors,
+        investigation_steps=investigation_steps,
+        plan_actions=plan_actions,
+        guard_overrides=guard_overrides,
+        elicitation_outcomes=elicitation_outcomes,
+        emergency_bypass=emergency_bypass,
     )
 
 
@@ -351,6 +409,7 @@ async def run_eval(
     report_path: str | Path = "evals/results/report.json",
     offline: bool = False,
     case_filter: str | None = None,
+    planner: bool = True,
     *,
     store: Store | None = None,
     tool_factory: ToolFactory | None = None,
@@ -361,6 +420,10 @@ async def run_eval(
     store, so no borrowed subprocess is launched); ``tool_factory`` injects the tool
     mapping (default: the real owned tools, model stubbed offline). Both are seams for
     the proof suite (SOLID: D).
+
+    ``planner`` selects the arm (MEAS-02): ``True`` (default) is the shipped adaptive graph;
+    ``False`` is the baseline arm whose ``retrieve`` goes straight to
+    ``finish_investigation`` — the v1.2 path. The report records the arm in ``planner``.
 
     The exit code is the gate (D-06): non-zero when ANY invariant is violated on ANY run
     or when any case fails accuracy/stability and is not the declared failure. The declared
@@ -378,7 +441,12 @@ async def run_eval(
     async with server_module.store_seam(store, default=InMemoryStore) as resolved_store:
         report_cases = [
             await _run_case(
-                case, runs=runs, offline=offline, factory=factory, store=resolved_store
+                case,
+                runs=runs,
+                offline=offline,
+                factory=factory,
+                store=resolved_store,
+                planner=planner,
             )
             for case in cases
         ]
@@ -395,6 +463,7 @@ async def run_eval(
         runs=runs,
         cases_dir=str(cases_dir),
         provenance=build_provenance(mode),
+        planner=planner,
         cases=report_cases,
         invariants=aggregate_invariants,
         gate=gate,

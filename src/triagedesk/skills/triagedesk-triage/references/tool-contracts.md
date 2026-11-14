@@ -212,6 +212,96 @@ must never reach the commit.
 Compares only scored vitals present on both sides. It never returns a colour and never
 reorders the queue.
 
+## `plan_next_step`
+
+The v1.3 planner substrate. The local model **proposes** the next investigation action and a
+deterministic guard decides; the tool is read-only and is **not yet wired into the shipped graph**,
+so a normal triage run never calls it.
+
+**Arguments** (`InvestigationState`)
+
+```json
+{"investigation": {"complaint": "chest pain", "retrieval_status": "matched",
+                   "candidates": [], "questions": [], "missing_vitals": [],
+                   "has_evidence": false, "step": 0, "budget_left": 3,
+                   "clarification_round": 0, "history": []}}
+```
+
+`retrieval_status` is the matcher's own classification (`matched` / `ambiguous` / `no_candidate`).
+`budget_left` defaults to 3 and is never increased. `history` lists the actions already taken, so
+none is offered twice. An undeclared field is rejected — the state cannot carry a colour, a priority
+or an approval token.
+
+**Returns** (`PlanDecision`)
+
+```json
+{
+  "action": "gather_evidence",
+  "rationale": "no excerpt is in hand yet",
+  "signals": [],
+  "step": 1,
+  "budget_left": 2,
+  "proposed_action": "gather_evidence",
+  "overridden": false,
+  "override_reason": null
+}
+```
+
+The closed action set is exactly `gather_evidence`, `ask_question`, `re_extract` and
+`finish_investigation`. `finish_investigation` is the only exit to the deterministic kernel and the
+default; there is no score, approval or commit action. When the proposal is inadmissible, missing,
+malformed or the budget is spent, the returned `action` is `finish_investigation` with
+`overridden: true` and an `override_reason` naming the cause — so the guard can only narrow what
+happens next. When `finish_investigation` is the only admissible action, the model is not called.
+
+## `request_clarification`
+
+The ninth owned tool: it asks the nurse at most **three** questions **inside** the call and returns a
+typed answer. Read-only — no store, no queue row, no approval token, no colour — and **not yet wired
+into the shipped graph**, so a normal triage run never calls it.
+
+**Arguments**
+
+```json
+{"candidates": ["chest_pain", "acute_shortness_of_breath"]}
+```
+
+`candidates` are closed-set discriminator **ids only**. Each question is derived from the loaded
+discriminator definitions, so you cannot supply question text. At most three are asked; an id outside
+the closed set is skipped.
+
+**Returns** (`ClarificationAnswer`)
+
+```json
+{"outcome": "accepted", "answers": ["crushing central pain, worse on exertion"], "reason": null}
+```
+
+| `outcome` | Meaning | Carries an answer? |
+| --- | --- | --- |
+| `accepted` | the nurse answered | yes — in question order, blanks dropped |
+| `declined` | the nurse declined the question | no |
+| `cancelled` | the client abandoned the call | no |
+| `unavailable` | the client cannot elicit at all | no |
+
+```json
+{"outcome": "declined", "answers": [], "reason": null}
+```
+
+**Stop rules**
+
+- Only `accepted` carries an answer. A `declined` / `cancelled` / `unavailable` result is **not** a
+  negative clinical finding: never record it as a finding, never convert it into a value, never let it
+  change a colour.
+- An answer is an **observation**, not an approval. It may be appended to the case facts; it never
+  advances a case past the clinician's gate and never writes a queue row.
+- Do not retry a decline to get a different answer, and never invent the answer the nurse did not give.
+
+**Round-trip.** The shipped adapter turns the server's mid-call question into a LangGraph
+`interrupt()` of type `mcp_elicitation`; the caller resumes with
+`{"responses": {"clarification": {"action": "accept", "content": {"q1": "…"}}}}` (or
+`{"action": "decline"}`). The approval gate's payload carries `type: "approval"`, so a question is
+never mistaken for a decision.
+
 ## `commit_priority`
 
 **Arguments**

@@ -34,6 +34,7 @@ import urllib.request
 from collections.abc import Iterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -63,6 +64,7 @@ from triagedesk.desk.server import (
     decide,
     form_to_case,
     make_server,
+    render_state,
     serve,
     submit_case,
 )
@@ -1883,3 +1885,206 @@ def test_a_no_candidate_delivery_shows_the_calm_vitals_only_note(
     assert "comes from the recorded vitals alone" in body
     assert BANNER_HEADLINE not in body, "a routine delivery raised the uncertainty alarm"
     assert 'class="priority-card"' in body
+
+
+# ------------------------------------------------- the mid-call question panel (Plan 21-03)
+# No shipped graph node elicits yet (Phase 23 wires the ``plan`` node), so the panel is proved
+# by rendering a paused elicitation payload and by driving the ``/clarify`` route over the
+# loopback server. The tool → adapter → interrupt path is proved in
+# ``tests/test_elicitation_roundtrip.py``.
+def _elicitation_payload() -> dict[str, Any]:
+    """One form request with two derived questions, in the wire shape the adapter emits."""
+    return {
+        "type": "mcp_elicitation",
+        "tool_name": "request_clarification",
+        "requests": [
+            {
+                "key": "clarification",
+                "mode": "form",
+                "message": "one detail would resolve this case",
+                "requested_schema": {
+                    "type": "object",
+                    "properties": {
+                        "q1": {"type": "string", "description": "Ask about: chest_pain"},
+                        "q2": {"type": "string", "description": "Ask about: dyspnoea"},
+                    },
+                },
+            }
+        ],
+    }
+
+
+def _paused_elicitation() -> PausedRun:
+    """A paused run whose interrupt is a QUESTION, not a decision."""
+    return PausedRun(
+        thread_id="thread-question",
+        config={},
+        result={},
+        payload=_elicitation_payload(),
+        paused=True,
+        existed=False,
+    )
+
+
+def test_elicitation_payload_renders_the_question_panel_not_the_gate() -> None:
+    """A question renders its own panel: no gate, no card, no decision control (ELICIT-05)."""
+    body = render_state(paused=_paused_elicitation(), csrf_token="token")
+
+    assert 'id="clarification-form"' in body
+    assert 'action="/clarify"' in body
+    assert "Ask about: chest_pain" in body and "Ask about: dyspnoea" in body
+    assert 'name="answer.q1"' in body and 'name="answer.q2"' in body
+    assert 'class="approval-gate"' not in body
+    assert 'class="priority-card"' not in body
+    for forbidden in (
+        'value="approve"',
+        'value="edit"',
+        'value="dismiss"',
+        'name="decision"',
+        'name="colour"',
+        'name="approver',
+    ):
+        assert forbidden not in body, forbidden
+
+
+def test_question_panel_copy_says_answering_is_not_approval() -> None:
+    """The panel states the one fact a reviewer must not have to infer."""
+    from triagedesk.desk.copy import _QUESTION_FRAMING, _QUESTION_HEADING
+
+    body = render_state(paused=_paused_elicitation(), csrf_token="token")
+
+    assert _QUESTION_HEADING in body
+    assert _QUESTION_FRAMING in body
+    assert "not an approval" in _QUESTION_FRAMING
+
+
+def test_clarify_post_resumes_with_the_answers_and_renders_the_next_state(
+    tmp_path: Path, injected_store: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A POST to ``/clarify`` resumes through the ONE pipeline seam and renders what follows."""
+    seen: list[dict[str, str]] = []
+
+    async def _answer(thread_id: str, form: Mapping[str, str], db_path: Any) -> dict[str, Any]:
+        seen.append({"thread_id": thread_id, **form})
+        gate = {
+            "type": "approval",
+            "case_id": "c-1",
+            "colour": None,
+            "target": None,
+            "triggered_rules": [],
+            "citations": [],
+            "missing_vitals": [],
+            "matched_ids": [],
+            "no_match": False,
+            "second_look": None,
+        }
+        return {"__interrupt__": [SimpleNamespace(value=gate)]}
+
+    monkeypatch.setattr(desk_server, "answer_clarification", _answer)
+    db = tmp_path / "checkpoints.db"
+    with _running_server(db) as server:
+        body = _post(
+            _base(server) + "/clarify",
+            {
+                "thread_id": "thread-question",
+                "request_key": "clarification",
+                "action": "accept",
+                "answer.q1": "crushing",
+                "answer.q2": "on exertion",
+            },
+        )
+
+    assert seen and seen[0]["thread_id"] == "thread-question"
+    assert seen[0]["answer.q1"] == "crushing"
+    # The next state is the approval gate — a question was answered, nothing was approved.
+    assert 'class="approval-gate"' in body
+    assert injected_store.rows == [], "answering a question wrote a queue row"
+
+
+def test_clarify_post_without_the_csrf_token_is_refused(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A drive-by POST to ``/clarify`` cannot answer a question (WR-01)."""
+    db = tmp_path / "checkpoints.db"
+    with _running_server(db) as server:
+        status, body = _post_status(
+            _base(server) + "/clarify",
+            {"thread_id": "thread-question", "action": "accept", "answer.q1": "x"},
+        )
+
+    assert status == 200
+    assert "The case could not be scored." in body
+    assert injected_store.rows == []
+
+
+def test_answering_a_clarification_never_sends_a_decision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``answer_clarification`` sends the wire resume value and a stop policy — never a token."""
+    calls: list[dict[str, Any]] = []
+
+    async def _resume(
+        *, thread_id: str, decision: Any, db_path: Any, respond: Any
+    ) -> dict[str, Any]:
+        calls.append({"decision": decision, "respond": respond})
+        return {}
+
+    monkeypatch.setattr("triagedesk.desk.pipeline.resume_thread", _resume)
+
+    asyncio.run(
+        desk_server.answer_clarification(
+            "thread-question",
+            {
+                "request_key": "clarification",
+                "action": "accept",
+                "answer.q1": "crushing",
+            },
+            tmp_path / "checkpoints.db",
+        )
+    )
+
+    assert calls, "the answer route never reached the ONE resume seam"
+    assert calls[0]["decision"] == {
+        "responses": {
+            "clarification": {"action": "accept", "content": {"q1": "crushing"}}
+        }
+    }
+    # The policy stops at whatever comes next, so an answer can never approve the gate.
+    assert calls[0]["respond"]({"type": "approval", "case_id": "c-1"}) is None
+
+
+def test_a_declined_clarification_sends_no_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A decline (or any unknown action) resumes with the decline shape and no answer."""
+    calls: list[dict[str, Any]] = []
+
+    async def _resume(
+        *, thread_id: str, decision: Any, db_path: Any, respond: Any
+    ) -> dict[str, Any]:
+        calls.append({"decision": decision})
+        return {}
+
+    monkeypatch.setattr("triagedesk.desk.pipeline.resume_thread", _resume)
+
+    asyncio.run(
+        desk_server.answer_clarification(
+            "thread-question",
+            {"request_key": "clarification", "action": "decline", "answer.q1": "ignored"},
+            tmp_path / "checkpoints.db",
+        )
+    )
+
+    assert calls[0]["decision"] == {
+        "responses": {"clarification": {"action": "decline"}}
+    }
+
+
+def test_the_clarification_module_reaches_no_commit_path() -> None:
+    """The question panel's module imports neither the queue writer nor the commit host."""
+    path = DESK_DIR / "clarification.py"
+    source = path.read_text(encoding="utf-8")
+    resolved = set(resolved_imports(source, package_parts_for(path, SRC_ROOT)))
+
+    assert not (resolved & _COMMIT_PATH_MODULES), sorted(resolved & _COMMIT_PATH_MODULES)
+    assert not {name for name in resolved if name.rsplit(".", 1)[-1] in _COMMIT_SYMBOLS}

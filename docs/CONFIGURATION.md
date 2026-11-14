@@ -115,6 +115,8 @@ measured. Every report carries `report_digest` and provenance (model, Ollama ver
 ```bash
 uv run python scripts/emit_evals.py --report evals/results/report.json --write
 uv run python scripts/emit_evals.py --report evals/results/report.json --check
+# §3.3 additionally reads evals/results/report.adaptive.json (the adaptive arm) and
+# evals/results/report.baseline.json (the `--no-planner` arm).
 ```
 
 Both accept `--evals PATH` (default `EVALS.md`); `--check` exits non-zero on any difference. Measured figures live in [`EVALS.md`](../EVALS.md).
