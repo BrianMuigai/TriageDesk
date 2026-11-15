@@ -54,8 +54,10 @@ uv run triagedesk demo --beat failure
 uv run triagedesk demo --online --beat clarify   # live: the agent asks the nurse (see below)
 ```
 
-The bare command runs all five beats in order, prints every owned tool call, and pauses at the
-approval gate. `--beat <name>` runs just that beat; the beat names are exactly those
+The bare command runs all six beats in order, prints every owned tool call, and pauses at the
+approval gate. Offline, the `clarify` beat shows the same E-09 terminal as `failure`, because the
+deterministic planner never asks — the question appears only `--online` (see
+[*Live final: the agent asks the nurse*](#live-final-the-agent-asks-the-nurse-online-clarify-beat)). `--beat <name>` runs just that beat; the beat names are exactly those
 `uv run triagedesk demo --list` prints. Add `--online` only to drive the pulled local model instead of
 the offline golden fixture. Every run opens with ONE mode line, so the screen says which path is live:
 offline prints `mode: offline — golden fixture (no model)`, online prints
@@ -169,8 +171,8 @@ Every line below is transcribed from the shipped runner (`uv run triagedesk demo
 a hand-written mock. Tool calls print as `[tool] <name> <inputs> -> <outputs>`; each beat closes with a
 `--- outcome ---` block carrying the **sourced priority** — colour, target, the matched discriminator
 ids, and the citation(s) behind the colour. Case ids are content-derived, so they are stable per case.
-The run shows **eight of the nine owned tools** — every one except `request_clarification`, which is
-reached only when the planner chooses to ask a question (no storyboard beat does). The beats that
+Offline the run shows **eight of the nine owned tools**; `request_clarification` appears when the online
+planner chooses to ask — the `clarify` beat (see *Live final: the agent asks the nurse* below). The beats that
 reach a named approval (`routine`, `escalation`, `deterioration`) commit, and `refusal` writes no row.
 
 **`routine` (E-01 → GREEN, then delivered).** Six tool calls — `normalize_case`,
@@ -274,6 +276,82 @@ v1.2 the case is a **bounded clarification** — it asks for a capillary glucose
 no colour — rather than a dead-end deferral. The printed colour is the residual vitals-only result shown
 *before* the clarification routes the case to its terminal; the demo does not hide the miss. The recorded
 video predates v1.2 and shows the earlier deferral.
+
+## Live final: the agent asks the nurse (online clarify beat)
+
+The strongest answer to "is this genuinely agentic?" is the agent visibly asking a human mid-run and
+acting on her answer — through MCP, live. The `clarify` beat runs E-09 (*"feeling unwell"*, known
+diabetic) with the local model:
+
+```bash
+# Live, in front of the judges: the presenter types the answer at each `[nurse] q1>` prompt
+# (name the finding, e.g. "low glucose, 2.1 mmol/L"); Enter on every prompt = decline.
+uv run triagedesk demo --online --beat clarify
+
+# Rehearsal / scripted: the answer is supplied up front (repeatable, in question order).
+uv run triagedesk demo --online --beat clarify --answer "low glucose, 2.1 mmol/L"
+```
+
+Excerpt of a real run (2026-11-15, `qwen2.5:1.5b` via Ollama, the `--answer` form; long JSON elided with
+`…`). The model decides whether to ask; temperature 0, so runs repeat, but it is a model — across two
+runs the chosen actions were identical while the model's free-text rationale wording differed:
+
+```
+mode: online — local model qwen2.5:1.5b via Ollama
+[tool] plan_next_step {…"retrieval_status": "ambiguous"…} -> {"action": "ask_question", …, "overridden": false, "proposed_action": "ask_question", …}
+[elicit] request_clarification: One detail would resolve this triage case. Answer what you can — a blank field is an unanswered question, not a finding.
+[elicit] request_clarification asks q1: Ask about: Hypoglycaemia — glucose < 3 mmol/L
+[elicit] request_clarification asks q2: Ask about: Diabetic glucose > 11 with ketonuria
+[elicit] request_clarification asks q3: Ask about: Diabetic glucose > 17 without ketonuria
+[nurse] q1: low glucose, 2.1 mmol/L
+[nurse] q2: (no answer)
+[nurse] q3: (no answer)
+[tool] request_clarification {"candidates": ["hypoglycaemia", "diabetic_hyperglycaemia_ketonuria", "diabetic_hyperglycaemia_no_ketonuria"]} -> [{… "text": "{\n  \"outcome\": \"accepted\",\n  \"answers\": [\n    \"low glucose, 2.1 mmol/L\"\n  ],\n  \"reason\": null\n}", "type": "text"}]
+[tool] match_discriminators {"complaint": "feeling unwell low glucose, 2.1 mmol/L", …} -> {"candidates": ["hypoglycaemia"], "matched_ids": ["hypoglycaemia"], "no_match": false, "questions": [], "retrieval_status": "matched", "warning": null}
+…
+--- outcome ---
+  colour       : RED
+  target       : Immediate
+  matched ids  : ['hypoglycaemia']
+  answers      : ['low glucose, 2.1 mmol/L']
+  elicitation  : accepted
+  citation     : SATS Training Manual 2012 (EMSSA), adult clinical discriminators — SATS Table: Emergency discriminators
+  commit       : committed case 52a30522f6fe4a61 at queue position 1 (RED)
+  …
+  DECLARED     : ORANGE (the eval expectation for the note alone — not compared: this run added a nurse answer)
+```
+
+**How it works.** The run pauses **inside** the `request_clarification` MCP tool call: the online beat
+loads that one tool through the shipped `langchain.mcp` adapter, in process (a real 2026-07-28 MCP
+session, `mcp/adapter.py`'s `with_live_clarification` seam), so the tool returns an input-required round
+and the adapter raises a real `mcp_elicitation` interrupt. The `[elicit]` lines are the server's own
+questions, read from that interrupt (each derived from the discriminator data — the demo authors none).
+The answer resumes the **same** run; the `[tool] request_clarification` line prints after the resume, with
+the tool's `accepted` result.
+
+**Safety rules — what an answer can and cannot do.**
+
+- The answer is an **observation**: it is appended to the complaint text and re-matched by the
+  deterministic matcher. The colour is `score_priority`'s, never the model's or the answer's.
+- The commit still needs the **named approval** — here the demo's synthetic nurse. An answer never
+  answers the approval gate.
+- A decline or a blank answer records nothing. A non-interactive run without `--answer` declines
+  (`[nurse] declined — no answer given; nothing is recorded`) and **never waits** on stdin; the case then
+  ends as the `failure` beat does (GREEN, `SHOWN MISMATCH`, no commit).
+- **Alias-matching caveat.** Matching is alias text from `data/sats_discriminators.yaml`: an answer that
+  names the finding as one of its aliases spells it (for example "low glucose") resolves it; a bare
+  number such as "glucose 2.1" is recorded but matches nothing, so the case stays unresolved and defers.
+  There is no number parsing.
+
+**Why `DECLARED` has no verdict on an answered run.** The declared ORANGE is the eval expectation for the
+note **alone**; this run added an observation the note did not contain, so comparing the two would
+measure a different input. It is printed, not compared. The unanswered `failure` beat keeps its
+`DECLARED` / `MEASURED` pair unchanged.
+
+**The batch eval is unchanged.** `triagedesk eval` has no human to answer, so it keeps the in-process
+tool, which records `unavailable` whenever its planner asks; its sealed reports are unchanged by this
+beat and no new eval numbers are claimed. `--durable` never pauses at a question either — the two-command
+durability story keeps the in-process tool.
 
 ## The desk surface (browser screen recording)
 

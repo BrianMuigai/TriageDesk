@@ -124,7 +124,9 @@ real and digest-stamped · greenfield and disclosed.
    `request_clarification` asks at most three targeted questions **inside the tool call**, with the
    question text derived from the closed discriminator set, and distinguishes `accepted` / `declined` /
    `cancelled` / `unavailable`. A refusal is never converted into a clinical value. MCP **sampling**
-   remains a deliberate omission: the server must not borrow the client's model.
+   remains a deliberate omission: the server must not borrow the client's model. Elicitation is
+   exercised live on the online `demo --beat clarify` and the online desk question panel; the batch
+   eval has no human to answer, so it records `unavailable` (no new measurement is claimed).
 8. **G8 — No multimodal intake.** Vitals and complaint are typed. Voice and a chart/cuff photo are
    the real desk interface and are absent.
 9. **G9 — The desk is a single-machine, loopback-only prototype.** `127.0.0.1`, one shared terminal,
@@ -245,7 +247,7 @@ during submission. Submission itself is complete.
 3. **Re-host the video on YouTube or Vimeo** (G1) — same file, no re-recording.
 
 **Then (capability, in value order):** approver authentication (G4) · online eval and drift (G6) ·
-calibrated confidence (G6) · MCP sampling/elicitation (G7) · multimodal intake (G8) · model routing
+calibrated confidence (G6) · MCP sampling (G7) · multimodal intake (G8) · model routing
 and a real fallback (G10) · vitals-entry units and missing-vital prompting (U4) · accessibility and
 environment work (U5).
 
@@ -266,5 +268,5 @@ never be required to run).
   than any code change still on the list — then by the **pessimistic latency figure** and the
   **video platform**. Honest estimate: **83–93 of 100**, not 100.
 - **State of the art:** already ahead of most on **trust, auditability, and honesty**. The remaining
-  capability distance is **online eval, calibrated confidence, sampling/elicitation, multimodal
+  capability distance is **online eval, calibrated confidence, MCP sampling, multimodal
   intake, and memory** — the last of which is a deliberate omission, not an oversight.

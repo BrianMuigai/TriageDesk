@@ -279,7 +279,8 @@ From [`STATUS.md`](STATUS.md) §7:
 - **Multimodal intake** (voice + cuff/chart photo) — the real desk UX.
 - **Vitals-entry ergonomics** (units, missing-vital prompting).
 - **Approver authentication** (identity is recorded today, not authenticated).
-- **MCP sampling / elicitation** — the current spec's agent↔server negotiation.
+- **MCP sampling** — the current spec's agent↔server negotiation (elicitation ships — see
+  [`docs/DEMO.md`](docs/DEMO.md)).
 
 ## Repository map
 

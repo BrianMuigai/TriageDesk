@@ -378,10 +378,14 @@ The fail-closed rules both surfaces obey:
 - an answered question is **not asked twice**, and a resume cannot duplicate a queue commit (the
   write is idempotent on the case's content hash).
 
-> **Honest scope:** no shipped graph node calls `request_clarification` yet — the `plan` node that
-> will call it is Phase 23. Everything above is the shipped surface contract, proved by tests
+> **Where it runs live:** the graph's question node calls `request_clarification` when the planner
+> chooses to ask. The online demo `clarify` beat ([`DEMO.md`](DEMO.md)) and the online desk question
+> panel ([`DESK.md`](DESK.md)) load the tool through the shipped adapter in process (`mcp/adapter.py`'s
+> `with_live_clarification` seam), so a real `mcp_elicitation` interrupt pauses the run;
+> `triagedesk resume --answer` and the desk's `/clarify` answer it. The batch eval has no human to
+> answer, so it keeps the in-process tool and records `unavailable`. The contract is proved by tests
 > (`tests/test_elicitation_tool.py`, `tests/test_elicitation_roundtrip.py`, `tests/test_durable_cli.py`,
-> `tests/test_desk.py`), not a storyboard step.
+> `tests/test_desk.py`, `tests/test_live_clarification.py`).
 
 ### `commit_priority`
 

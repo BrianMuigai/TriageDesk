@@ -80,6 +80,13 @@ instead of dead-ending — e.g. a vague complaint in a known diabetic shows "Che
 (mmol/L) and ketones". Answer it in the complaint field and resubmit; a second ambiguity defers rather
 than asking again. A clarification never shows a colour, a target or a decision control.
 
+With `--online`, the agent itself may ask mid-run. The page then pauses on a **question panel**: the
+questions the server derived, one answer field each, a "Send answer" button and a "Decline to answer" control
+— and no decision controls. Answering resumes the **same** case: the answer is matched as text, so the
+next screen is the approval gate when it names the finding (e.g. "low glucose" — a bare number such as
+"2.1" is not matched, and the case then stays unresolved). Declining adds nothing, and nothing is
+committed either way until a named nurse decides at the gate. Offline the desk never asks.
+
 A complaint that names **no** discriminator at all (a routine review, a sore throat) is not a
 clarification: the recorded vitals are the complete SATS basis, so the case is delivered normally with
 its baseline citation.
