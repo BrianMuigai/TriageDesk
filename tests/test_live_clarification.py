@@ -14,7 +14,9 @@ a non-interactive stdin, and the offline planner never asks.
 
 from __future__ import annotations
 
+import asyncio
 import io
+import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -22,15 +24,25 @@ from typing import Any
 import pytest
 
 from conftest import async_return
+from test_desk import _base, _form_from_case, _post
+from test_desk_online import _running_server
 from test_plan_audit import _always_proposes
+from triagedesk.cli import main
 from triagedesk.core import coverage
-from triagedesk.core.schema import ExtractionResult, InterruptType, PlanAction
+from triagedesk.core.schema import CaseInput, ExtractionResult, InterruptType, PlanAction
 from triagedesk.demo.run import run_demo
-from triagedesk.durable import approval_decision, invoke_graph
+from triagedesk.desk import extraction as extraction_module
+from triagedesk.durable import (
+    DurableError,
+    approval_decision,
+    invoke_graph,
+    resume_thread,
+    run_to_gate,
+)
 from triagedesk.evals.case import CaseSpec, load_cases
-from triagedesk.evals.tools import build_tools
+from triagedesk.evals.tools import build_tools, offline_tools
 from triagedesk.evals.usage import UsageRecorder
-from triagedesk.graph.build import build_graph, in_memory_checkpointer
+from triagedesk.graph.build import build_graph, checkpointed_graph, in_memory_checkpointer
 from triagedesk.mcp import server as server_module
 from triagedesk.mcp.adapter import with_live_clarification
 from triagedesk.mcp.elicitation import (
@@ -307,3 +319,182 @@ async def test_the_offline_clarify_beat_never_asks(capsys: pytest.CaptureFixture
     assert await run_demo(beats=["clarify"], store=InMemoryStore()) == 0
 
     assert "[elicit]" not in capsys.readouterr().out
+
+
+# ------------------------------------------------------------------ the CLI demo flag
+
+
+def test_the_cli_answer_flag_drives_the_online_clarify_beat(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``demo --online --beat clarify --answer …`` asks, takes the answer and commits."""
+    _stub_model_that_asks(monkeypatch, _e09())
+
+    code = main(["demo", "--online", "--beat", "clarify", "--answer", ANSWER])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    lines = out.splitlines()
+    assert any(line.startswith("[elicit]") for line in lines), out
+    assert f"[nurse] {answer_field(1)}: {ANSWER}" in out
+    assert any(line.startswith("[tool] request_clarification") for line in lines)
+    assert any("commit" in line and "committed" in line for line in lines), out
+
+
+def test_the_cli_demo_without_an_answer_declines_on_a_non_interactive_stdin(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """No ``--answer`` and no terminal: one decline line, no commit, exit 0 — never a wait."""
+    _stub_model_that_asks(monkeypatch, _e09())
+
+    code = main(["demo", "--online", "--beat", "clarify"])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "[nurse] declined" in out
+    assert "committed" not in out
+
+
+# ------------------------------------------------- resume reaches the real tool
+
+
+def test_cli_resume_answers_a_paused_question_through_the_real_tool(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    injected_store: Any,
+) -> None:
+    """A durable question resumed by ``triagedesk resume --answer`` records the answer.
+
+    LangGraph re-executes the interrupted node on resume, so only an adapter-backed tool can
+    consume the answer; the in-process tool would answer ``unavailable`` and drop it.
+    """
+    case = _e09()
+    _stub_model_that_asks(monkeypatch, case)
+    db = tmp_path / "checkpoints.db"
+    tools = with_live_clarification(build_tools(case, offline=False, recorder=UsageRecorder()))
+
+    paused = asyncio.run(run_to_gate(tools, raw_note=case.note, case=case.case, db_path=db))
+
+    assert paused.paused and is_elicitation(paused.payload), paused.payload
+    code = main(["resume", "--thread-id", paused.thread_id, "--answer", ANSWER, "--db", str(db)])
+
+    assert code == 0
+    assert "paused again at the approval gate" in capsys.readouterr().err
+
+    async def state() -> Mapping[str, Any]:
+        async with checkpointed_graph(offline_tools(CaseInput(), UsageRecorder()), db) as graph:
+            snapshot = await graph.aget_state(paused.config)
+            return dict(snapshot.values)
+
+    values = asyncio.run(state())
+    assert values["nurse_answers"] == [ANSWER]
+    assert injected_store.rows == []
+
+
+def test_resume_thread_applies_the_injected_tool_decorator(tmp_path: Path) -> None:
+    """``wrap_tools`` is applied to the resume map once, before the thread is looked up."""
+    calls: list[Mapping[str, Any]] = []
+
+    def spy(tools: dict[str, Any]) -> dict[str, Any]:
+        calls.append(tools)
+        return tools
+
+    with pytest.raises(DurableError):
+        asyncio.run(
+            resume_thread(
+                thread_id="no-such-thread",
+                db_path=tmp_path / "checkpoints.db",
+                respond=lambda _payload: None,
+                wrap_tools=spy,
+            )
+        )
+
+    assert len(calls) == 1
+    assert "request_clarification" in calls[0]
+
+
+# --------------------------------------------------------------- the online desk
+
+# A complaint that is ambiguous on its own (two diabetic candidates), so the planner may ask.
+DESK_COMPLAINT = "known diabetic, feeling unwell"
+
+
+def _desk_case() -> CaseInput:
+    """The E-09 fixture vitals with the ambiguous desk complaint."""
+    return _e09().case.model_copy(update={"complaint": DESK_COMPLAINT})
+
+
+def _stub_desk_model(monkeypatch: pytest.MonkeyPatch, case: CaseInput) -> None:
+    """Stub the desk's extraction seam and the planner's model; the guard stays real.
+
+    The desk server imports ``extract_complaint`` by name, so the stub goes one level down at
+    the desk's ONE model seam (``desk.extraction.extract_async``) — the same patch site the
+    desk-online suite uses — and the real closed-set filter still runs over it.
+    """
+    monkeypatch.setattr(
+        extraction_module,
+        "extract_async",
+        async_return(ExtractionResult(case=case, matched_discriminator_ids=[])),
+    )
+    monkeypatch.setattr(
+        server_module, "propose_plan_async", _always_proposes(PlanAction.ASK_QUESTION)
+    )
+
+
+def _hidden(body: str, name: str) -> str:
+    """The value of the hidden *name* field the question panel carries."""
+    match = re.search(rf'name="{name}" value="([^"]+)"', body)
+    assert match, f"the question panel carries no hidden {name!r} field"
+    return match.group(1)
+
+
+def _asks_on_the_desk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, action: str
+) -> str:
+    """Submit the ambiguous desk case online, see the question, POST /clarify; return the body."""
+    case = _desk_case()
+    ambiguous = asyncio.run(server_module.match_discriminators(DESK_COMPLAINT, ""))
+    assert ambiguous.retrieval_status == "ambiguous", ambiguous
+    assert asyncio.run(server_module.match_discriminators(ANSWER, "")).matched_ids
+    _stub_desk_model(monkeypatch, case)
+
+    with _running_server(tmp_path / "checkpoints.db", online=True) as server:
+        base = _base(server)
+        asked = _post(base + "/case", _form_from_case(case))
+        assert 'class="clarification-panel"' in asked, asked
+        assert 'action="/clarify"' in asked
+        assert 'class="approval-gate"' not in asked
+        form = {
+            "thread_id": _hidden(asked, "thread_id"),
+            "request_key": _hidden(asked, "request_key"),
+            "action": action,
+            f"answer.{answer_field(1)}": ANSWER,
+        }
+        return _post(base + "/clarify", form)
+
+
+def test_the_online_desk_answer_resumes_the_same_run_to_the_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, injected_store: Any
+) -> None:
+    """Answering the panel re-matches, scores and pauses at the gate — answering is not approving.
+
+    The resume path runs no model: the re-match finds the answer's finding, the offline
+    planner finishes, the scorer colours it and confidence delivers, so the next screen is the
+    approval gate. Deterministic — a missing gate is a regression, not flakiness.
+    """
+    body = _asks_on_the_desk(tmp_path, monkeypatch, "accept")
+
+    assert 'class="approval-gate"' in body, body
+    assert 'action="/clarify"' not in body
+    assert injected_store.rows == []
+
+
+def test_the_online_desk_decline_reaches_no_gate_and_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, injected_store: Any
+) -> None:
+    """Declining adds nothing: the case stays unresolved (no gate) and no row is written."""
+    body = _asks_on_the_desk(tmp_path, monkeypatch, "decline")
+
+    assert 'class="approval-gate"' not in body
+    assert injected_store.rows == []

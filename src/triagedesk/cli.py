@@ -8,7 +8,9 @@ integer exit code is returned from ``main``, which the console script passes to 
 
 No graph, store or decision-shape logic lives here: the durable decision rule is the ONE
 ``durable.approval_decision`` and the resume mechanism is the ONE
-``durable.resume_thread`` (SOLID: S).
+``durable.resume_thread`` (SOLID: S); ``resume`` injects the adapter seam
+(``mcp.adapter.with_live_clarification``) so ``--answer`` reaches the real
+``request_clarification`` tool when a paused question node re-executes.
 
 ``main``'s FIRST statement is ``observability.offline.harden_offline`` — the ONE place the
 transitive tracer environment is neutralised and asserted off, so no command egresses
@@ -59,33 +61,29 @@ def _resume_policy(args: argparse.Namespace) -> Any:
       they were asked; with no ``--answer`` it is **declined** — the documented default,
       because a refusal is never converted into a value;
     * an **approval** is answered with ``--decision`` through the ONE
-      ``durable.approval_decision`` (which rejects a blank identity or a missing colour), and a
-      missing ``--decision`` names the flag rather than inventing a decision.
+      ``durable.approval_decision`` (which rejects a blank identity or a missing colour). When
+      the approval is the PENDING payload, a missing ``--decision`` names the flag rather than
+      inventing a decision; when this resume has just answered a question and the run reached
+      the gate, a missing ``--decision`` leaves the gate paused (``None``) so ``main`` reports
+      "paused again at the approval gate" — answering is never approving (ELICIT-05).
 
     Both imports are lazy: this function runs inside ``main`` after ``harden_offline()``, so no
     transitive dependency can prime a tracer from the environment at import time (D7-03).
     """
     from triagedesk.durable import DurableError, approval_decision
-    from triagedesk.mcp.elicitation import (
-        CLARIFICATION_REQUEST_KEY,
-        accept_responses,
-        answer_fields,
-        answers_in_order,
-        decline_responses,
-        form_requests,
-        is_elicitation,
-    )
+    from triagedesk.mcp.elicitation import is_elicitation, resume_with_answers
+
+    answered_a_question = False
 
     def policy(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
+        nonlocal answered_a_question
         if is_elicitation(payload):
-            requests = form_requests(payload)
-            request = requests[0] if requests else {}
-            key = str(request.get("key") or CLARIFICATION_REQUEST_KEY)
-            if args.answer and request:
-                return accept_responses(
-                    key, answers_in_order(answer_fields(request), args.answer)
-                )
-            return decline_responses(key)
+            answered_a_question = True
+            # The ONE answers->resume rule (shared with the demo): an all-blank or absent
+            # ``--answer`` declines, so no empty reply is ever sent as an acceptance.
+            return resume_with_answers(payload, args.answer or [])
+        if decision is None and answered_a_question:
+            return None  # the gate this answer revealed stays paused for a named decision
         if decision is None:
             raise DurableError(
                 "--decision is required when the paused case is an approval gate"
@@ -165,6 +163,18 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="list_beats",
         action="store_true",
         help="list the storyboard beat names and labels, then exit",
+    )
+    demo_parser.add_argument(
+        "--answer",
+        dest="answers",
+        action="append",
+        default=None,
+        metavar="ANSWER",
+        help=(
+            "one answer per question the agent asks, in question order (repeatable); "
+            "online only — with none, an interactive terminal is asked and anything else "
+            "declines"
+        ),
     )
     demo_parser.add_argument(
         "--fixture", default=DEFAULT_CASES_DIR, help="directory of case fixtures"
@@ -331,9 +341,14 @@ def main(argv: list[str] | None = None) -> int:
                 fixture_dir=args.fixture,
                 durable=args.durable,
                 db_path=args.db,
+                answers=args.answers,
             )
         )
     if args.command == "resume":
+        # A paused question node re-executes on resume; only the adapter-backed tool consumes
+        # ``--answer``, so the seam is injected (imported lazily, after ``harden_offline()``).
+        from triagedesk.mcp.adapter import with_live_clarification
+
         try:
             result = asyncio.run(
                 resume_thread(
@@ -341,6 +356,7 @@ def main(argv: list[str] | None = None) -> int:
                     decision=None,
                     db_path=args.db or CHECKPOINTS_DB_PATH,
                     respond=_resume_policy(args),
+                    wrap_tools=with_live_clarification,
                 )
             )
         except (ValueError, RuntimeError, sqlite3.Error, ExceptionGroup) as exc:

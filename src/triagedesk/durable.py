@@ -299,6 +299,7 @@ async def resume_thread(
     decision: Mapping[str, Any] | None = None,
     db_path: str | Path,
     respond: RespondPolicy | None = None,
+    wrap_tools: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> Mapping[str, Any]:
     """Resume a durable thread from a surface — the ONE place the resume tools are built.
 
@@ -312,11 +313,19 @@ async def resume_thread(
     *decision* is the historical pre-built resume value; *respond* is the policy form the CLI
     and the desk use to answer whichever payload is pending. Both are forwarded to the ONE
     ``resume_paused``.
+
+    *wrap_tools* is an injected tool-map decorator (SOLID: D). LangGraph RE-EXECUTES the
+    interrupted node on resume, so a surface that may have paused at a question passes the
+    adapter seam here: the re-executed question node then reaches the real MCP tool, which
+    consumes the answer — the in-process tool would answer ``unavailable`` and silently drop
+    it. This module names no MCP module (the layering ban applies here); the seam is injected.
     """
     from triagedesk.evals.tools import offline_tools
     from triagedesk.evals.usage import UsageRecorder
 
     tools = offline_tools(CaseInput(), UsageRecorder())
+    if wrap_tools is not None:
+        tools = wrap_tools(tools)
     return await resume_paused(
         tools,
         thread_id=thread_id,

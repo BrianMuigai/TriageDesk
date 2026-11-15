@@ -34,12 +34,19 @@ def _tools_for(case: CaseInput, extraction: ExtractionResult | None = None) -> d
     model-free: the offline mapping returns the case's own extraction while the matcher,
     scorer, retrieval, confidence and the gated commit all run for real. When *extraction*
     is supplied (the online mode), the same mapping is built with that already-merged
-    extraction returned by ``normalize_case`` — one seam, no second code path, and the six
+    extraction returned by ``normalize_case`` — one seam, no second code path, and the eight
     other tools are identical (SOLID: L).
+
+    Online, the model planner may choose to ask the nurse, so the map is wrapped with the
+    adapter seam (``mcp.adapter.with_live_clarification``): the question pauses inside the
+    real MCP tool and the page renders the question panel. Offline the deterministic planner
+    never asks, so the offline map is unchanged.
     """
     recorder = UsageRecorder()
     if extraction is not None:
-        return online_tools(case, extraction, recorder)
+        from triagedesk.mcp.adapter import with_live_clarification
+
+        return with_live_clarification(online_tools(case, extraction, recorder))
     return offline_tools(case, recorder)
 
 
@@ -103,7 +110,13 @@ async def answer_clarification(
     (the approval gate) is left PAUSED for the handler to render, so answering a question can
     never approve a priority. The bridge re-implements no identity check, no scoring and no
     queue write.
+
+    ``/clarify`` is reachable only for a paused question, and LangGraph re-executes the
+    question node on resume: only the adapter-backed tool consumes the answer, so the seam is
+    injected into the resume (``wrap_tools``). It loads nothing unless that tool is called.
     """
+    from triagedesk.mcp.adapter import with_live_clarification
+
     request_key = str(form.get("request_key") or CLARIFICATION_REQUEST_KEY)
     if str(form.get("action") or "").strip() == "accept":
         resume = accept_responses(request_key, answers_from_form(form))
@@ -114,4 +127,5 @@ async def answer_clarification(
         decision=resume,
         db_path=db_path,
         respond=lambda _payload: None,
+        wrap_tools=with_live_clarification,
     )

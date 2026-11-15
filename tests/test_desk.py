@@ -2024,9 +2024,9 @@ def test_answering_a_clarification_never_sends_a_decision(
     calls: list[dict[str, Any]] = []
 
     async def _resume(
-        *, thread_id: str, decision: Any, db_path: Any, respond: Any
+        *, thread_id: str, decision: Any, db_path: Any, respond: Any, wrap_tools: Any = None
     ) -> dict[str, Any]:
-        calls.append({"decision": decision, "respond": respond})
+        calls.append({"decision": decision, "respond": respond, "wrap_tools": wrap_tools})
         return {}
 
     monkeypatch.setattr("triagedesk.desk.pipeline.resume_thread", _resume)
@@ -2051,6 +2051,10 @@ def test_answering_a_clarification_never_sends_a_decision(
     }
     # The policy stops at whatever comes next, so an answer can never approve the gate.
     assert calls[0]["respond"]({"type": "approval", "case_id": "c-1"}) is None
+    # The re-executed question node must reach the real tool, so the seam is injected.
+    from triagedesk.mcp.adapter import with_live_clarification
+
+    assert calls[0]["wrap_tools"] is with_live_clarification
 
 
 def test_a_declined_clarification_sends_no_content(
@@ -2060,7 +2064,7 @@ def test_a_declined_clarification_sends_no_content(
     calls: list[dict[str, Any]] = []
 
     async def _resume(
-        *, thread_id: str, decision: Any, db_path: Any, respond: Any
+        *, thread_id: str, decision: Any, db_path: Any, respond: Any, wrap_tools: Any = None
     ) -> dict[str, Any]:
         calls.append({"decision": decision})
         return {}
