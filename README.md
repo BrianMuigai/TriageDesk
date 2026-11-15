@@ -88,7 +88,7 @@ The four safety invariants are unchanged — retrieval informs coverage, never a
 | Security & hardening | ✅ Documented → [`SECURITY.md`](SECURITY.md) |
 | MCP server / agent / evals | ✅ Built & tested → [`tests/`](tests) |
 | Evaluation (measured) | ✅ Run → [`EVALS.md`](EVALS.md) |
-| Demo video | 🎬 Uploaded (2:28) — Google Drive, during submission → [`docs/DEMO.md`](docs/DEMO.md) |
+| Demo video | 🎬 Re-recorded (2:29) on the local model with live MCP elicitation; the 2:28 v1.0 recording was uploaded to Google Drive during submission → [`docs/DEMO.md`](docs/DEMO.md) |
 | Status & gap analysis | 🟡 Honest self-assessment → [`STATUS.md`](STATUS.md) |
 | Clinician interview | 📋 Prepared, **unattested** → [`docs/CLINICIAN-INTERVIEW.md`](docs/CLINICIAN-INTERVIEW.md) |
 
@@ -100,9 +100,10 @@ fit-to-desk claim is scoped to what was built and measured. The interview is pre
 improvised — eight questions, drafted responses, and the module that must make each answer true, in
 [`docs/CLINICIAN-INTERVIEW.md`](docs/CLINICIAN-INTERVIEW.md). If a review is arranged, that page is run,
 its attestation is signed, and an attributed quote (name/role/date, with consent) is added to
-[`EVALS.md`](EVALS.md) §7 — nothing is claimed until it is. The demo video is **recorded**
-(`docs/assets/triagedesk-demo.mp4`, a 2:28 screen recording of the shipped CLI with the tool calls on
-screen) and was **uploaded to Google Drive during submission**
+[`EVALS.md`](EVALS.md) §7 — nothing is claimed until it is. The demo video in the repository
+(`docs/assets/triagedesk-demo.mp4`) is a **2:29 re-recording** of the shipped CLI on the local model,
+with the tool calls on screen and live MCP elicitation (not yet uploaded); the earlier 2:28 v1.0
+recording is what was **uploaded to Google Drive during submission**
 ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3); runbook in
 [`docs/DEMO.md`](docs/DEMO.md)). [`EVALS.md`](EVALS.md) is the single source for every number. A full
 honest gap analysis — UX considerations and state-of-the-art gaps — is in [`STATUS.md`](STATUS.md).

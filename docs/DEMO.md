@@ -1,23 +1,26 @@
 # DEMO — TriageDesk submission video runbook
 
 > **One unedited screen recording, tool calls on screen, no slides.** The submission video is a real
-> screen recording of the shipped CLI — every line is what `uv run triagedesk demo` prints. It is
-> **2:28** (`docs/assets/triagedesk-demo.mp4`, recorded before v1.3): the seven owned tools' calls
-> across the five beats, the measured evaluation, and the declared E-09 failure. The current runner
-> also shows `plan_next_step` (see *Expected on-screen output per beat*). It is reproducible from the
-> repository (see *Rendering the video* below).
+> screen recording of the shipped CLI — every line is what `uv run triagedesk demo` prints. The
+> repository file (`docs/assets/triagedesk-demo.mp4`) is a **2:29** re-recording (2026-11-15) on the
+> local model `qwen2.5:1.5b`: the online `escalation` beat and the online `clarify` beat with **live MCP
+> elicitation** (the agent stops inside `request_clarification`; the answer is typed at the real
+> `[nurse] q1>` prompt), then the `refusal` beat and the declared E-09 `failure` on the offline golden
+> fixture — each run's mode line says which — and the measured evaluation. The calls of **8** distinct
+> owned tools are on screen. It is reproducible from the repository (see *Rendering the video* below).
 >
-> **Upload status.** The video was uploaded to Google Drive during submission
-> ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)). The brief names
-> YouTube or Vimeo, so re-hosting there remains a platform caveat (`STATUS.md` G1,
-> `docs/REQUIREMENTS.md` G-9) — and the Drive folder should be confirmed viewable by anyone with the
-> link. This runbook documents the recording script.
+> **Upload status.** The earlier **2:28 v1.0 recording** was uploaded to Google Drive during submission
+> ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)). The 2:29
+> re-recording is **not yet uploaded**. The brief names YouTube or Vimeo, so hosting the re-recording
+> there remains the platform step (`STATUS.md` G1, `docs/REQUIREMENTS.md` G-9) — and the Drive folder
+> should be confirmed viewable by anyone with the link. This runbook documents the recording script.
 >
 > **Record against the current state (this commit), not the frozen `v1.0-submission` tag.** The
 > Durable-mode and desk sections below document v1.1+ behaviour — `--durable`/`resume`/`replay`,
 > `desk`, and v1.2's three-way coverage (delivered / clarified / deferred) — none of which exists at
-> `v1.0-submission`, whose CLI exposes only `eval` and `demo`. **The uploaded 2:28 recording predates
-> v1.2**: it shows the earlier `no_match` deferral on the routine and deterioration beats. The beats
+> `v1.0-submission`, whose CLI exposes only `eval` and `demo`. **The 2:28 v1.0 recording uploaded to
+> Google Drive predates v1.2**: it shows the earlier `no_match` deferral on the routine and
+> deterioration beats (the 2:29 re-recording plays neither). The beats
 > below are transcribed from the shipped v1.2 runner; where they differ from the recording, the text
 > says so explicitly. The frozen tag remains the reference for the **freeze protocol**
 > ([`ROADMAP.md`](ROADMAP.md) §Freeze), not for this runbook's commands. The canonical storyboard is
@@ -90,11 +93,18 @@ bash docs/render-demo.sh
 ```
 
 - [`scripts/record_demo.py`](../scripts/record_demo.py) drives a real `bash` over a pty, types each
-  `--beat` command, and captures the real output with real timings. It writes the asciicast **and** the
-  caption track, deriving each narration line's timing from where that beat's output actually appears.
-  The beat **names** come from the ONE manifest, `demo/storyboard.yaml`, so the video cannot name a beat
-  the CLI does not expose.
-- `agg` renders the cast to mp4; `ffmpeg` pads a caption band and burns `docs/assets/demo-captions.ass`.
+  `--beat` command, and captures the real output with real timings. The `escalation` and `clarify` beats
+  run **online on the real local model** (Ollama up, model warm — timings vary run to run); the recorder
+  waits for each run to return to the prompt, and in `clarify` types the nurse's answer only at the real
+  `[nurse] q1>` prompt (Enter at each further prompt; never `--answer`) — a run in which the model asks
+  nothing aborts the recording.
+- It writes the asciicast **and** the caption track, timing each narration line from where the output it
+  narrates appears — and refusing to burn one without it: a missing marker or mode line, a traceback or
+  warning on screen, or a run that does not return in time aborts before any video is rendered. The beat
+  **names** come from the ONE manifest, `demo/storyboard.yaml`; the projection caption's figures are
+  computed from `evals/results/report.json`.
+- `agg` renders the cast to mp4 and **never compresses idle time** (its idle limit is the duration
+  limit); `ffmpeg` pads a caption band and burns `docs/assets/demo-captions.ass`.
 - The script fails if the result is **≥ 3 min**.
 
 It needs `agg` on `PATH` (`cargo install --git https://github.com/asciinema/agg`) plus `ffmpeg` and the
@@ -193,8 +203,9 @@ reach a named approval (`routine`, `escalation`, `deterioration`) commit, and `r
 ```
 
 `match_discriminators` reports `retrieval_status: no_candidate` for "sore throat": no discriminator
-applies, so the case is **not** deferred. (The recorded 2:28 video predates v1.2 and shows the earlier
-deferral here; the shipped behaviour is the delivery above.)
+applies, so the case is **not** deferred. (The 2:28 v1.0 video uploaded to Google Drive predates v1.2
+and shows the earlier deferral here; the 2:29 re-recording does not play the routine beat. The shipped
+behaviour is the delivery above.)
 
 **`escalation` (E-02 → ORANGE, committed under the named nurse).** The same six calls plus
 `commit_priority` — and three citations:
@@ -234,8 +245,9 @@ deferral here; the shipped behaviour is the delivery above.)
 ```
 
 The `second look` line carries the deterioration facts and no colour of its own: the flag never
-re-classifies, and the commit happens only through the named approval. (The recorded video predates
-v1.2 and shows the earlier deferral here.)
+re-classifies, and the commit happens only through the named approval. (The 2:28 v1.0 Drive
+recording predates v1.2 and shows the earlier deferral here; the re-recording does not play this
+beat.)
 
 **`refusal` (the climax).** The same E-02 priority is scored, but the gate is resumed with a `dismiss`
 naming **no approver**, so the gated commit refuses and writes nothing — the refusal is read from the
@@ -274,8 +286,9 @@ measured outcome on screen:
 Narrate the failure while it is on screen: the vague complaint's discriminator is **not retrieved**. Since
 v1.2 the case is a **bounded clarification** — it asks for a capillary glucose and ketones and delivers
 no colour — rather than a dead-end deferral. The printed colour is the residual vitals-only result shown
-*before* the clarification routes the case to its terminal; the demo does not hide the miss. The recorded
-video predates v1.2 and shows the earlier deferral.
+*before* the clarification routes the case to its terminal; the demo does not hide the miss. The 2:28 v1.0
+Drive recording predates v1.2 and shows the earlier deferral; the 2:29 re-recording shows the output
+above.
 
 ## Live final: the agent asks the nurse (online clarify beat)
 
@@ -415,8 +428,8 @@ The video must be as honest as the docs. Point the close at what the repository 
   published SATS rules, not clinician adjudication. **No** triage nurse/clinician review was obtained as
   of 2026-10-13. The interview is prepared but unattested
   ([`CLINICIAN-INTERVIEW.md`](CLINICIAN-INTERVIEW.md)).
-- The video is recorded (`docs/assets/triagedesk-demo.mp4`, 2:28) and was **uploaded to Google Drive
-  during submission** (folder link above). The brief's YouTube/Vimeo requirement is the residual
-  platform caveat.
+- The repository video (`docs/assets/triagedesk-demo.mp4`) is the 2:29 re-recording on the local
+  model, not yet uploaded; the 2:28 v1.0 recording was **uploaded to Google Drive during submission**
+  (folder link above). The brief's YouTube/Vimeo requirement is the residual platform caveat.
 
 Record the close over the running terminal, not over slides: open source, offline, synthetic.

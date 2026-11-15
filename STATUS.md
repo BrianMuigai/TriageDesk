@@ -68,7 +68,7 @@ Not counted, because the brief makes it optional: a frontier-model comparison on
 | Requirement | Status |
 | --- | --- |
 | Public repo + OSI licence + README that runs in one command | ✅ public, Apache-2.0; `uv run triagedesk demo` (`uv run` syncs from the committed `uv.lock`, so there is no separate install step) |
-| Demo video < 3 min, uploaded publicly | 🟡 **delivered** — `docs/assets/triagedesk-demo.mp4` (2:28, measured) is a real unedited screen recording with the seven owned tools' calls on screen (recorded before v1.3; the server now ships nine — [`ARCHITECTURE.md`](ARCHITECTURE.md) §4), the measured evaluation, and the declared E-09 failure. It was **uploaded to Google Drive during submission** ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)). The brief names YouTube/Vimeo, so the hosting platform is the residual caveat (G1) |
+| Demo video < 3 min, uploaded publicly | 🟡 **delivered** — `docs/assets/triagedesk-demo.mp4` (2:29, measured) is a real unedited screen recording, re-recorded on the local model: the online beats plus live MCP elicitation, the calls of 8 distinct owned tools on screen (the server ships nine — [`ARCHITECTURE.md`](ARCHITECTURE.md) §4), the measured evaluation, and the declared E-09 failure. The earlier 2:28 v1.0 recording was **uploaded to Google Drive during submission** ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)); the re-recording is not yet uploaded. The brief names YouTube/Vimeo, so the hosting platform is the residual caveat (G1) |
 | ~300-word description | ✅ `DESCRIPTION.md`, within ±10% of 300 words, guarded by `tests/test_docs_final.py` |
 | `ARCHITECTURE.md` — one page | ✅ one page, guarded (≤ 700 words and ≤ 110 lines) by the same test |
 | `EVALS.md` — 8+ tasks, plus one failure not fixed and what you would try next | ✅ 24 cases; E-09 declared with a "what we would try next" list |
@@ -85,7 +85,7 @@ of the video, not its content or its existence.
 | **Fit to the triage desk** | 20 | **12–16** | A real desk surface now ships (acuity-ordered read-only waiting room, keyboard-first vitals, real approve/edit/dismiss gate, background precompute) — but **no clinician or triage-nurse review** (G2), it is a single-machine loopback prototype (G9), English-only, and model latency is not yet "seconds" on a loaded machine (G3) |
 | Evaluation & reliability | 15 | **13–14** | Measured and honest: 24 cases × 3 runs, safety invariants on every run, one declared failure, no gate failure, variation and cost reported; coverage rose to 48/60 delivered with 0 deferrals, and E-11 is 9/9 stable. Docked for: E-09 still unresolved as a colour, the p95 tail, and no online eval or drift monitoring (G6) |
 | Defensibility | 10 | **9–10** | Deterministic SATS scorer, exact citations, hash-chained audit, known cost per run. Nothing material is missing |
-| Demo | 5 | **4–5** | Complete 2:28 recording, tool calls on screen, the measured eval and the declared failure shown. Docked only if the brief's YouTube/Vimeo wording is enforced (G1) |
+| Demo | 5 | **4–5** | Complete 2:29 re-recording on the local model: tool calls on screen, live MCP elicitation, the measured eval and the declared failure shown (the Drive upload is the 2:28 v1.0 recording). Docked only if the brief's YouTube/Vimeo wording is enforced (G1) |
 | **Total** | **100** | **83–93** | **estimate** — the band is wide because three criteria turn on facts outside the repository (clinician access, hosting platform, a quiet machine) |
 
 ## 4. Instant disqualifiers — none ✅
@@ -106,9 +106,9 @@ real and digest-stamped · greenfield and disclosed.
    24-case run; the deterministic scorer is instant, so local model extraction dominates. The E-11
    repeat (9 runs) measured 11.1–15.9 s, so the tail depends on host load. Treat p95 as the honest
    worst case; a quiet-machine re-run and a faster extraction path are the next steps.
-3. **G1 — Demo hosting platform.** The video is delivered and uploaded, but to Google Drive. The
-   brief names YouTube/Vimeo. Re-hosting the existing 2:28 file there closes it; the content does
-   not change. *(Residual caveat, not a blocker.)*
+3. **G1 — Demo hosting platform.** The video is delivered and uploaded, but to Google Drive (the
+   2:28 v1.0 recording). The brief names YouTube/Vimeo. Uploading the 2:29 re-recording there closes
+   it. *(Residual caveat, not a blocker.)*
 4. **G4 — Approver identity is recorded, not authenticated.** The gate captures `approved_by` and
    `role`; it cannot prove who typed them. An authenticated approver (SSO/badge) is a production
    requirement, declared in [`SECURITY.md`](SECURITY.md) T-8.
@@ -235,8 +235,9 @@ that half-work").
 
 ## 8. Action list
 
-**Delivered (no longer blocking):** the demo video is recorded (2:28) and uploaded to Google Drive
-during submission. Submission itself is complete.
+**Delivered (no longer blocking):** the demo video is recorded and uploaded to Google Drive during
+submission (the 2:28 v1.0 recording); the repository now holds a 2:29 re-recording on the local model
+with live MCP elicitation. Submission itself is complete.
 
 **Top score movers, in order:**
 1. **One clinician or triage-nurse review** (G2) — run
@@ -244,7 +245,7 @@ during submission. Submission itself is complete.
    attributed quote in `EVALS.md` §7 and the README. The largest single gain available.
 2. **A quiet-machine latency re-run** (G3) — re-run the measured evaluation on an idle host and let
    `scripts/emit_evals.py` republish the figures. The current number is pessimistic.
-3. **Re-host the video on YouTube or Vimeo** (G1) — same file, no re-recording.
+3. **Host the video on YouTube or Vimeo** (G1) — upload the 2:29 re-recording (a user action).
 
 **Then (capability, in value order):** approver authentication (G4) · online eval and drift (G6) ·
 calibrated confidence (G6) · MCP sampling (G7) · multimodal intake (G8) · model routing
