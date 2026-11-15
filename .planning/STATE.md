@@ -241,7 +241,7 @@ None yet.
 | 261115-jlr | Live MCP elicitation in the demo clarify beat and online desk; resume answers reach the real tool | 2026-11-15 | 413b2f4 | Verified | [261115-jlr-live-mcp-elicitation-in-the-demo-and-des](./quick/261115-jlr-live-mcp-elicitation-in-the-demo-and-des/) |
 | 14 | Demo renders adapter-backed tool results decoded | 2026-11-15 | 413b2f4 | complete | — |
 | 261115-lgd | Re-record the demo video on the live model with the clarify beat (2:29) | 2026-11-15 | 6949b6e | complete | [261115-lgd-re-record-the-submission-demo-video-on-t](./quick/261115-lgd-re-record-the-submission-demo-video-on-t/) |
-| 261115-uys | interactive terminal triage (raw notes or fields) driving the shipped graph | 2026-11-15 | c37f179 | complete | .planning/quick/261115-uys-interactive-terminal-triage |
+| 261115-uys | interactive terminal triage (raw notes or fields) driving the shipped graph | 2026-11-15 | 97898fd | complete | .planning/quick/261115-uys-interactive-terminal-triage |
 
 ## Deferred Verification
 
