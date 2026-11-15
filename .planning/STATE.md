@@ -4,10 +4,10 @@ milestone: v1.3
 milestone_name: Adaptive Triage
 status: Awaiting next milestone
 stopped_at: Phase 24 complete — all phases complete
-last_updated: "2026-11-15T19:20:56.355Z"
+last_updated: "2026-11-15T19:24:56.035Z"
 last_activity: 2026-11-15
 last_activity_desc: Milestone v1.3 completed and archived
-state_head: c37f17980f853b3810de797e2f5997fabdbe5870
+state_head: ca9515788b5f230f2a3e6d59b8b6bdeead809ccc
 progress:
   total_phases: 6
   completed_phases: 6
@@ -236,12 +236,11 @@ None yet.
 | 8 | fix two correctness defects: handover card shows the committed colour after an edit; the dead verify retry edge fails closed | 2026-11-04 | 119890c | complete | [261104-ueu-fix-two-correctness-defects-1-the-handov](./quick/261104-ueu-fix-two-correctness-defects-1-the-handov/) |
 | 9 | add safe lay/OPD phrasing aliases to existing discriminators and show DEFERRED (not GREEN) on the read-only card | 2026-11-04 | bb73945 | complete | [261104-w53-expand-safe-lay-phrasing-aliases-only-fo](./quick/261104-w53-expand-safe-lay-phrasing-aliases-only-fo/) |
 | 10 | close the three nurse stress-test defects (negation, incomplete-case refusal, extraction grounding) plus the named recovery copy | 2026-11-04 | 8c41d54 | complete | [261104-nst-nurse-stress-test-fixes](./quick/261104-nst-nurse-stress-test-fixes/) |
-| 261114-io6 | Final-round polish: nine-tool docs, SW-1, EVALS denominator note, quiet httpx + demo mode line | 2026-11-14 | 2028403 | — | [261114-io6-final-round-polish-reconcile-nine-tool-c](./quick/261114-io6-final-round-polish-reconcile-nine-tool-c/) |
 | 261114-io6 | Final-round polish: nine-tool docs, SW-1, EVALS denominator note, quiet httpx + demo mode line | 2026-11-14 | 2028403 | complete | [261114-io6-final-round-polish-reconcile-nine-tool-c](./quick/261114-io6-final-round-polish-reconcile-nine-tool-c/) |
 | 261115-jlr | Live MCP elicitation in the demo clarify beat and online desk; resume answers reach the real tool | 2026-11-15 | 413b2f4 | Verified | [261115-jlr-live-mcp-elicitation-in-the-demo-and-des](./quick/261115-jlr-live-mcp-elicitation-in-the-demo-and-des/) |
 | 14 | Demo renders adapter-backed tool results decoded | 2026-11-15 | 413b2f4 | complete | — |
 | 261115-lgd | Re-record the demo video on the live model with the clarify beat (2:29) | 2026-11-15 | 6949b6e | complete | [261115-lgd-re-record-the-submission-demo-video-on-t](./quick/261115-lgd-re-record-the-submission-demo-video-on-t/) |
-| 261115-uys | interactive terminal triage (raw notes or fields) driving the shipped graph | 2026-11-15 | 97898fd | complete | .planning/quick/261115-uys-interactive-terminal-triage |
+| 261115-uys | Interactive terminal triage: raw notes or fields, driving the shipped graph | 2026-11-15 | 97898fd | complete | [261115-uys-interactive-terminal-triage](./quick/261115-uys-interactive-terminal-triage/) |
 
 ## Deferred Verification
 
