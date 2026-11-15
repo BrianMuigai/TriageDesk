@@ -276,6 +276,14 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="run the real local model on the free-text complaint (default: offline)",
     )
+    triage_parser.add_argument(
+        "--note",
+        default=None,
+        help=(
+            "a raw nurse note to read into the case instead of prompting for fields "
+            "(requires --online; use '-' to read it from stdin)"
+        ),
+    )
 
     skill_parser = subcommands.add_parser(
         "skill", help="install or locate the packaged usage skill"
@@ -426,8 +434,13 @@ def main(argv: list[str] | None = None) -> int:
         from triagedesk.desk.interactive import main as interactive_main
 
         try:
+            note = args.note
+            if note == "-":
+                note = sys.stdin.read()
             return interactive_main(
-                db_path=args.db or CHECKPOINTS_DB_PATH, online=args.online
+                db_path=args.db or CHECKPOINTS_DB_PATH,
+                online=args.online,
+                note=note,
             )
         except (ValueError, RuntimeError, sqlite3.Error, ExceptionGroup) as exc:
             print(str(exc), file=sys.stderr)

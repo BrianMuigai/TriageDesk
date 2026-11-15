@@ -120,7 +120,7 @@ uv run triagedesk demo
 # The optional second command: serve the local desk surface (loopback only, no external request).
 uv run triagedesk desk
 
-# Prefer a terminal to a browser? Type one patient in and drive the whole graph there.
+# Prefer a terminal to a browser? Paste a raw note (or type the fields) and drive the graph there.
 uv run triagedesk triage --online
 ```
 

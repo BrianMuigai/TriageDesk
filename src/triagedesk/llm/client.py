@@ -12,11 +12,12 @@ is a config change behind this wrapper (SOLID: D).
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import ollama
 
+from triagedesk.core.grounding import ground_extraction
 from triagedesk.core.planner import admissible_actions
 from triagedesk.core.schema import ExtractionResult, InvestigationState, PlanProposal
 from triagedesk.llm.notes import grounded_case
@@ -187,6 +188,25 @@ async def _async_generate(*, model: str, prompt: str, schema: dict[str, Any]) ->
         think=False,  # REQUIRED for qwen3.5:4b — else `response` is empty
         options=OPTIONS,
     )
+
+
+async def extract_grounded(
+    note: str,
+    *,
+    extract: Callable[[str], Awaitable[ExtractionResult]] | None = None,
+) -> ExtractionResult:
+    """Read a free-text note into a **grounded** extraction — the ONE note→case composition.
+
+    Composes the model call with the deterministic evidence check
+    (``core.grounding.ground_extraction``), which also applies the closed-set filter. Every
+    surface that turns a raw note into a case — the owned ``normalize_case`` tool and the
+    terminal intake — calls this, so the two can never disagree about what a note supports.
+
+    ``extract`` is injectable so the server keeps its own patchable ``extract_async`` seam:
+    the composition is shared, the model call is still stubbable where the tests expect it.
+    """
+    result = await (extract or extract_async)(note)
+    return ground_extraction(result, note)
 
 
 async def extract_async(

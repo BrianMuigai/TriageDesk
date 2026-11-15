@@ -16,17 +16,26 @@ the shared conftest seams.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from triagedesk.core.schema import ClarificationRequest, Escalation, HandoverCard
+from triagedesk.core.schema import (
+    CaseInput,
+    ClarificationRequest,
+    Escalation,
+    ExtractionResult,
+    HandoverCard,
+)
+from triagedesk.desk import interactive
 from triagedesk.desk.interactive import _clarification_form, collect_case, main, render_outcome
 
-# One complete adult case, in the order ``collect_case`` asks it.
-APPROVE_ANSWERS = [
+# One complete adult case, in the order ``collect_case`` asks it. The leading blank declines
+# the raw-note offer, so the field prompts run.
+FIELD_ANSWERS = [
     "40",  # age (years)
     "1",  # AVPU -> alert
     "24",  # respiratory rate
@@ -38,6 +47,8 @@ APPROVE_ANSWERS = [
     "1",  # mobility -> walking
     "n",  # trauma
     "central chest pain",  # complaint
+]
+APPROVE_ANSWERS = [""] + FIELD_ANSWERS + [
     "1",  # decision -> approve
     "Dr Test",  # name
     "clinician",  # role
@@ -67,6 +78,7 @@ def _told() -> tuple[list[str], object]:
 def test_collect_case_builds_the_one_schema_and_keeps_blanks_empty() -> None:
     """A blank vital stays ``None``; the typed fields land on ``CaseInput`` (INTAKE-01)."""
     answers = [
+        "",  # raw-note offer -> skip
         "40",
         "1",
         "",  # respiratory rate skipped
@@ -79,20 +91,23 @@ def test_collect_case_builds_the_one_schema_and_keeps_blanks_empty() -> None:
         "n",
         "central chest pain",
     ]
-    case = collect_case(_scripted(answers))
+    intake = collect_case(_scripted(answers))
 
-    assert case is not None
+    assert intake is not None
+    case = intake.case
     assert case.age_years == 40
     assert case.respiratory_rate is None
     assert case.spo2 is None
     assert case.diastolic_bp is None
     assert case.complaint == "central chest pain"
+    assert intake.extraction is None
 
 
 def test_a_blank_complaint_is_re_prompted() -> None:
     """The graph has nothing to match without a complaint, so it is required (not guessed)."""
     prompts: list[str] = []
     answers = [
+        "",  # raw-note offer -> skip
         "40",
         "1",
         "24",
@@ -106,16 +121,17 @@ def test_a_blank_complaint_is_re_prompted() -> None:
         "",  # blank complaint -> re-prompt
         "central chest pain",
     ]
-    case = collect_case(_scripted(answers, prompts))
+    intake = collect_case(_scripted(answers, prompts))
 
-    assert case is not None
-    assert case.complaint == "central chest pain"
+    assert intake is not None
+    assert intake.case.complaint == "central chest pain"
     assert sum("Complaint" in prompt for prompt in prompts) == 2
 
 
 def test_an_impossible_value_is_re_prompted_not_scored() -> None:
     """A wrong-unit temperature never reaches the scorer (T-01-01-03)."""
     answers = [
+        "",  # raw-note offer -> skip
         "40",
         "1",
         "24",
@@ -129,10 +145,10 @@ def test_an_impossible_value_is_re_prompted_not_scored() -> None:
         "n",
         "central chest pain",
     ]
-    case = collect_case(_scripted(answers))
+    intake = collect_case(_scripted(answers))
 
-    assert case is not None
-    assert case.temperature_c == 38.9
+    assert intake is not None
+    assert intake.case.temperature_c == 38.9
 
 
 def test_approve_writes_exactly_one_queue_row(
@@ -157,7 +173,7 @@ def test_approve_writes_exactly_one_queue_row(
 
 def test_dismiss_writes_nothing(tmp_path: Path, injected_store: Any) -> None:
     """A dismissal commits nothing — the refusal is the gate's own behaviour (D-05)."""
-    answers = APPROVE_ANSWERS[:11] + ["3", "n"]  # decision -> dismiss
+    answers = [""] + FIELD_ANSWERS + ["3", "n"]  # decision -> dismiss
     lines, tell = _told()
     code = main(
         db_path=tmp_path / "checkpoints.db",
@@ -179,7 +195,7 @@ def test_a_blank_approver_never_commits(
     The prompt is an affordance; the enforcement is ``durable.approval_decision``. Either way
     the observable property is the one that matters: no row is written without a name.
     """
-    answers = APPROVE_ANSWERS[:11] + ["1", ""]  # approve, blank name, then input runs out
+    answers = [""] + FIELD_ANSWERS + ["1", ""]  # approve, blank name, then input runs out
     lines, tell = _told()
     code = main(
         db_path=tmp_path / "checkpoints.db",
@@ -280,6 +296,149 @@ def test_render_outcome_prints_a_committed_card() -> None:
 
     assert any("ORANGE" in line for line in lines)
     assert any("Dr Test" in line for line in lines)
+
+
+
+
+# ------------------------------------------------------------------ raw notes
+
+
+def _raw_case() -> ExtractionResult:
+    """The grounded read a raw note would produce (a complete adult case)."""
+    return ExtractionResult(
+        case=CaseInput(
+            age_years=40,
+            avpu="alert",
+            respiratory_rate=24,
+            spo2=94,
+            heart_rate=118,
+            systolic_bp=108,
+            diastolic_bp=70,
+            temperature_c=38.9,
+            mobility="walking",
+            trauma=False,
+            complaint="central chest pain",
+        )
+    )
+
+
+def _stub_planner(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the online arm off the model: the planner answers with the deterministic default."""
+    from triagedesk.core import planner
+    from triagedesk.core.schema import InvestigationState
+    from triagedesk.mcp import server as server_module
+
+    async def _plan(investigation: InvestigationState) -> object:
+        return planner.default_plan(investigation)
+
+    monkeypatch.setattr(server_module, "plan_next_step", _plan)
+
+
+def test_extract_note_is_the_one_grounded_composition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A raw note goes through the ONE grounded composition — a model value the note does not
+    state is dropped, never carried into the case (grounding, not a second extractor)."""
+    from triagedesk.llm import client as llm_client
+
+    async def _extract(_note: str) -> ExtractionResult:
+        return ExtractionResult(
+            case=CaseInput(
+                age_years=40,
+                respiratory_rate=24,  # the note below never states this
+                complaint="chest pain",
+            )
+        )
+
+    monkeypatch.setattr(llm_client, "extract_async", _extract)
+    result = asyncio.run(interactive.extract_note("40 year old with chest pain"))
+
+    assert result.case.age_years == 40
+    assert result.case.respiratory_rate is None
+
+
+def test_a_raw_note_runs_when_confirmed(
+    tmp_path: Path,
+    injected_store: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Offer a note, confirm the extraction, and the graph runs on the extracted case."""
+    _stub_planner(monkeypatch)
+
+    async def _extract(_note: str) -> ExtractionResult:
+        return _raw_case()
+
+    monkeypatch.setattr(interactive, "extract_note", _extract)
+    answers = [
+        "40M, RR 24, HR 118, BP 108/70, temp 38.9, central chest pain",
+        "",  # end of the note
+        "y",  # use the extraction
+        "1",  # approve
+        "Dr Test",
+        "clinician",
+        "n",  # no next patient
+    ]
+    lines, tell = _told()
+
+    code = main(
+        db_path=tmp_path / "checkpoints.db", online=True, ask=_scripted(answers), tell=tell
+    )
+
+    assert code == 0
+    assert len(injected_store.rows) == 1
+    assert injected_store.rows[0].colour == "ORANGE"
+    assert "The model read this case as" in capsys.readouterr().out
+
+
+def test_a_raw_note_is_refused_without_the_model(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Offline cannot read a note, so it says so and falls back to the fields."""
+    answers = ["40M, RR 24, chest pain", ""] + FIELD_ANSWERS + ["3", "n"]
+    lines, tell = _told()
+
+    code = main(
+        db_path=tmp_path / "checkpoints.db", online=False, ask=_scripted(answers), tell=tell
+    )
+
+    assert code == 0
+    assert "needs the model" in capsys.readouterr().out
+
+
+def test_note_flag_runs_without_prompting(
+    tmp_path: Path, injected_store: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``--note`` reads one note, runs it, and needs no field prompts (scripting path)."""
+    _stub_planner(monkeypatch)
+
+    async def _extract(_note: str) -> ExtractionResult:
+        return _raw_case()
+
+    monkeypatch.setattr(interactive, "extract_note", _extract)
+    lines, tell = _told()
+
+    code = main(
+        db_path=tmp_path / "checkpoints.db",
+        online=True,
+        note="40M, RR 24, HR 118, BP 108/70, temp 38.9, central chest pain",
+        ask=_scripted(["1", "Dr Test", "clinician"]),
+        tell=tell,
+    )
+
+    assert code == 0
+    assert len(injected_store.rows) == 1
+
+
+def test_note_flag_without_online_fails_cleanly(tmp_path: Path) -> None:
+    """A raw note needs the model; the CLI says so and writes nothing."""
+    lines, tell = _told()
+    code = main(
+        db_path=tmp_path / "checkpoints.db", online=False, note="40M chest pain", tell=tell
+    )
+
+    assert code == 1
+    assert any("needs the model" in line for line in lines)
 
 
 @pytest.fixture(autouse=True)

@@ -23,14 +23,15 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, get_args
 
 from pydantic import ValidationError
 
 from triagedesk.core.rules import get_tews
-from triagedesk.core.schema import AVPU, CaseInput, HandoverCard, Mobility
-from triagedesk.desk.extraction import extract_complaint
+from triagedesk.core.schema import AVPU, CaseInput, ExtractionResult, HandoverCard, Mobility
+from triagedesk.desk.extraction import extract_complaint, extract_note
 from triagedesk.desk.pipeline import answer_clarification, decide, submit_case
 from triagedesk.durable import DurableError
 from triagedesk.mcp.elicitation import (
@@ -52,6 +53,20 @@ _DECISIONS: tuple[str, ...] = ("approve", "edit", "dismiss")
 
 class _Quit(Exception):
     """The operator asked to stop — never an error, never a partial commit."""
+
+
+@dataclass(frozen=True)
+class Intake:
+    """One patient, however it was entered — the structured form or a raw note.
+
+    ``extraction`` is the model's grounded read of a raw note, or ``None`` for the structured
+    path. Passing it to the pipeline means the model ran once, before the graph, exactly as the
+    desk's online precompute does.
+    """
+
+    case: CaseInput
+    extraction: ExtractionResult | None = None
+    raw_note: str | None = None
 
 
 def _read(ask: Ask, label: str) -> str:
@@ -139,17 +154,58 @@ def _ask_bool(ask: Ask, label: str) -> bool | None:
         print("  (answer y or n, or blank to skip)")
 
 
-def collect_case(ask: Ask = input) -> CaseInput | None:
-    """Prompt for one patient and validate it through the ONE ``CaseInput`` schema.
+def _read_note(ask: Ask) -> str:
+    """Read a free-text note: one line, or several until a blank line ends it."""
+    print("Paste the nurse's note (blank line to finish, blank first line to skip):")
+    lines: list[str] = []
+    while True:
+        line = _read(ask, "  > ")
+        if not line:
+            break
+        lines.append(line)
+    return "\n".join(lines).strip()
 
-    Returns ``None`` when the operator quits. Every vital is optional — a blank answer stays
-    ``None`` and is never imputed — but a complaint is required, because the graph has nothing
-    to match without one. An impossible value is re-prompted here, so a wrong-unit entry never
-    reaches the scorer (T-01-01-03).
+
+def describe_case(case: CaseInput) -> list[str]:
+    """The extracted fields, for the operator to confirm before the graph runs."""
+    lines: list[str] = []
+    for name, value in case.model_dump().items():
+        if value is None or value == "" or value is False:
+            continue
+        lines.append(f"    {name}: {value}")
+    missing = [name for name, value in case.model_dump().items() if value is None]
+    if missing:
+        lines.append(f"    (not stated: {', '.join(missing)})")
+    return lines
+
+
+def collect_case(ask: Ask = input, *, online: bool = False) -> Intake | None:
+    """Prompt for one patient — a raw note or the structured fields — as an :class:`Intake`.
+
+    Returns ``None`` when the operator quits. A raw note is offered first and read through the
+    owned extraction tool (``--online`` only); declining it falls back to the fields. Every
+    vital is optional — a blank answer stays ``None`` and is never imputed — but a complaint is
+    required. An impossible value is re-prompted here, so a wrong-unit entry never reaches the
+    scorer (T-01-01-03).
     """
     print("\n── New patient ─────────────────────────────────────────────")
     print("   Blank skips a vital. Ctrl-C or 'quit' at any prompt exits.\n")
     try:
+        note = _read_note(ask)
+        if note:
+            if not online:
+                print(
+                    "  (a raw note needs the model — re-run with --online; "
+                    "using the fields instead)"
+                )
+            else:
+                extraction = asyncio.run(extract_note(note))
+                print("\n  The model read this case as:")
+                for line in describe_case(extraction.case):
+                    print(line)
+                if _ask_bool(ask, "  Use this extraction?"):
+                    return Intake(case=extraction.case, extraction=extraction, raw_note=note)
+                print("  (discarded — answer the fields instead)")
         age_years = _ask_int(ask, "Age (years)          ", 0, 130)
         age_months: int | None = None
         age_ambiguous = False
@@ -191,7 +247,7 @@ def collect_case(ask: Ask = input) -> CaseInput | None:
     except ValidationError as exc:  # pragma: no cover - the prompts already bound every field
         print(f"  (the case was rejected by the schema: {exc.errors()[0]['msg']})")
         return None
-    return case
+    return Intake(case=case)
 
 
 def _clarification_form(payload: Mapping[str, Any], ask: Ask) -> dict[str, str]:
@@ -290,7 +346,7 @@ def render_outcome(state: Mapping[str, Any], tell: Tell = print) -> None:
 
 
 async def run_one(
-    case: CaseInput,
+    intake: Intake,
     db_path: str | Path,
     *,
     online: bool,
@@ -303,7 +359,14 @@ async def run_one(
     desk uses); offline the structured answers are the case. The question path resumes with a
     policy that leaves the next pause intact, so an answer can never approve a priority.
     """
-    extraction = await extract_complaint(case.complaint) if online else None
+    case = intake.case
+    if intake.extraction is not None:
+        # A raw note was already read into the typed case (one model call, before the graph).
+        extraction = intake.extraction
+    elif online:
+        extraction = await extract_complaint(case.complaint)
+    else:
+        extraction = None
     paused = await submit_case(case, db_path, extraction=extraction)
     if paused.existed:
         tell(
@@ -329,6 +392,7 @@ def main(
     *,
     db_path: str | Path,
     online: bool,
+    note: str | None = None,
     ask: Ask = input,
     tell: Tell = print,
 ) -> int:
@@ -338,14 +402,25 @@ def main(
     tell(f"  state: {db_path}")
     tell("  Nothing reaches the queue without your named approval.")
     try:
+        if note is not None:
+            if not online:
+                tell("A raw note needs the model: re-run with --online.")
+                return 1
+            intake = asyncio.run(_intake_from_note(note))
+            tell("\n  The model read this case as:")
+            for line in describe_case(intake.case):
+                tell(line)
+            state = asyncio.run(run_one(intake, db_path, online=online, ask=ask, tell=tell))
+            render_outcome(state, tell)
+            return 0
         while True:
-            case = collect_case(ask)
-            if case is None:
+            intake = collect_case(ask, online=online)
+            if intake is None:
                 tell("\nStopped.")
                 return 0
             state: Mapping[str, Any] | None = None
             try:
-                state = asyncio.run(run_one(case, db_path, online=online, ask=ask, tell=tell))
+                state = asyncio.run(run_one(intake, db_path, online=online, ask=ask, tell=tell))
             except DurableError as exc:
                 # The gate's OWN refusal (a blank identity, a missing colour, no pending
                 # gate). Nothing was written; show the reason and let the operator retry.
@@ -361,4 +436,10 @@ def main(
         return 0
 
 
-__all__ = ["collect_case", "main", "render_outcome", "run_one"]
+async def _intake_from_note(note: str) -> Intake:
+    """Read one raw note into an ``Intake`` (the ``--note`` path, no confirmation)."""
+    extraction = await extract_note(note)
+    return Intake(case=extraction.case, extraction=extraction, raw_note=note)
+
+
+__all__ = ["Intake", "collect_case", "extract_note", "main", "render_outcome", "run_one"]

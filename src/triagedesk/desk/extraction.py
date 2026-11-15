@@ -23,7 +23,7 @@ import asyncio
 from triagedesk.core import matcher
 from triagedesk.core.hashing import hash_value
 from triagedesk.core.schema import CaseInput, ExtractionResult
-from triagedesk.llm.client import extract_async
+from triagedesk.llm.client import extract_async, extract_grounded
 
 # The hard bound on precomputed complaints held at once (T-13-07). A nurse works one patient
 # at a time, so this is generous; beyond it the oldest inserted entry is cancelled and dropped.
@@ -101,6 +101,16 @@ async def extract_complaint(complaint: str) -> ExtractionResult:
     """
     result = await extract_async(complaint)
     return matcher.filter_discriminator_ids(result)
+
+
+async def extract_note(note: str) -> ExtractionResult:
+    """Read a full raw note into a grounded case — the terminal intake path.
+
+    Delegates to the ONE composition (``llm.client.extract_grounded``) so a pasted note is
+    read exactly as the owned ``normalize_case`` tool reads it: grounded, closed-set filtered
+    and never imputed.
+    """
+    return await extract_grounded(note)
 
 
 def merge_case(form: CaseInput, extracted: ExtractionResult) -> ExtractionResult:

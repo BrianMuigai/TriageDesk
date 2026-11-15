@@ -4,10 +4,10 @@ milestone: v1.3
 milestone_name: Adaptive Triage
 status: Awaiting next milestone
 stopped_at: Phase 24 complete — all phases complete
-last_updated: "2026-11-15T13:17:40.118Z"
+last_updated: "2026-11-15T19:20:56.355Z"
 last_activity: 2026-11-15
 last_activity_desc: Milestone v1.3 completed and archived
-state_head: 6949b6ec5cf1e6d76925525a4509a5b579141403
+state_head: c37f17980f853b3810de797e2f5997fabdbe5870
 progress:
   total_phases: 6
   completed_phases: 6
@@ -241,6 +241,7 @@ None yet.
 | 261115-jlr | Live MCP elicitation in the demo clarify beat and online desk; resume answers reach the real tool | 2026-11-15 | 413b2f4 | Verified | [261115-jlr-live-mcp-elicitation-in-the-demo-and-des](./quick/261115-jlr-live-mcp-elicitation-in-the-demo-and-des/) |
 | 14 | Demo renders adapter-backed tool results decoded | 2026-11-15 | 413b2f4 | complete | — |
 | 261115-lgd | Re-record the demo video on the live model with the clarify beat (2:29) | 2026-11-15 | 6949b6e | complete | [261115-lgd-re-record-the-submission-demo-video-on-t](./quick/261115-lgd-re-record-the-submission-demo-video-on-t/) |
+| 261115-uys | interactive terminal triage (raw notes or fields) driving the shipped graph | 2026-11-15 | c37f179 | complete | .planning/quick/261115-uys-interactive-terminal-triage |
 
 ## Deferred Verification
 

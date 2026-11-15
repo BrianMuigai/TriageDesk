@@ -51,7 +51,6 @@ from pydantic import BaseModel, Field, ValidationError, create_model
 from triagedesk.core import (
     confidence,
     coverage,
-    grounding,
     matcher,
     planner,
     recheck,
@@ -74,7 +73,7 @@ from triagedesk.core.schema import (
     PriorityResult,
     RecheckFlag,
 )
-from triagedesk.llm.client import extract_async, propose_plan_async
+from triagedesk.llm.client import extract_async, extract_grounded, propose_plan_async
 from triagedesk.mcp.elicitation import CLARIFICATION_REQUEST_KEY, answer_field
 from triagedesk.observability import current_trace_id, span
 from triagedesk.store import Store, default_store
@@ -255,8 +254,7 @@ async def normalize_case(raw_note: str) -> ExtractionResult:
     following what survives (T-02-11, T-14-01). Missing vitals stay ``None`` — never
     imputed.
     """
-    result = await extract_async(raw_note)
-    return grounding.ground_extraction(result, raw_note)
+    return await extract_grounded(raw_note, extract=extract_async)
 
 
 @server.tool()

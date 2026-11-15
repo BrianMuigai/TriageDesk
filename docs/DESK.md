@@ -34,16 +34,23 @@ The same graph, the same gate, no page — one patient at a time:
 
 ```bash
 uv run triagedesk triage            # structured input only, no model call
-uv run triagedesk triage --online   # run the local model on the free-text complaint
+uv run triagedesk triage --online   # read a pasted note (or the fields) with the local model
+uv run triagedesk triage --online --note "40M, RR 24, HR 118, BP 108/70, temp 38.9, chest pain"
+uv run triagedesk triage --online --note - < note.txt   # read the note from stdin
 ```
 
-It prompts for the vitals and the complaint (blank skips a vital, never imputes one), runs the
-graph, asks you the same targeted question the desk would if the planner chooses one, then shows
-the suggested priority with its citations and asks for a named decision. An answer typed at a
-question is an observation, not an approval: the gate still pauses afterwards. `Ctrl-C` at any
-prompt stops without committing.
+It offers a **raw note** first: paste the nurse's note and the owned extraction tool reads it
+into the typed case, showing what it understood (and what was *not* stated) for you to confirm.
+Decline and you answer the vitals field by field instead. Blank skips a vital, never imputes one.
+Then the graph runs, asks you the same targeted question the desk would if the planner chooses
+one, shows the suggested priority with its citations, and asks for a named decision.
 
-Nothing is pre-recorded: the case you type is the case that runs.
+`--note` skips the prompts entirely — one note in, one case run — which is the scripting path.
+A raw note needs `--online`; without it the CLI says so and falls back to the fields.
+
+An answer typed at a question is an observation, not an approval: the gate still pauses
+afterwards. `Ctrl-C` at any prompt stops without committing. Nothing is pre-recorded: the note
+you paste is the case that runs.
 
 ## What you will see
 
