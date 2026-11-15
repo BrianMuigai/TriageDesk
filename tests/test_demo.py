@@ -46,9 +46,9 @@ async def test_full_storyboard_returns_zero() -> None:
 
 
 async def test_manifest_names_every_declared_beat() -> None:
-    """The storyboard declares the five demo beats (D-07)."""
+    """The storyboard declares the six demo beats (D-07; ``clarify`` is the additive sixth)."""
     names = [beat.name for beat in load_storyboard()]
-    assert names == ["routine", "escalation", "deterioration", "refusal", "failure"]
+    assert names == ["routine", "escalation", "deterioration", "refusal", "failure", "clarify"]
 
 
 async def test_named_approval_commits_exactly_one_row() -> None:

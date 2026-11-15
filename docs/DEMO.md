@@ -51,6 +51,7 @@ uv run triagedesk demo --beat escalation
 uv run triagedesk demo --beat deterioration
 uv run triagedesk demo --beat refusal
 uv run triagedesk demo --beat failure
+uv run triagedesk demo --online --beat clarify   # live: the agent asks the nurse (see below)
 ```
 
 The bare command runs all five beats in order, prints every owned tool call, and pauses at the

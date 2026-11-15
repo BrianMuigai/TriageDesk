@@ -5,7 +5,10 @@ fixtures: each beat runs through the REAL graph via the shipped seams
 (``evals.case.load_cases`` + ``evals.tools.build_tools`` + ``graph.build.build_graph``),
 every owned tool call is printed (name + inputs -> outputs) so the tool path is visible
 on screen (D-07), the run pauses at the approval gate, and the gated commit is shown
-REFUSING without a named nurse. Every run opens with ONE ``mode_line`` header naming the path
+REFUSING without a named nurse. The online ``clarify`` beat runs the real elicitation through
+the adapter seam (``mcp.adapter.with_live_clarification``): the run pauses inside the
+``request_clarification`` MCP call, prints the server's own questions and acts on the nurse's
+answer. Every run opens with ONE ``mode_line`` header naming the path
 that is actually live — the offline golden fixture or the local model tag the client uses.
 
 Like ``evals.runner.run_eval``, the runner installs the store through the ONE seam context
@@ -19,14 +22,14 @@ from __future__ import annotations
 
 import json
 import sys
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import BaseModel
 
-from triagedesk.durable import approval_decision, invoke_graph, run_to_gate
+from triagedesk.durable import RespondPolicy, approval_decision, invoke_graph, run_to_gate
 from triagedesk.evals.case import CaseSpec, load_cases
 from triagedesk.evals.outcome import capture_outcome
 from triagedesk.evals.tools import ToolMap, build_tools
@@ -34,6 +37,14 @@ from triagedesk.evals.usage import UsageRecorder
 from triagedesk.graph.build import CHECKPOINTS_DB_PATH, build_graph, in_memory_checkpointer
 from triagedesk.llm.client import DEFAULT_MODEL
 from triagedesk.mcp import server as server_module
+from triagedesk.mcp.elicitation import (
+    ACCEPT,
+    answer_fields,
+    answer_prompts,
+    form_requests,
+    is_elicitation,
+    resume_with_answers,
+)
 from triagedesk.store import Store
 from triagedesk.store.memory import InMemoryStore
 
@@ -50,6 +61,11 @@ DEMO_NURSE_ROLE = "triage nurse"
 
 # The one beat that demonstrates the gate refusing without a named nurse (D-07).
 REFUSAL_BEAT = "refusal"
+
+# The two screen prefixes of a live question, named once: what the agent asked (read from the
+# elicitation payload) and what the nurse answered.
+ELICIT_PREFIX = "[elicit]"
+NURSE_PREFIX = "[nurse]"
 
 
 class Beat(BaseModel):
@@ -140,6 +156,79 @@ def _resume_for(beat: Beat) -> dict[str, Any]:
     return _named_approval()
 
 
+def _collect_answers(
+    fields: Sequence[str], *, offline: bool, answers: Sequence[str] | None
+) -> tuple[list[str], bool]:
+    """The nurse's answers for *fields*, and whether they were typed at a terminal.
+
+    Explicit ``answers`` win. Otherwise an interactive terminal is asked — but only online,
+    so the bare offline demo can never wait on stdin — and anything else answers nothing
+    (which declines). An end-of-input at a prompt is a blank answer.
+    """
+    if answers:
+        return list(answers), False
+    if offline or not sys.stdin.isatty():
+        return [], False
+    collected: list[str] = []
+    for field in fields:
+        try:
+            collected.append(input(f"{NURSE_PREFIX} {field}> "))
+        except EOFError:
+            collected.append("")
+    return collected, True
+
+
+def _answer_question(
+    payload: Mapping[str, Any], *, offline: bool, answers: Sequence[str] | None
+) -> dict[str, Any]:
+    """Show the agent's question on screen and build the resume value from the nurse's reply.
+
+    Everything shown is read from the payload the adapter minted — the tool name, the
+    request's message and each derived question — so the demo authors no question and no tool
+    name. Whether the reply is an acceptance is decided by the ONE shared rule
+    (``mcp.elicitation.resume_with_answers``); this function only reads its result back.
+    """
+    tool_name = payload.get("tool_name")
+    requests = form_requests(payload)
+    request: Mapping[str, Any] = requests[0] if requests else {}
+    fields = answer_fields(request)
+    print(f"{ELICIT_PREFIX} {tool_name}: {request.get('message')}")
+    for field, prompt in zip(fields, answer_prompts(request), strict=False):
+        print(f"{ELICIT_PREFIX} {tool_name} asks {field}: {prompt}")
+
+    collected, typed = _collect_answers(fields, offline=offline, answers=answers)
+    resume = resume_with_answers(payload, collected)
+    response = next(iter(resume["responses"].values()))
+    if response.get("action") != ACCEPT:
+        print(f"{NURSE_PREFIX} declined — no answer given; nothing is recorded")
+    elif not typed:  # a terminal already shows what the presenter typed
+        content = response.get("content") or {}
+        for field in fields:
+            print(f"{NURSE_PREFIX} {field}: {content.get(field) or '(no answer)'}")
+    return resume
+
+
+def _respond_for(
+    beat: Beat, *, offline: bool, answers: Sequence[str] | None
+) -> tuple[RespondPolicy, dict[str, Any]]:
+    """The beat's respond policy, and the record of the APPROVAL payload it answered.
+
+    A question is answered by :func:`_answer_question`; an approval by the beat's own decision
+    (:func:`_resume_for`). The approval payload is recorded because the outcome is read from
+    it (``capture_outcome`` takes colour/citations/target from the payload it is given) — the
+    run's FIRST payload may be the question, which carries no colour.
+    """
+    record: dict[str, Any] = {}
+
+    def policy(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
+        if is_elicitation(payload):
+            return _answer_question(payload, offline=offline, answers=answers)
+        record["approval"] = dict(payload)
+        return _resume_for(beat)
+
+    return policy, record
+
+
 def _print_outcome(
     case: CaseSpec, payload: dict[str, Any] | None, result: Any, *, rows_added: int
 ) -> None:
@@ -155,6 +244,11 @@ def _print_outcome(
     print(f"  colour       : {captured['colour']}")
     print(f"  target       : {target}")
     print(f"  matched ids  : {sorted(captured['matched_ids'])}")
+    nurse_answers = list(result.get("nurse_answers") or [])
+    if nurse_answers:
+        print(f"  answers      : {nurse_answers}")
+    if result.get("elicitation_outcome"):
+        print(f"  elicitation  : {result.get('elicitation_outcome')}")
     for citation in captured["citations"]:
         print(f"  citation     : {citation}")
     commit = result.get("commit_result")
@@ -170,7 +264,14 @@ def _print_outcome(
     handover = result.get("handover")
     if handover is not None:
         print(f"  handover card: {handover.model_dump_json()}")
-    if case.declared_failure:
+    if case.declared_failure and nurse_answers:
+        # The declared expectation is for the note ALONE; this run added a nurse answer, so
+        # comparing would measure a different input. Shown, not compared.
+        print(
+            f"  DECLARED     : {case.expected} (the eval expectation for the note alone — "
+            "not compared: this run added a nurse answer)"
+        )
+    elif case.declared_failure:
         measured = captured["colour"]
         verdict = "SHOWN MISMATCH" if measured != case.expected else "match"
         print(f"  DECLARED     : {case.expected}")
@@ -178,16 +279,33 @@ def _print_outcome(
 
 
 async def _run_beat(
-    beat: Beat, case: CaseSpec, *, offline: bool, index: int, total: int, store: Store
+    beat: Beat,
+    case: CaseSpec,
+    *,
+    offline: bool,
+    index: int,
+    total: int,
+    store: Store,
+    answers: Sequence[str] | None = None,
 ) -> None:
-    """Run one beat through the real graph, tracing tools and resuming past the gate."""
+    """Run one beat through the real graph, tracing tools and resuming past the gate.
+
+    Online, the tool map is wrapped with the adapter seam so a question the planner chooses
+    pauses inside the real ``request_clarification`` MCP call. It is wrapped BEFORE tracing,
+    so the ``[tool] request_clarification`` line prints the real tool's result after the
+    resume (the interrupted first execution prints nothing — the interrupt passes through).
+    """
     print("=" * 72)
     print(f"BEAT {index}/{total}: {beat.name} — {beat.label}")
     print(f"case: {case.id} ({case.description})")
     print("=" * 72)
 
     recorder = UsageRecorder()
-    tools = build_tools(case, offline=offline, recorder=recorder)
+    tools: Mapping[str, Any] = build_tools(case, offline=offline, recorder=recorder)
+    if not offline:
+        from triagedesk.mcp.adapter import with_live_clarification
+
+        tools = with_live_clarification(tools)
     graph = build_graph(
         _traced_tools(tools, _print_tool_call), checkpointer=in_memory_checkpointer()
     )
@@ -197,9 +315,11 @@ async def _run_beat(
         initial["previous_case"] = case.previous_case
 
     rows_before = len(await store.read_queue_rows())
-    result, payload = await invoke_graph(graph, initial, config, _resume_for(beat))
+    respond, record = _respond_for(beat, offline=offline, answers=answers)
+    # The policy answers every payload; the positional decision is the unused default form.
+    result, _first = await invoke_graph(graph, initial, config, {}, respond=respond)
     rows_added = len(await store.read_queue_rows()) - rows_before
-    _print_outcome(case, payload, result, rows_added=rows_added)
+    _print_outcome(case, record.get("approval"), result, rows_added=rows_added)
     print()
 
 
@@ -281,6 +401,7 @@ async def run_demo(
     store: Store | None = None,
     durable: bool = False,
     db_path: str | Path | None = None,
+    answers: Sequence[str] | None = None,
 ) -> int:
     """Run the selected storyboard beats offline through the real graph; return 0.
 
@@ -295,6 +416,10 @@ async def run_demo(
     ``durable`` swaps the in-memory saver for ``checkpointed_graph`` over *db_path*
     (``checkpoints.db`` by default) and runs exactly ONE beat to the gate, printing the
     resume command instead of resuming (D6-08, D6-11). The default path is unchanged.
+
+    ``answers`` are online-only: the nurse's replies, in question order, to a question the
+    agent asks mid-call (the ``clarify`` beat). With none, an interactive terminal is asked;
+    anything else declines, so no run ever waits on a non-interactive stdin.
     """
     storyboard = load_storyboard()
     try:
@@ -320,6 +445,7 @@ async def run_demo(
                 index=index,
                 total=len(selected),
                 store=resolved_store,
+                answers=answers,
             )
     return 0
 

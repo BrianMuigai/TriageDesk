@@ -130,6 +130,27 @@ def answers_in_order(fields: Sequence[str], supplied: Sequence[str]) -> dict[str
     return {field: value for field, value in zip(fields, supplied, strict=False)}
 
 
+def resume_with_answers(payload: Mapping[str, Any], supplied: Sequence[str]) -> dict[str, Any]:
+    """Turn a surface's answers into the resume value — the ONE answers→resume rule.
+
+    The first form request is the question being answered; its ``key`` addresses the
+    response (falling back to :data:`CLARIFICATION_REQUEST_KEY`). *supplied* pairs with its
+    fields in question order. Only when a request exists AND at least one paired answer is
+    non-blank is the form accepted; otherwise it is declined, because an all-blank answer is
+    the absence of an observation, never an observation of emptiness (ELICIT-03/08). The CLI
+    resume policy and the demo both call this, so they cannot drift on when a reply counts.
+    """
+    requests = form_requests(payload)
+    if not requests:
+        return decline_responses(CLARIFICATION_REQUEST_KEY)
+    request = requests[0]
+    key = str(request.get("key") or CLARIFICATION_REQUEST_KEY)
+    paired = answers_in_order(answer_fields(request), supplied)
+    if not any(isinstance(value, str) and value.strip() for value in paired.values()):
+        return decline_responses(key)
+    return accept_responses(key, paired)
+
+
 __all__ = [
     "ACCEPT",
     "ANSWER_FIELD_PREFIX",
@@ -143,4 +164,5 @@ __all__ = [
     "decline_responses",
     "form_requests",
     "is_elicitation",
+    "resume_with_answers",
 ]

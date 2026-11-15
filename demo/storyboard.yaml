@@ -6,6 +6,11 @@
 # escalation and refusal beats deliberately share the E-02 case so the SAME scored
 # priority is shown committing under a named nurse and then refusing without one — the
 # demo's climax.
+#
+# The `clarify` beat is ADDITIVE: `failure` stays the declared, unanswered E-09; `clarify` runs
+# the same case and, online, the planner may ask the nurse through `request_clarification` (the
+# run pauses inside the MCP call and acts on her answer). Offline the deterministic planner
+# never asks, so the beat honestly shows the same E-09 terminal as `failure`.
 - name: routine
   case: E-01
   label: "Routine presentation -> GREEN"
@@ -21,3 +26,6 @@
 - name: failure
   case: E-09
   label: "Declared failure: expected ORANGE vs measured outcome"
+- name: clarify
+  case: E-09
+  label: "Online: the agent asks the nurse mid-call and acts on the answer"
