@@ -63,8 +63,9 @@ DEMO_NURSE_ROLE = "triage nurse"
 # The one beat that demonstrates the gate refusing without a named nurse (D-07).
 REFUSAL_BEAT = "refusal"
 
-# The two screen prefixes of a live question, named once: what the agent asked (read from the
-# elicitation payload) and what the nurse answered.
+# The three screen prefixes, named once: an owned tool call, what the agent asked (read from the
+# elicitation payload) and what the nurse answered. The demo recorder matches these same names.
+TOOL_PREFIX = "[tool]"
 ELICIT_PREFIX = "[elicit]"
 NURSE_PREFIX = "[nurse]"
 
@@ -143,7 +144,7 @@ def _traced_tools(
 
 def _print_tool_call(name: str, inputs: Mapping[str, Any], outputs: Any) -> None:
     """Print one owned tool call: ``[tool] <name> <inputs> -> <outputs>`` (D-07)."""
-    print(f"[tool] {name} {_render(dict(inputs))} -> {_render(outputs)}")
+    print(f"{TOOL_PREFIX} {name} {_render(dict(inputs))} -> {_render(outputs)}")
 
 
 def _named_approval() -> dict[str, Any]:

@@ -82,3 +82,5 @@ select = ["E", "F", "I", "UP", "B", "TID"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+# Resolve `triagedesk` from its source (it ships no py.typed), so scripts/ type-check against it.
+mypy_path = "src"
