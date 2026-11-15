@@ -276,6 +276,18 @@ def test_a_json_warning_field_is_not_a_warning(rec: ModuleType) -> None:
     rec.check_segment(segment, _well_formed(rec, segment) + '{"warning": null}\n', 1)
 
 
+def test_stagger_keeps_each_caption_up_but_never_before_its_output(rec: ModuleType) -> None:
+    # An offline beat prints both markers in one burst: the second cue waits its turn.
+    assert rec.stagger([10.0, 10.1], 4.5, 30.0, "x") == [10.0, 14.5]
+    # Markers already far apart keep their own times.
+    assert rec.stagger([10.0, 20.0], 4.5, 30.0, "x") == [10.0, 20.0]
+
+
+def test_stagger_aborts_when_the_last_caption_would_flash(rec: ModuleType) -> None:
+    with pytest.raises(SystemExit, match="x"):
+        rec.stagger([10.0, 10.1], 4.5, 15.0, "x")
+
+
 # --- the real pty round-trip --------------------------------------------------------------
 
 

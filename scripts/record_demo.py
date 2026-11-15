@@ -63,6 +63,11 @@ ANSWER_PAUSE = 1.8  # viewers read the question before the answer is typed
 POLL = 0.1  # pump slice while waiting for a run to finish
 SEGMENT_TIMEOUT = 150.0  # a run that does not return to the prompt in time aborts the recording
 MAX_CAPTION_CHARS = 170  # two lines in the 142 px caption band
+# The least time a caption stays up before the next one in its segment replaces it. An offline
+# beat prints its whole outcome at once; its cues are then shown in turn over the output, which
+# stays on screen (never before it).
+MIN_DWELL = 4.5
+LAST_CUE_MARGIN = 1.0
 
 # The presenter's typed answer in the clarify beat: the nurse's free-text observation (the same
 # words as the live run documented in docs/DEMO.md "Live final"), NOT a rule — the deterministic
@@ -431,7 +436,23 @@ def run_segment(term: Terminal, segment: Segment) -> list[float]:
         starts.append(at)
     if any(later < earlier for earlier, later in zip(starts, starts[1:], strict=False)):
         raise SystemExit(f"segment {_label(segment)}: cues appeared out of order {starts}")
-    return starts
+    return stagger(starts, MIN_DWELL, term.now(), _label(segment))
+
+
+def stagger(starts: list[float], dwell: float, end: float, label: str) -> list[float]:
+    """Delay each cue so the one before it stays up at least *dwell* seconds.
+
+    A cue may start later than its marker (the output is still on screen), never earlier. The
+    last one must start at least ``LAST_CUE_MARGIN`` before the segment *end* (it then stays up
+    through the next segment's lead-in), or it would flash — that aborts the recording
+    (lengthen the segment's hold).
+    """
+    shown: list[float] = []
+    for at in starts:
+        shown.append(max(at, shown[-1] + dwell) if shown else at)
+    if shown and shown[-1] > end - LAST_CUE_MARGIN:
+        raise SystemExit(f"segment {label}: hold too short to show every cue {dwell}s")
+    return shown
 
 
 def record(cast_path: Path, captions_path: Path) -> None:
