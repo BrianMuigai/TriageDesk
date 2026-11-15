@@ -21,6 +21,7 @@ one double, not a new one per test module).
 
 from __future__ import annotations
 
+import json
 import logging
 
 from pytest import CaptureFixture
@@ -118,3 +119,13 @@ async def test_run_prints_exactly_one_mode_line_first(
     lines = capsys.readouterr().out.splitlines()
     modes = [line for line in lines if line.startswith("mode:")]
     assert modes == [lines[0]]
+
+
+def test_render_decodes_adapter_content_blocks_like_an_in_process_result() -> None:
+    """An adapter-backed tool line shows the decoded result, never the MCP wire wrapper."""
+    from triagedesk.demo.run import _render
+
+    decoded = {"answers": ["low blood sugar"], "outcome": "accepted", "reason": None}
+    blocks = [{"id": "lc_x", "type": "text", "text": json.dumps(decoded)}]
+    assert _render(blocks) == _render(decoded)
+    assert "lc_x" not in _render(blocks)

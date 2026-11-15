@@ -72,6 +72,21 @@ _ROUTE_FAST = "fast"
 _ROUTE_NORMAL = "normal"
 
 
+def tool_payload(payload: Any) -> Any:
+    """Unwrap an MCP content-block list (``[{"type", "text"}]``) to its first text block.
+
+    The ONE decoder of the adapter's wire wrapper: :func:`parse_tool_result` validates what
+    it returns, and the demo renders it, so an adapter-backed tool and an in-process tool
+    reach both in the same shape. Any other payload is returned unchanged.
+    """
+    if isinstance(payload, list):
+        for block in payload:
+            text = block.get("text") if isinstance(block, Mapping) else getattr(block, "text", None)
+            if isinstance(text, str):
+                return text
+    return payload
+
+
 def parse_tool_result[ModelT: BaseModel](model: type[ModelT], payload: Any) -> ModelT:
     """Validate an MCP tool payload back into its shared contract (D-14).
 
@@ -82,11 +97,7 @@ def parse_tool_result[ModelT: BaseModel](model: type[ModelT], payload: Any) -> M
     """
     if isinstance(payload, model):
         return payload
-    if isinstance(payload, list):
-        for block in payload:
-            text = block.get("text") if isinstance(block, Mapping) else getattr(block, "text", None)
-            if isinstance(text, str):
-                return model.model_validate_json(text)
+    payload = tool_payload(payload)
     if isinstance(payload, Mapping):
         return model.model_validate(payload)
     return model.model_validate_json(str(payload))

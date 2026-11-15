@@ -35,6 +35,7 @@ from triagedesk.evals.outcome import capture_outcome
 from triagedesk.evals.tools import ToolMap, build_tools
 from triagedesk.evals.usage import UsageRecorder
 from triagedesk.graph.build import CHECKPOINTS_DB_PATH, build_graph, in_memory_checkpointer
+from triagedesk.graph.nodes import tool_payload
 from triagedesk.llm.client import DEFAULT_MODEL
 from triagedesk.mcp import server as server_module
 from triagedesk.mcp.elicitation import (
@@ -101,7 +102,18 @@ def mode_line(*, offline: bool) -> str:
 
 
 def _render(value: Any) -> str:
-    """Render a tool input/output for the screen (the ONE demo serialiser)."""
+    """Render a tool input/output for the screen (the ONE demo serialiser).
+
+    An adapter-backed tool hands back MCP content blocks; :func:`tool_payload` (the ONE
+    decoder the graph's parser also uses) unwraps them, so the screen shows the result the
+    graph validates, not the wire wrapper.
+    """
+    value = tool_payload(value)
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            pass
     if isinstance(value, BaseModel):
         value = value.model_dump(mode="json")
     return json.dumps(value, default=str, sort_keys=True)
