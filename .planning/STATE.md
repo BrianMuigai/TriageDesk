@@ -4,16 +4,16 @@ milestone: v1.3
 milestone_name: Adaptive Triage
 status: Awaiting next milestone
 stopped_at: Phase 24 complete — all phases complete
-last_updated: "2026-11-14T08:18:13.220Z"
-last_activity: 2026-11-14
+last_updated: "2026-11-15T13:17:40.118Z"
+last_activity: 2026-11-15
 last_activity_desc: Milestone v1.3 completed and archived
-state_head: 8b508038273f2db69e88261b61d7615343e7af44
+state_head: 6949b6ec5cf1e6d76925525a4509a5b579141403
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 6
   total_plans: 14
   completed_plans: 14
-  percent: 67
+  percent: 100
 current_phase: 24
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 Phase: Milestone v1.3 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-11-14 — Milestone v1.3 completed and archived
+Last activity: 2026-11-15 - Completed quick task 261115-lgd: re-recorded demo video (2:29, live model, live elicitation)
 
 ## Reviewer Challenge (drives this milestone)
 
@@ -236,6 +236,11 @@ None yet.
 | 8 | fix two correctness defects: handover card shows the committed colour after an edit; the dead verify retry edge fails closed | 2026-11-04 | 119890c | complete | [261104-ueu-fix-two-correctness-defects-1-the-handov](./quick/261104-ueu-fix-two-correctness-defects-1-the-handov/) |
 | 9 | add safe lay/OPD phrasing aliases to existing discriminators and show DEFERRED (not GREEN) on the read-only card | 2026-11-04 | bb73945 | complete | [261104-w53-expand-safe-lay-phrasing-aliases-only-fo](./quick/261104-w53-expand-safe-lay-phrasing-aliases-only-fo/) |
 | 10 | close the three nurse stress-test defects (negation, incomplete-case refusal, extraction grounding) plus the named recovery copy | 2026-11-04 | 8c41d54 | complete | [261104-nst-nurse-stress-test-fixes](./quick/261104-nst-nurse-stress-test-fixes/) |
+| 261114-io6 | Final-round polish: nine-tool docs, SW-1, EVALS denominator note, quiet httpx + demo mode line | 2026-11-14 | 2028403 | — | [261114-io6-final-round-polish-reconcile-nine-tool-c](./quick/261114-io6-final-round-polish-reconcile-nine-tool-c/) |
+| 261114-io6 | Final-round polish: nine-tool docs, SW-1, EVALS denominator note, quiet httpx + demo mode line | 2026-11-14 | 2028403 | complete | [261114-io6-final-round-polish-reconcile-nine-tool-c](./quick/261114-io6-final-round-polish-reconcile-nine-tool-c/) |
+| 261115-jlr | Live MCP elicitation in the demo clarify beat and online desk; resume answers reach the real tool | 2026-11-15 | 413b2f4 | Verified | [261115-jlr-live-mcp-elicitation-in-the-demo-and-des](./quick/261115-jlr-live-mcp-elicitation-in-the-demo-and-des/) |
+| 14 | Demo renders adapter-backed tool results decoded | 2026-11-15 | 413b2f4 | complete | — |
+| 261115-lgd | Re-record the demo video on the live model with the clarify beat (2:29) | 2026-11-15 | 6949b6e | complete | [261115-lgd-re-record-the-submission-demo-video-on-t](./quick/261115-lgd-re-record-the-submission-demo-video-on-t/) |
 
 ## Deferred Verification
 

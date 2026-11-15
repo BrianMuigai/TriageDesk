@@ -12,7 +12,8 @@ stranger runs cannot drift from what the CLI actually accepts:
 The CLI is driven through its public ``main`` surface, never by importing a private parser
 helper — the test proves the documented invocation is the shipped one (D11-10). The demo seam
 (``triagedesk.demo.run.run_demo``) is an async stub because the CLI hands it to ``asyncio.run``;
-the desk seam (``triagedesk.desk.server.serve``) is a sync spy recording its kwargs, mirroring
+the desk seam (``triagedesk.desk.server.serve``) and the terminal seam
+(``triagedesk.desk.interactive.main``) are sync spies recording their kwargs, mirroring
 ``tests/test_desk_runbook.py``.
 """
 
@@ -27,6 +28,7 @@ import pytest
 
 from triagedesk.cli import main
 from triagedesk.demo import run as demo_run
+from triagedesk.desk import interactive as desk_interactive
 from triagedesk.desk import server as desk_server
 
 # The README and the ONE command it must match (DRY: the doc links, the CLI is the source).
@@ -73,6 +75,7 @@ def test_documented_invocations_are_accepted_by_the_cli(
 
     demo_calls: list[dict[str, Any]] = []
     desk_calls: list[dict[str, Any]] = []
+    triage_calls: list[dict[str, Any]] = []
 
     async def _run_demo_spy(*args: Any, **kwargs: Any) -> int:
         demo_calls.append(kwargs)
@@ -81,15 +84,23 @@ def test_documented_invocations_are_accepted_by_the_cli(
     def _serve_spy(*args: Any, **kwargs: Any) -> None:
         desk_calls.append(kwargs)
 
+    def _triage_spy(*args: Any, **kwargs: Any) -> int:
+        triage_calls.append(kwargs)
+        return 0
+
     monkeypatch.setattr(demo_run, "run_demo", _run_demo_spy)
     monkeypatch.setattr(desk_server, "serve", _serve_spy)
+    monkeypatch.setattr(desk_interactive, "main", _triage_spy)
 
     for argv in invocations:
         demo_before = len(demo_calls)
         desk_before = len(desk_calls)
+        triage_before = len(triage_calls)
         assert main(argv) == 0, f"the shipped CLI rejected a documented invocation: {argv}"
         reached = (
-            len(demo_calls) == demo_before + 1 or len(desk_calls) == desk_before + 1
+            len(demo_calls) == demo_before + 1
+            or len(desk_calls) == desk_before + 1
+            or len(triage_calls) == triage_before + 1
         )
         assert reached, f"the documented invocation never reached its seam: {argv}"
 

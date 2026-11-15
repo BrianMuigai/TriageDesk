@@ -28,6 +28,23 @@ uv run triagedesk desk --online
 
 Then open **http://127.0.0.1:8765** in a browser and stop the server with `Ctrl-C`.
 
+## Terminal instead of a browser
+
+The same graph, the same gate, no page — one patient at a time:
+
+```bash
+uv run triagedesk triage            # structured input only, no model call
+uv run triagedesk triage --online   # run the local model on the free-text complaint
+```
+
+It prompts for the vitals and the complaint (blank skips a vital, never imputes one), runs the
+graph, asks you the same targeted question the desk would if the planner chooses one, then shows
+the suggested priority with its citations and asks for a named decision. An answer typed at a
+question is an observation, not an approval: the gate still pauses afterwards. `Ctrl-C` at any
+prompt stops without committing.
+
+Nothing is pre-recorded: the case you type is the case that runs.
+
 ## What you will see
 
 _An illustrative transcript: the edit colours and the target time shown are read from the

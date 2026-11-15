@@ -263,6 +263,20 @@ def _build_parser() -> argparse.ArgumentParser:
         help="run the real local model on the free-text complaint (default: offline)",
     )
 
+    triage_parser = subcommands.add_parser(
+        "triage", help="run one patient interactively in the terminal (no browser)"
+    )
+    triage_parser.add_argument(
+        "--db",
+        default=None,
+        help="checkpoint file (default: checkpoints.db)",
+    )
+    triage_parser.add_argument(
+        "--online",
+        action="store_true",
+        help="run the real local model on the free-text complaint (default: offline)",
+    )
+
     skill_parser = subcommands.add_parser(
         "skill", help="install or locate the packaged usage skill"
     )
@@ -406,6 +420,18 @@ def main(argv: list[str] | None = None) -> int:
             print(str(exc), file=sys.stderr)
             return 1
         return 0
+    if args.command == "triage":
+        # Presentation only: the interactive surface delegates to the desk's own pipeline, so
+        # this command adds no decision path. Imported lazily, after ``harden_offline``.
+        from triagedesk.desk.interactive import main as interactive_main
+
+        try:
+            return interactive_main(
+                db_path=args.db or CHECKPOINTS_DB_PATH, online=args.online
+            )
+        except (ValueError, RuntimeError, sqlite3.Error, ExceptionGroup) as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
     if args.command == "desk":
         # Imported LAZILY inside ``main`` — after ``harden_offline()`` has already run — so no
         # transitive dependency can prime a tracer from the environment at import time (D10-03,
