@@ -14,7 +14,7 @@ import pytest
 
 from triagedesk.core import matcher
 from triagedesk.core.rules import DiscriminatorRules, get_discriminators
-from triagedesk.core.schema import MatchResult
+from triagedesk.core.schema import EvidenceResult, MatchResult
 
 
 @pytest.fixture(scope="module")
@@ -238,3 +238,70 @@ async def test_owned_server_exposes_the_match_discriminators_tool() -> None:
 
     parsed = MatchResult.model_validate_json(call.content[0].text)
     assert parsed.matched_ids == matcher.match_discriminators("chest pain").matched_ids
+
+
+# ------------------------------------------------- the local word "fit" (stress test S1)
+
+
+async def test_the_local_word_fit_names_a_seizure_discriminator(
+    rules: DiscriminatorRules,
+) -> None:
+    """A bare "fit" is a convulsion: it must never be a vitals-only coverage gap (S1).
+
+    The defect measured on 2026-11-16: ``match_discriminators("fit")`` returned
+    ``no_candidate``, so a normal-vitals patient was delivered GREEN despite a seizure
+    presentation. The expected id is read from the substrate — ``fitting`` names the same
+    clinical finding — so no discriminator id is restated here (CONVENTIONS §1). Either
+    terminal is accepted: a match (over-triage is fail-safe) or the ambiguous family
+    (the tool asks its one question) — never ``no_candidate``.
+    """
+    from mcp import Client
+
+    from triagedesk.mcp import server as server_module
+
+    seizure = _id_for_alias(rules, "fitting")
+
+    async with Client(server_module.server) as client:
+        match = MatchResult.model_validate_json(
+            (await client.call_tool("match_discriminators", {"complaint": "fit"})).content[0].text
+        )
+        evidence = EvidenceResult.model_validate_json(
+            (await client.call_tool("retrieve_evidence", {"complaint": "fit"})).content[0].text
+        )
+
+    assert match.retrieval_status in {"matched", "ambiguous"}
+    named = set(match.matched_ids) | set(match.candidates)
+    assert seizure in named, f"'fit' named {sorted(named)}; {seizure!r} was not among them"
+
+    # Evidence is consistent with the matcher: it admits exactly the ids it matched and
+    # fabricates no passage for an id the matcher did not return.
+    assert {passage.discriminator_id for passage in evidence.passages} == set(match.matched_ids)
+    assert evidence.no_match is (not match.matched_ids)
+
+
+async def test_feeling_unwell_still_reports_no_candidate() -> None:
+    """E-09's declared coverage gap is not tuned green by the "fit" alias (EVALS §6)."""
+    from mcp import Client
+
+    from triagedesk.mcp import server as server_module
+
+    async with Client(server_module.server) as client:
+        parsed = MatchResult.model_validate_json(
+            (
+                await client.call_tool("match_discriminators", {"complaint": "feeling unwell"})
+            ).content[0].text
+        )
+
+    assert parsed.matched_ids == []
+    assert parsed.candidates == []
+    assert parsed.retrieval_status == "no_candidate"
+
+
+def test_the_fit_alias_does_not_fire_inside_a_longer_word(
+    rules: DiscriminatorRules,
+) -> None:
+    """The short alias keeps the ONE boundary rule: "fitness"/"benefit" are not a fit."""
+    fit_id = _id_for_alias(rules, "fit")
+    for complaint in ("fitness classes", "the benefit was approved", "profit margin"):
+        assert fit_id not in matcher.match_discriminators(complaint).matched_ids, complaint
+
