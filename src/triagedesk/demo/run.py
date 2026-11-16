@@ -36,6 +36,7 @@ from triagedesk.evals.tools import ToolMap, build_tools
 from triagedesk.evals.usage import UsageRecorder
 from triagedesk.graph.build import CHECKPOINTS_DB_PATH, build_graph, in_memory_checkpointer
 from triagedesk.graph.nodes import tool_payload
+from triagedesk.graph.state import initial_state
 from triagedesk.llm.client import DEFAULT_MODEL
 from triagedesk.mcp import server as server_module
 from triagedesk.mcp.elicitation import (
@@ -323,9 +324,7 @@ async def _run_beat(
         _traced_tools(tools, _print_tool_call), checkpointer=in_memory_checkpointer()
     )
     config = {"configurable": {"thread_id": f"demo-{beat.name}-{index}"}}
-    initial: dict[str, Any] = {"raw_note": case.note, "case": case.case}
-    if case.previous_case is not None:
-        initial["previous_case"] = case.previous_case
+    initial = initial_state(note=case.note, case=case.case, previous_case=case.previous_case)
 
     rows_before = len(await store.read_queue_rows())
     respond, record = _respond_for(beat, offline=offline, answers=answers)

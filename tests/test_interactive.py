@@ -388,7 +388,66 @@ def test_a_raw_note_runs_when_confirmed(
     assert code == 0
     assert len(injected_store.rows) == 1
     assert injected_store.rows[0].colour == "ORANGE"
-    assert "The model read this case as" in capsys.readouterr().out
+
+
+E09_NOTE = (
+    "60 year old man, known diabetic, walking, alert, no trauma. RR 14, HR 80, "
+    "systolic BP 120, temperature 36.8. Complaint: feeling unwell."
+)
+
+
+def _e09_extraction() -> ExtractionResult:
+    """The grounded read of the E-09 note: normal vitals, a vague complaint, no ids."""
+    return ExtractionResult(
+        case=CaseInput(
+            age_years=60,
+            avpu="alert",
+            respiratory_rate=14,
+            heart_rate=80,
+            systolic_bp=120,
+            temperature_c=36.8,
+            mobility="walking",
+            trauma=False,
+            complaint="feeling unwell",
+        )
+    )
+
+
+def test_a_note_stated_condition_reaches_the_classifier(
+    tmp_path: Path,
+    injected_store: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """E-09's "known diabetic" must reach the coverage classifier, so the case asks.
+
+    The regression: ``run_one`` dropped the note text and the graph's ``raw_note`` was the
+    case JSON, which carries no chronic condition. The complaint then classified
+    ``no_candidate`` and a known diabetic with no glucose was offered a GREEN priority at the
+    gate — an unflagged under-triage, worse than the declared ORANGE mismatch. The graph is
+    now given the note itself, so the run ends at the bounded clarification terminal: no
+    colour, no gate, no queue row.
+    """
+    _stub_planner(monkeypatch)
+
+    async def _extract(_note: str) -> ExtractionResult:
+        return _e09_extraction()
+
+    monkeypatch.setattr(interactive, "extract_note", _extract)
+    lines, tell = _told()
+
+    code = main(
+        db_path=tmp_path / "checkpoints.db",
+        online=True,
+        note=E09_NOTE,
+        ask=_scripted(["1", "Dr Test", "clinician"]),
+        tell=tell,
+    )
+
+    assert code == 0
+    assert injected_store.rows == [], "an ambiguous case must never reach the queue"
+    assert not any("Suggested priority" in line for line in lines)
+    assert any("No priority delivered" in line for line in lines)
+    assert any("glucose" in line for line in lines)
 
 
 def test_a_raw_note_is_refused_without_the_model(

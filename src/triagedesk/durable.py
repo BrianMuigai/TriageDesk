@@ -34,6 +34,7 @@ from langgraph.types import Command
 from triagedesk.core.schema import CaseInput, InterruptType
 from triagedesk.graph.build import checkpointed_graph
 from triagedesk.graph.nodes import ToolMap, case_id_for_note
+from triagedesk.graph.state import initial_state
 
 # The decisions the gate accepts (mirrors ``ApprovalToken.decision``).
 _DECISIONS = ("approve", "edit", "dismiss")
@@ -162,7 +163,7 @@ async def _drive(
 async def run_to_gate(
     tools: ToolMap,
     *,
-    raw_note: str,
+    raw_note: str | None = None,
     case: CaseInput,
     db_path: str | Path,
     previous_case: CaseInput | None = None,
@@ -170,19 +171,23 @@ async def run_to_gate(
 ) -> PausedRun:
     """Run one case to the approval gate over the durable saver, WITHOUT resuming (D6-11).
 
-    The thread id is content-derived, so the same case lands on the same thread from any
+    ``raw_note`` is the patient's clinical text; a caller that only has a structured form
+    omits it and the typed case's JSON becomes the text. That choice — and the state shape
+    it produces — is owned by :func:`triagedesk.graph.state.initial_state`, so the thread id
+    and the coverage classifier can never read different texts.
+
+    The thread id is content-derived, so the same text lands on the same thread from any
     entry point and after a restart. When the case already has durable state the run is
     NOT replayed: ``existed`` is True and no node runs.
     """
-    thread_id = derive_thread_id(raw_note)
+    initial = initial_state(
+        note=raw_note,
+        case=case,
+        previous_case=previous_case,
+        clarification_round=clarification_round,
+    )
+    thread_id = derive_thread_id(initial["raw_note"])
     config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
-    initial: dict[str, Any] = {
-        "raw_note": raw_note,
-        "case": case,
-        "clarification_round": clarification_round,
-    }
-    if previous_case is not None:
-        initial["previous_case"] = previous_case
 
     async with checkpointed_graph(tools, Path(db_path)) as graph:
         snapshot = await graph.aget_state(config)

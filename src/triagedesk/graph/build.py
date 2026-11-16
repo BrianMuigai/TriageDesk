@@ -36,7 +36,7 @@ from triagedesk.core import emergency as emergency_module
 from triagedesk.core import schema as schema_module
 from triagedesk.core.schema import CaseInput, PlanAction, PlanDecision
 from triagedesk.graph.nodes import NodeFn, ToolMap, case_id_for_note, make_nodes
-from triagedesk.graph.state import TriageState
+from triagedesk.graph.state import TriageState, initial_state
 from triagedesk.observability import bind_trace, span
 from triagedesk.store import DOMAIN_DB_PATH
 
@@ -462,12 +462,11 @@ async def run_case(
     """
     resolved = tools if tools is not None else await load_graph_tools()
     graph = build_graph(resolved)
-    initial: dict[str, Any] = {
-        "raw_note": raw_note,
-        "clarification_round": clarification_round,
-    }
-    if previous_case is not None:
-        initial["previous_case"] = previous_case
+    initial = initial_state(
+        note=raw_note,
+        previous_case=previous_case,
+        clarification_round=clarification_round,
+    )
     return await graph.ainvoke(initial, dict(config or {}))
 
 

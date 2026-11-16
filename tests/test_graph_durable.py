@@ -44,6 +44,7 @@ from triagedesk.evals.tools import build_tools
 from triagedesk.evals.usage import UsageRecorder
 from triagedesk.graph.build import checkpointed_graph
 from triagedesk.graph.nodes import case_id_for, case_id_for_note
+from triagedesk.graph.state import initial_state
 from triagedesk.mcp import server as server_module
 from triagedesk.mcp.elicitation import CLARIFICATION_REQUEST_KEY, decline_responses
 from triagedesk.store.queue import content_hash
@@ -121,6 +122,37 @@ def test_thread_id_is_the_stripped_note_hash() -> None:
     assert derive_thread_id(note) == case_id_for_note(note)
     # Surrounding whitespace never changes the id — the same stripped value the gate uses.
     assert derive_thread_id(f"  {note}  ") == derive_thread_id(note)
+
+
+def test_initial_state_is_the_one_composition_for_every_surface() -> None:
+    """The graph's text is the note when a surface has one, else the typed case (E-09).
+
+    ``run_to_gate`` and ``run_case`` both delegate here, so the text the coverage classifier
+    reads is always the text the thread id hashes. No surface can identify a case by one
+    string and classify it by another — the split that let the terminal drop a stated chronic
+    condition and offer a GREEN priority.
+    """
+    case = _case("E-09").case
+    note = _case("E-09").note
+
+    from_note = initial_state(note=f"  {note}  ", case=case)
+    assert from_note["raw_note"] == note.strip()
+    assert from_note["case"] is case
+    assert from_note["clarification_round"] == 0
+    assert "previous_case" not in from_note
+    assert derive_thread_id(from_note["raw_note"]) == derive_thread_id(note)
+
+    from_form = initial_state(note=None, case=case)
+    assert from_form["raw_note"] == case.model_dump_json()
+    assert derive_thread_id(from_form["raw_note"]) == derive_thread_id(case.model_dump_json())
+
+    with_previous = initial_state(note=note, case=case, previous_case=case)
+    assert with_previous["previous_case"] is case
+
+    # No text and no case stays empty; ``ingest`` turns that into a fail-closed error.
+    empty = initial_state(note="")
+    assert empty["raw_note"] == ""
+    assert "case" not in empty
 
 
 async def test_no_pending_thread_raises_naming_thread_and_db(tmp_path: Path) -> None:
