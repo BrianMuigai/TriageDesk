@@ -117,6 +117,11 @@ async def resolve_store() -> Store:
     flow and the read-only replay projection all resolve their store through THIS, never a
     concrete import, so a World-B store swap is a single injection (SOLID: D/L) and there is
     exactly one resolver (DRY).
+
+    An injected store (:func:`set_store`) always wins and is never cached. The borrowed
+    default is opened **once per process per event loop** (:func:`triagedesk.store.default_store`);
+    re-resolving per call used to launch ``npx mcp-sqlite@1.0.9`` and ensure the schema on
+    every audited tool call — the measured ~2.6-3.1 s floor (nurse stress test 2026-11-16, S4).
     """
     if _store is not None:
         return _store

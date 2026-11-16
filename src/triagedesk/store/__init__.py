@@ -13,6 +13,7 @@ protocol era (01-RESEARCH Pattern 3).
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
@@ -35,6 +36,10 @@ from triagedesk.store.audit import (
 # The domain store path — the clinical record + audit, via the borrowed MCP (D-09).
 # Named once here so no caller inlines the filename (DRY).
 DOMAIN_DB_PATH = Path("triage.db")
+
+# The ONE cached default store, as a ``(db_path, event loop, store)`` triple (see
+# ``default_store``). ``None`` until the first resolve; :func:`reset_default_store` drops it.
+_DEFAULT_STORE: tuple[Path, asyncio.AbstractEventLoop, Store] | None = None
 
 
 class QueueRow(BaseModel):
@@ -120,15 +125,55 @@ class Store(Protocol):
 
 
 async def default_store(db_path: Path | None = None) -> Store:
-    """Build the default store — the borrowed SQLite MCP server (D-10).
+    """Return the ONE default store for ``(db_path, running event loop)`` — opened once (D-10).
+
+    Opening the borrowed store is expensive: it launches ``npx mcp-sqlite@1.0.9`` and ensures
+    the schema, ~2.3 s on the demo host. Resolving it per *call* therefore put a ~2.6-3.1 s
+    floor under every audited tool call — including ``score_priority``, which is pure integer
+    arithmetic (nurse stress test 2026-11-16, S4). The store is opened once per process per
+    event loop and reused afterwards.
+
+    The lifetime is a ``(db_path, loop, store)`` triple, for the SAME reason
+    ``llm.client._async_client`` is loop-keyed (commit ``4a24c8f``): the borrowed store holds
+    async subprocess transports bound to the loop that created them, so reusing one across a
+    second ``asyncio.run(...)`` (``desk.interactive.main`` runs two loops) fails immediately.
+    A different loop - or a different ``db_path`` - rebuilds; one loop reuses one store. A
+    closed loop's store is dropped, never closed, because its loop is already gone. The cache
+    holds ONE entry: alternating db paths rebuild (a test-only pattern; production names one
+    domain db). Tests call :func:`reset_default_store` to force a fresh open.
+
+    An **injected** store never reaches here: ``mcp.server.resolve_store`` returns the seam
+    first, so :func:`set_store` still wins and is never cached. Because a loop has exactly one
+    cached store, the audit chain keeps its single writer — this adds no concurrency.
 
     Imported lazily so naming the interface does not pull the adapter/langchain stack
-    (SOLID: D). The borrowed server is opened in its own adapter context and its schema
-    is ensured before it is returned.
+    (SOLID: D). The borrowed server is opened in its own adapter context and its schema is
+    ensured before it is returned (once per open, not once per call).
     """
+    global _DEFAULT_STORE
+    path = db_path or DOMAIN_DB_PATH
+    loop = asyncio.get_running_loop()
+    cached = _DEFAULT_STORE
+    if cached is not None and cached[0] == path and cached[1] is loop:
+        return cached[2]
+
     from triagedesk.store.borrowed import open_borrowed_store
 
-    return await open_borrowed_store(db_path or DOMAIN_DB_PATH)
+    store = await open_borrowed_store(path)
+    _DEFAULT_STORE = (path, loop, store)
+    return store
+
+
+def reset_default_store() -> None:
+    """Drop the cached default store so the next resolve opens a fresh one (tests, reload).
+
+    The ONE way to invalidate the cache: a test that must prove the open path launches, or a
+    caller that deliberately wants a new store, resets rather than reaching into the module
+    state. The dropped store is not closed — the borrowed transports belong to the caller's
+    loop, which either still owns them or has already gone away.
+    """
+    global _DEFAULT_STORE
+    _DEFAULT_STORE = None
 
 
 __all__ = [
@@ -146,5 +191,6 @@ __all__ = [
     "default_store",
     "reconcile",
     "record_digest",
+    "reset_default_store",
     "verify",
 ]
