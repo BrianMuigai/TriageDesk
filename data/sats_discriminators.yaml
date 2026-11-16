@@ -18,6 +18,11 @@
 # Lay/OPD phrasing (nurse stress test S2-1) extends EXISTING discriminators only.
 # A phrase with no declared discriminator (fever, cough, headache, …) stays
 # unmatched — never invent a category to make a complaint match.
+#
+# The local word "fit" (a convulsion) is carried as an alias of seizure_current
+# so a bare "fit" can never fall through to a vitals-only GREEN (nurse stress test
+# 2026-11-16, S1). Over-triage is the fail-safe direction; "fitting"/"convulsing"/
+# "seizure now" already name the same finding.
 version: 1
 citation: "SATS Training Manual 2012 (EMSSA), adult clinical discriminators"
 
@@ -43,7 +48,7 @@ discriminators:
   - id: seizure_current
     category: emergency
     label: "Seizure — current"
-    aliases: ["active seizure", "current seizure", "seizure now", "convulsing", "convulsion", "status epilepticus", "fitting", "ongoing seizure"]
+    aliases: ["active seizure", "current seizure", "seizure now", "convulsing", "convulsion", "status epilepticus", "fitting", "fit", "ongoing seizure"]
   - id: burn_facial_inhalation
     category: emergency
     label: "Burn — facial / inhalation"

@@ -241,6 +241,10 @@ None yet.
 | 14 | Demo renders adapter-backed tool results decoded | 2026-11-15 | 413b2f4 | complete | — |
 | 261115-lgd | Re-record the demo video on the live model with the clarify beat (2:29) | 2026-11-15 | 6949b6e | complete | [261115-lgd-re-record-the-submission-demo-video-on-t](./quick/261115-lgd-re-record-the-submission-demo-video-on-t/) |
 | 261115-uys | Interactive terminal triage: raw notes or fields, driving the shipped graph | 2026-11-15 | 97898fd | complete | [261115-uys-interactive-terminal-triage](./quick/261115-uys-interactive-terminal-triage/) |
+| 261116-huq | A zero vital (RR/HR/SBP) abstains instead of scoring YELLOW | 2026-11-16 | be570fa | complete | [261116-huq-reject-an-impossible-zero-vital-at-the-s](./quick/261116-huq-reject-an-impossible-zero-vital-at-the-s/) |
+| 261116-hus | Cover the local word "fit" as a current seizure | 2026-11-16 | 536a73e | complete | [261116-hus-cover-the-local-word-fit-as-a-seizure-pr](./quick/261116-hus-cover-the-local-word-fit-as-a-seizure-pr/) |
+| 261116-hut | Open the borrowed audit store once per process and loop | 2026-11-16 | 1f4a5c1 | complete | [261116-hut-open-the-borrowed-audit-store-once-per-p](./quick/261116-hut-open-the-borrowed-audit-store-once-per-p/) |
+| 261116-huu | Update the nurse stress-test skill for the nine-tool system | 2026-11-16 | 69e4a75 | complete | [261116-huu-update-the-nurse-stress-test-skill-for-t](./quick/261116-huu-update-the-nurse-stress-test-skill-for-t/) |
 
 ## Deferred Verification
 

@@ -89,6 +89,16 @@ server = MCPServer("triagedesk-triage", version="0.1.0")
 # the default on demand".
 _store: Store | None = None
 
+# A recorded zero is not a measurement. No patient has a respiratory rate, heart rate or
+# systolic pressure of zero and is still waiting to be scored — such a reading means the
+# value was not taken, or was taken and transcribed as a placeholder. The schema accepts 0
+# (``ge=0``), so without this guard a zero falls into the "< 9 / < 41 / < 71" band and
+# scores TEWS 3 (YELLOW): a six-band under-triage for a peri-arrest patient (nurse stress
+# test 2026-11-16, S1). Declaring the set ONCE here, at the tool boundary, lets the scorer's
+# existing missing-vitals abstain answer honestly ("re-measure") and keeps the frozen kernel
+# (``core/scorer.py``) and the data (``data/*.yaml``) untouched (D-18).
+_ZERO_IS_NOT_RECORDED: tuple[str, ...] = ("respiratory_rate", "heart_rate", "systolic_bp")
+
 
 def set_store(store: Store | None) -> None:
     """Inject (or clear) the store seam the commit path resolves (D-13).
@@ -107,6 +117,11 @@ async def resolve_store() -> Store:
     flow and the read-only replay projection all resolve their store through THIS, never a
     concrete import, so a World-B store swap is a single injection (SOLID: D/L) and there is
     exactly one resolver (DRY).
+
+    An injected store (:func:`set_store`) always wins and is never cached. The borrowed
+    default is opened **once per process per event loop** (:func:`triagedesk.store.default_store`);
+    re-resolving per call used to launch ``npx mcp-sqlite@1.0.9`` and ensure the schema on
+    every audited tool call — the measured ~2.6-3.1 s floor (nurse stress test 2026-11-16, S4).
     """
     if _store is not None:
         return _store
@@ -276,8 +291,20 @@ def score_priority(
     ``missing_vitals``; this guard protects a caller that invokes the MCP tool
     directly and would otherwise see a GREEN with no evidence (nurse stress test
     S1-4, SAFE-01).
+
+    A recorded zero for a scored vital that cannot legitimately be zero
+    (:data:`_ZERO_IS_NOT_RECORDED`) is treated as not recorded on a COPY of the
+    case, so the same abstain fires and asks the nurse to re-measure. The supplied
+    case is never mutated, and any other legitimate falsy field (``trauma: false``)
+    is scored exactly as recorded.
     """
-    priority = scorer.score_priority(case, matched_discriminator_ids)
+    scoring_case = case
+    zeroed = tuple(
+        field for field in _ZERO_IS_NOT_RECORDED if getattr(case, field) == 0
+    )
+    if zeroed:
+        scoring_case = case.model_copy(update=dict.fromkeys(zeroed))
+    priority = scorer.score_priority(scoring_case, matched_discriminator_ids)
     if not priority.missing_vitals:
         return priority
     missing = ", ".join(priority.missing_vitals)
