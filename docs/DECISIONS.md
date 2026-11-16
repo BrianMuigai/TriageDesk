@@ -416,6 +416,20 @@ the kernel, the gate or the clinician. The verdict is typed and audited.
 **Consequence:** the emergency arm and the normal arm share the kernel's single entry point, so
 the structural proof holds on both; the eval records whether the bypass fired per run.
 
+### D35 — One composition of the graph's initial state
+**Decision:** every surface builds the graph's initial state through
+`graph.state.initial_state`. A surface that holds the patient's clinical text passes it; a
+surface that only has a structured form omits it and the typed case's JSON is the text. Both
+`durable.run_to_gate` and `graph.build.run_case` delegate, and the composed `raw_note` is the
+single text used for the content-derived thread id **and** for the coverage classifier.
+**Why:** the interactive terminal dropped the pasted note and passed the case JSON, which carries
+no chronic condition. "feeling unwell" for a known diabetic therefore classified `no_candidate`
+instead of `ambiguous`, and the gate offered GREEN — an unflagged under-triage, worse than the
+declared E-09 colour mismatch. Two entry points had each decided what the graph sees.
+**Consequence:** one place decides the text, so a surface cannot identify a case by one string and
+classify it by another. The terminal's E-09 run now reaches the bounded clarification terminal
+(no colour, no gate, no queue row), pinned by a regression test.
+
 ### D1 — narrow revision: "the LLM never routes" → "the LLM never chooses the answer"
 **Revised:** D1's original consequence — "the model never routes" — was true of v1.0, where the
 graph was fixed. v1.3 adds a bounded planner, so the precise rule is narrower and stronger: **the

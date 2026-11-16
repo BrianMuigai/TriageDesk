@@ -367,7 +367,7 @@ async def run_one(
         extraction = await extract_complaint(case.complaint)
     else:
         extraction = None
-    paused = await submit_case(case, db_path, extraction=extraction)
+    paused = await submit_case(case, db_path, extraction=extraction, note=intake.raw_note)
     if paused.existed:
         tell(
             f"\nThis exact case already has a durable thread ({paused.thread_id}); "

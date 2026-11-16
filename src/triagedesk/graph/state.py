@@ -9,7 +9,7 @@ so the state shape is independent of how any edge is implemented (SOLID: D).
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from triagedesk.core.emergency import EmergencyVerdict
 from triagedesk.core.schema import (
@@ -99,3 +99,41 @@ class TriageState(TypedDict, total=False):
     # instead of re-deriving it from the audit log (MEAS-01). Never read by a router and
     # never a clinical fact: a decline is not a negative finding.
     elicitation_outcome: str | None
+
+
+def initial_state(
+    *,
+    note: str | None,
+    case: CaseInput | None = None,
+    previous_case: CaseInput | None = None,
+    clarification_round: int = 0,
+) -> dict[str, Any]:
+    """Compose the graph's initial state — the ONE entry point every surface calls.
+
+    ``note`` is the patient's clinical text. A surface that holds the text passes it (the
+    demo beats, the eval fixtures, the terminal's raw-note intake); a surface that only has
+    a structured form passes ``None`` and the typed case's JSON becomes the text. The graph
+    therefore always receives the same state shape, and one patient's run never depends on
+    which surface started it.
+
+    The composed ``raw_note`` is the single text used for BOTH purposes that read it: it is
+    what ``derive_thread_id`` hashes and what ``retrieve`` hands the coverage classifier, so
+    a surface can no longer identify a case by one text and classify it by another. That
+    split is what let the terminal drop the note's stated condition and offer a GREEN
+    priority for a known diabetic with no glucose (the E-09 class).
+
+    Nothing is imputed: when neither text nor case is supplied the state carries an empty
+    note, which ``ingest`` turns into a fail-closed error rather than a guessed case.
+    """
+    clinical_text = (note or "").strip()
+    if not clinical_text and case is not None:
+        clinical_text = case.model_dump_json()
+    initial: dict[str, Any] = {
+        "raw_note": clinical_text,
+        "clarification_round": clarification_round,
+    }
+    if case is not None:
+        initial["case"] = case
+    if previous_case is not None:
+        initial["previous_case"] = previous_case
+    return initial

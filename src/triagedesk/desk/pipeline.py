@@ -56,19 +56,24 @@ async def submit_case(
     *,
     extraction: ExtractionResult | None = None,
     clarification_round: int = 0,
+    note: str | None = None,
 ) -> PausedRun:
     """Run one desk case to the approval gate over the shipped pause plumbing (D10-11).
 
     The content-derived thread id comes from the ONE plumbing (``durable.run_to_gate``); the
-    bridge derives no second id and hashes nothing. ``raw_note`` stays the form case's JSON in
-    both modes, so the thread id is the same offline and online. When *extraction* is given,
-    the nurse's form is merged over it before the tool map is built, so the model can change
-    latency but never a vital (T-13-05).
+    bridge derives no second id and hashes nothing. ``note`` is the patient's clinical text
+    when the surface has one (a pasted nurse's note); a structured-form submission omits it
+    and the form case's JSON is the text — both decided by
+    :func:`triagedesk.graph.state.initial_state`, never here. That keeps the note's own
+    wording (e.g. a stated chronic condition) in front of the coverage classifier instead
+    of being lost at the extraction boundary. When *extraction* is given, the nurse's form
+    is merged over it before the tool map is built, so the model can change latency but
+    never a vital (T-13-05).
     """
     merged = merge_case(case, extraction) if extraction is not None else None
     return await run_to_gate(
         _tools_for(case, merged),
-        raw_note=case.model_dump_json(),
+        raw_note=note,
         case=case,
         db_path=db_path,
         clarification_round=clarification_round,

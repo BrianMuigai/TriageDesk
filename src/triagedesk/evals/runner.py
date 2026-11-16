@@ -42,6 +42,7 @@ from triagedesk.evals.report import (
 from triagedesk.evals.tools import ToolMap, build_tools, recorded_extract_seam
 from triagedesk.evals.usage import UsageRecorder
 from triagedesk.graph.build import build_graph, in_memory_checkpointer
+from triagedesk.graph.state import initial_state
 from triagedesk.mcp import server as server_module
 from triagedesk.store import Store
 from triagedesk.store.memory import InMemoryStore
@@ -134,10 +135,11 @@ async def _run_once(
 
     graph = build_graph(tools, checkpointer=in_memory_checkpointer(), planner=planner)
     config = {"configurable": {"thread_id": f"{case.id}-{run_index}"}}
-    initial: dict[str, Any] = {"raw_note": case.note, "case": case.case}
-    previous = getattr(case, "previous_case", None)
-    if previous is not None:
-        initial["previous_case"] = previous
+    initial = initial_state(
+        note=case.note,
+        case=case.case,
+        previous_case=getattr(case, "previous_case", None),
+    )
 
     started = time.perf_counter()
     result, payload = await invoke_graph(graph, initial, config, approval_decision("dismiss"))

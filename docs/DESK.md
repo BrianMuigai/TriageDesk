@@ -48,6 +48,10 @@ one, shows the suggested priority with its citations, and asks for a named decis
 `--note` skips the prompts entirely — one note in, one case run — which is the scripting path.
 A raw note needs `--online`; without it the CLI says so and falls back to the fields.
 
+The pasted note is the text the graph both classifies and identifies the case by, so a condition
+it names (for example "known diabetic") is not lost at the extraction boundary: an ambiguous case
+asks its one question instead of being offered a vitals-only colour.
+
 An answer typed at a question is an observation, not an approval: the gate still pauses
 afterwards. `Ctrl-C` at any prompt stops without committing. Nothing is pre-recorded: the note
 you paste is the case that runs.
