@@ -1,20 +1,20 @@
 ---
-gsd_state_version: "1.0"
-milestone: v1.3
-milestone_name: Adaptive Triage
-status: Awaiting next milestone
-stopped_at: Phase 24 complete — all phases complete
-last_updated: "2026-11-15T19:24:56.035Z"
-last_activity: 2026-11-15
-last_activity_desc: Milestone v1.3 completed and archived
-state_head: ca9515788b5f230f2a3e6d59b8b6bdeead809ccc
+gsd_state_version: 1.0
+milestone: v1.4
+milestone_name: Desk demo & integration
+status: Phase 25 complete
+stopped_at: Phase 25 complete — modern chat desk + visible integration map
+last_updated: "2026-11-16T23:20:00.000Z"
+last_activity: 2026-11-16
+last_activity_desc: "Completed phase 25: modern chat desk and visible integration map"
 progress:
   total_phases: 6
-  completed_phases: 6
-  total_plans: 14
-  completed_plans: 14
-  percent: 100
-current_phase: 24
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
+current_phase: 25
+state_head: ca9515788b5f230f2a3e6d59b8b6bdeead809ccc
 ---
 
 # Project State
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 
 ## Current Position
 
-Phase: Milestone v1.3 complete
-Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-11-15 - Completed quick task 261115-lgd: re-recorded demo video (2:29, live model, live elicitation)
+Phase: 25 — Modern chat desk and visible integration map
+Plan: 25-01 complete
+Status: Complete
+Last activity: 2026-11-16 - Completed phase 25: modern chat desk and visible integration map
 
 ## Reviewer Challenge (drives this milestone)
 
@@ -116,6 +116,11 @@ and **no MCP elicitation (G7)**. v1.3 answers with behaviour + a structural proo
 | Phase 22 P02 | 20min | 3 tasks | 3 files |
 
 ## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 25 added and completed: modern chat desk and visible integration map
+  (desk ↔ core ↔ MCP distinction, `/system`, UI-review blockers closed).
 
 ### Decisions
 
@@ -241,9 +246,10 @@ None yet.
 | 14 | Demo renders adapter-backed tool results decoded | 2026-11-15 | 413b2f4 | complete | — |
 | 261115-lgd | Re-record the demo video on the live model with the clarify beat (2:29) | 2026-11-15 | 6949b6e | complete | [261115-lgd-re-record-the-submission-demo-video-on-t](./quick/261115-lgd-re-record-the-submission-demo-video-on-t/) |
 | 261115-uys | Interactive terminal triage: raw notes or fields, driving the shipped graph | 2026-11-15 | 97898fd | complete | [261115-uys-interactive-terminal-triage](./quick/261115-uys-interactive-terminal-triage/) |
+| 16 | add a canonical structured JSON handover output contract to the triagedesk-triage skill | 2026-11-16 | 35a66b9 | complete | [261116-h0z-add-a-canonical-structured-json-handover](./quick/261116-h0z-add-a-canonical-structured-json-handover/) |
 | 261116-huq | A zero vital (RR/HR/SBP) abstains instead of scoring YELLOW | 2026-11-16 | be570fa | complete | [261116-huq-reject-an-impossible-zero-vital-at-the-s](./quick/261116-huq-reject-an-impossible-zero-vital-at-the-s/) |
 | 261116-hus | Cover the local word "fit" as a current seizure | 2026-11-16 | 536a73e | complete | [261116-hus-cover-the-local-word-fit-as-a-seizure-pr](./quick/261116-hus-cover-the-local-word-fit-as-a-seizure-pr/) |
-| 261116-hut | Open the borrowed audit store once per process and loop | 2026-11-16 | 1f4a5c1 | complete | [261116-hut-open-the-borrowed-audit-store-once-per-p](./quick/261116-hut-open-the-borrowed-audit-store-once-per-p/) |
+| 261116-hut | Open the borrowed audit store once per loop | 2026-11-16 | 1f4a5c1 | complete | [261116-hut-open-the-borrowed-audit-store-once-per-p](./quick/261116-hut-open-the-borrowed-audit-store-once-per-p/) |
 | 261116-huu | Update the nurse stress-test skill for the nine-tool system | 2026-11-16 | 69e4a75 | complete | [261116-huu-update-the-nurse-stress-test-skill-for-t](./quick/261116-huu-update-the-nurse-stress-test-skill-for-t/) |
 
 ## Deferred Verification
@@ -272,11 +278,10 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T00:00:00.000Z
-Stopped at: Phase 24 complete — all phases complete
+Last session: 2026-11-16T23:20:00.000Z
+Stopped at: Phase 25 complete — modern chat desk + visible integration map
 Resume file: None
 
 ## Operator Next Steps
-
 
 - Start the next milestone with /gsd-new-milestone

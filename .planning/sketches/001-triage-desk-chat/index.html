@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TriageDesk — chat workspace sketch</title>
+<link rel="stylesheet" href="../themes/default.css">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 56px 0 0;
+    background:
+      radial-gradient(900px 480px at 8% -10%, #d9f5f1 0%, transparent 62%),
+      var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  button { font: inherit; }
+  .variant-tab {
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    border-radius: var(--radius-full);
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  .variant-tab.active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+  }
+  #variant-nav {
+    position: fixed;
+    inset: 0 0 auto 0;
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: rgba(255, 255, 255, 0.92);
+    border-bottom: 1px solid var(--color-border);
+    backdrop-filter: blur(8px);
+  }
+  #variant-nav strong { margin-right: 12px; font-size: 14px; }
+  .variant { display: none; }
+  .variant.active { display: block; }
+
+  .app {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    min-height: calc(100vh - 56px);
+  }
+  .rail {
+    background: var(--color-rail);
+    color: var(--color-rail-text);
+    padding: 22px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  .brand { display: flex; gap: 10px; align-items: center; }
+  .brand-mark {
+    width: 38px; height: 38px; border-radius: 12px;
+    background: var(--color-primary);
+    display: grid; place-items: center;
+    font-weight: 800; letter-spacing: -0.04em;
+  }
+  .brand strong { display: block; font-size: 16px; }
+  .brand small { color: var(--color-rail-muted); font-size: 12px; }
+  .nav { display: grid; gap: 6px; }
+  .nav a {
+    color: var(--color-rail-muted);
+    text-decoration: none;
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+  }
+  .nav a.active { background: rgba(255,255,255,0.1); color: #fff; }
+  .rail-card {
+    margin-top: auto;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--radius-lg);
+    padding: 14px;
+    background: rgba(255,255,255,0.04);
+  }
+  .eyebrow {
+    margin: 0 0 4px;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+  .rail .eyebrow { color: var(--color-rail-muted); }
+  .rail-card strong { font-size: 15px; }
+  .rail-card p { margin: 6px 0 0; color: var(--color-rail-muted); font-size: 12px; }
+  .rail-foot { color: var(--color-rail-muted); font-size: 12px; }
+
+  .main { padding: 24px 28px 32px; min-width: 0; }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .topbar h1 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
+  .mode {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    border-radius: var(--radius-full);
+    padding: 7px 12px;
+    color: var(--color-text-muted);
+    font-size: 12px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-success); }
+
+  .workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.9fr);
+    gap: 20px;
+    align-items: start;
+  }
+  .panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-md);
+    overflow: clip;
+  }
+  .panel-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .panel-head h2 { margin: 0; font-size: 16px; }
+  .panel-head .eyebrow { margin-bottom: 2px; }
+  .badge {
+    border-radius: var(--radius-full);
+    background: var(--color-primary-soft);
+    color: var(--color-primary-hover);
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .chat {
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 18px;
+    min-height: 470px;
+    background: linear-gradient(180deg, #fbfdfd 0%, var(--color-surface) 100%);
+  }
+  .message { max-width: 92%; }
+  .message.assistant { align-self: flex-start; }
+  .message.nurse { align-self: flex-end; }
+  .author { margin: 0 0 5px; font-size: 11px; font-weight: 700; color: var(--color-text-muted); }
+  .message.nurse .author { text-align: right; }
+  .bubble {
+    border: 1px solid var(--color-border);
+    background: var(--color-surface-2);
+    border-radius: 4px 16px 16px 16px;
+    padding: 12px 14px;
+  }
+  .message.nurse .bubble {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+    border-radius: 16px 4px 16px 16px;
+  }
+  .bubble p { margin: 0 0 8px; }
+  .bubble p:last-child { margin-bottom: 0; }
+  .bubble .muted { color: var(--color-text-muted); font-size: 12px; }
+  .message.nurse .bubble .muted { color: #ccfbf1; }
+  .facts { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; margin: 10px 0 0; font-size: 13px; }
+  .facts dt { color: var(--color-text-muted); }
+  .facts dd { margin: 0; font-weight: 600; }
+
+  .priority {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--color-surface);
+  }
+  .priority .swatch {
+    background: #9a3412; color: #fff;
+    padding: 14px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .priority .swatch strong { font-size: 24px; letter-spacing: -0.02em; }
+  .priority .swatch span { font-size: 12px; opacity: 0.9; }
+  .priority-body { padding: 14px 16px; }
+  .priority-body h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-muted); }
+  .priority-body ul { margin: 0 0 10px; padding-left: 18px; }
+  .priority-body li { margin-bottom: 6px; }
+  .cite { color: var(--color-text-muted); font-size: 12px; }
+
+  .composer {
+    border-top: 1px solid var(--color-border);
+    padding: 14px 18px 16px;
+    background: var(--color-surface);
+  }
+  .composer label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+  .composer-row { display: flex; gap: 8px; align-items: flex-end; }
+  .composer textarea {
+    flex: 1;
+    min-height: 54px;
+    resize: vertical;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    font: inherit;
+    background: var(--color-surface);
+  }
+  .button {
+    min-height: 44px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: 9px 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .button.primary { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+  .hint { margin: 8px 0 0; color: var(--color-text-muted); font-size: 11px; }
+
+  .intake { position: sticky; top: 76px; }
+  .intake form { padding: 16px 18px 18px; }
+  .field-group { border: 0; padding: 0; margin: 0 0 16px; }
+  .field-group legend {
+    font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--color-text-muted); margin-bottom: 8px;
+  }
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field.full { grid-column: 1 / -1; }
+  .field label { font-size: 12px; font-weight: 700; }
+  .field input, .field select, .field textarea {
+    min-height: 42px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    font: inherit;
+    background: var(--color-surface);
+  }
+  .field textarea { min-height: 82px; resize: vertical; }
+  .check { display: flex; align-items: center; gap: 8px; min-height: 42px; font-size: 13px; }
+  .form-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .form-actions .button.primary { flex: 1; }
+
+  /* Variant B */
+  .console .topbar { margin-bottom: 14px; }
+  .console .workspace { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .console .panel { border-radius: var(--radius-lg); }
+  .console .chat { min-height: 420px; }
+  .console .rail { display: none; }
+  .console .app { grid-template-columns: 1fr; }
+  .console .main { max-width: 1200px; margin: 0 auto; }
+
+  /* Variant C */
+  .focus .workspace { grid-template-columns: minmax(0, 1fr); max-width: 780px; margin: 0 auto; }
+  .focus .intake { position: static; }
+  .focus .rail { display: none; }
+  .focus .app { grid-template-columns: 1fr; }
+  .focus .main { max-width: 840px; margin: 0 auto; }
+  .drawer {
+    margin-top: 16px;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+    background: var(--color-surface);
+  }
+  .drawer summary { cursor: pointer; font-weight: 700; }
+
+  @media (max-width: 980px) {
+    .app { grid-template-columns: 1fr; }
+    .rail { flex-direction: row; align-items: center; overflow-x: auto; }
+    .rail-card, .rail-foot { display: none; }
+    .workspace { grid-template-columns: 1fr; }
+    .intake { position: static; }
+  }
+  @media (max-width: 620px) {
+    .main { padding: 16px 12px 24px; }
+    .field-grid { grid-template-columns: 1fr; }
+    .topbar { align-items: flex-start; flex-direction: column; }
+    #variant-nav { overflow-x: auto; }
+  }
+</style>
+</head>
+<body>
+
+<div id="variant-nav">
+  <strong>TriageDesk sketch</strong>
+  <button class="variant-tab active" onclick="showVariant('a', this)">A: Workbench ★</button>
+  <button class="variant-tab" onclick="showVariant('b', this)">B: Split console</button>
+  <button class="variant-tab" onclick="showVariant('c', this)">C: Focus mode</button>
+</div>
+
+<!-- Variant A: dark rail + conversation + sticky structured intake -->
+<div id="variant-a" class="variant active">
+  <div class="app">
+    <aside class="rail">
+      <div class="brand"><span class="brand-mark">TD</span><span><strong>TriageDesk</strong><small>OPD triage desk</small></span></div>
+      <nav class="nav">
+        <a class="active" href="#">New case</a>
+        <a href="#">Waiting room</a>
+      </nav>
+      <div class="rail-card">
+        <p class="eyebrow">Station link</p>
+        <strong>MCP</strong>
+        <p>Other hospital stations read the same triage result through the TriageDesk MCP server.</p>
+      </div>
+      <p class="rail-foot">Triage support only. Nothing is queued without a named clinician's approval.</p>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div><p class="eyebrow">Triage workspace</p><h1>New patient</h1></div>
+        <span class="mode"><span class="dot"></span>Offline · deterministic scorer</span>
+      </header>
+      <div class="workspace">
+        <section class="panel">
+          <header class="panel-head">
+            <div><p class="eyebrow">Conversation</p><h2>Triage assistant</h2></div>
+            <span class="badge">Suggestion only</span>
+          </header>
+          <div class="chat">
+            <div class="message assistant">
+              <p class="author">TriageDesk assistant</p>
+              <div class="bubble">
+                <p>Record the vitals, add the presenting complaint, and I will return a sourced SATS suggestion for you to confirm.</p>
+                <p class="muted">Triage support only. Nothing reaches the queue without a named clinician's approval.</p>
+              </div>
+            </div>
+            <div class="message nurse">
+              <p class="author">You</p>
+              <div class="bubble"><p>34M, coughing and fast breathing since last night.</p></div>
+            </div>
+            <div class="message assistant">
+              <p class="author">TriageDesk assistant</p>
+              <div class="priority">
+                <div class="swatch"><strong>ORANGE</strong><span>Target &lt; 10 min · Majors</span></div>
+                <div class="priority-body">
+                  <h4>Why these vitals</h4>
+                  <ul>
+                    <li>respiratory_rate=24 → 2 points <span class="cite">SATS Training Manual 2012 (EMSSA)</span></li>
+                    <li>heart_rate=118 → 2 points <span class="cite">SATS Training Manual 2012 (EMSSA)</span></li>
+                  </ul>
+                  <h4>Evidence</h4>
+                  <ul><li>Acute shortness of breath <span class="cite">SATS discriminator, respiratory</span></li></ul>
+                </div>
+              </div>
+            </div>
+            <div class="message assistant">
+              <p class="author">TriageDesk assistant</p>
+              <div class="bubble">
+                <p><strong>Your decision.</strong> This is a suggestion, not a decision.</p>
+                <div class="form-actions">
+                  <button class="button primary">Approve suggestion</button>
+                  <button class="button">Edit colour</button>
+                  <button class="button">Dismiss</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="composer">
+            <label for="a-note">Message the triage assistant</label>
+            <div class="composer-row">
+              <textarea id="a-note" placeholder="Describe the complaint or paste a nurse's note…"></textarea>
+              <button class="button primary">Send note</button>
+            </div>
+            <p class="hint">Online, the local model structures a note for your review. Offline, the text becomes the presenting complaint.</p>
+          </div>
+        </section>
+
+        <aside class="panel intake">
+          <header class="panel-head">
+            <div><p class="eyebrow">Structured intake</p><h2>Patient vitals</h2></div>
+            <span class="badge">Scored input</span>
+          </header>
+          <form>
+            <fieldset class="field-group">
+              <legend>Patient context</legend>
+              <div class="field-grid">
+                <div class="field"><label>Age (years)</label><input value="34"></div>
+                <div class="field"><label>Age (months)</label><input placeholder="—"></div>
+                <div class="field"><label>Age unclear</label><span class="check"><input type="checkbox"> Not stated</span></div>
+                <div class="field"><label>Height (cm)</label><input placeholder="—"></div>
+              </div>
+            </fieldset>
+            <fieldset class="field-group">
+              <legend>Observations</legend>
+              <div class="field-grid">
+                <div class="field"><label>Alertness (AVPU)</label><select><option>Alert</option></select></div>
+                <div class="field"><label>Breathing rate</label><input value="24"></div>
+                <div class="field"><label>Oxygen saturation</label><input value="94"></div>
+                <div class="field"><label>Heart rate</label><input value="118"></div>
+                <div class="field"><label>Systolic BP</label><input value="108"></div>
+                <div class="field"><label>Diastolic BP</label><input value="70"></div>
+                <div class="field"><label>Temperature (°C)</label><input value="38.9"></div>
+              </div>
+            </fieldset>
+            <fieldset class="field-group">
+              <legend>Function</legend>
+              <div class="field-grid">
+                <div class="field"><label>Mobility</label><select><option>Walking</option></select></div>
+                <div class="field"><label>Trauma</label><span class="check"><input type="checkbox"> Present</span></div>
+              </div>
+            </fieldset>
+            <fieldset class="field-group">
+              <legend>Presentation</legend>
+              <div class="field full"><label>Complaint</label><textarea>coughing and fast breathing since last night</textarea></div>
+            </fieldset>
+            <div class="form-actions">
+              <button class="button primary" type="button">Get suggested priority</button>
+              <button class="button" type="button">Clear form</button>
+            </div>
+          </form>
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Variant B: split console, no rail -->
+<div id="variant-b" class="variant console">
+  <div class="app">
+    <div class="main">
+      <header class="topbar">
+        <div><p class="eyebrow">Triage workspace</p><h1>TriageDesk console</h1></div>
+        <span class="mode"><span class="dot"></span>Online · local model reads the note</span>
+      </header>
+      <div class="workspace">
+        <section class="panel">
+          <header class="panel-head"><div><p class="eyebrow">Conversation</p><h2>What I heard</h2></div><span class="badge">Suggestion only</span></header>
+          <div class="chat">
+            <div class="message assistant"><p class="author">TriageDesk assistant</p><div class="bubble"><p>Paste the nurse's note and I will structure it for your review. The deterministic scorer still decides the colour.</p></div></div>
+            <div class="message nurse"><p class="author">You</p><div class="bubble"><p>40M, RR 24, HR 118, BP 108/70, temp 38.9, chest pain.</p></div></div>
+            <div class="message assistant"><p class="author">TriageDesk assistant</p><div class="bubble"><p>Here is what I read. Review and correct the structured intake before scoring.</p><dl class="facts"><dt>Age</dt><dd>40</dd><dt>Breathing rate</dt><dd>24</dd><dt>Heart rate</dt><dd>118</dd><dt>Not stated</dt><dd>SpO₂ · Mobility</dd></dl></div></div>
+          </div>
+          <div class="composer"><label>Message the triage assistant</label><div class="composer-row"><textarea placeholder="Paste a nurse's note…"></textarea><button class="button primary">Send note</button></div><p class="hint">The form on the right is still the scored input.</p></div>
+        </section>
+        <aside class="panel intake">
+          <header class="panel-head"><div><p class="eyebrow">Structured intake</p><h2>Patient vitals</h2></div><span class="badge">Scored input</span></header>
+          <form>
+            <fieldset class="field-group"><legend>Patient context</legend><div class="field-grid"><div class="field"><label>Age (years)</label><input value="40"></div><div class="field"><label>Age unclear</label><span class="check"><input type="checkbox"> Not stated</span></div></div></fieldset>
+            <fieldset class="field-group"><legend>Observations</legend><div class="field-grid"><div class="field"><label>Breathing rate</label><input value="24"></div><div class="field"><label>Heart rate</label><input value="118"></div><div class="field"><label>Systolic BP</label><input value="108"></div><div class="field"><label>Diastolic BP</label><input value="70"></div><div class="field"><label>Temperature (°C)</label><input value="38.9"></div><div class="field"><label>Oxygen saturation</label><input placeholder="—"></div></div></fieldset>
+            <fieldset class="field-group"><legend>Presentation</legend><div class="field full"><label>Complaint</label><textarea>chest pain</textarea></div></fieldset>
+            <div class="form-actions"><button class="button primary" type="button">Get suggested priority</button></div>
+          </form>
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Variant C: focus mode, intake in a drawer -->
+<div id="variant-c" class="variant focus">
+  <div class="app">
+    <div class="main">
+      <header class="topbar"><div><p class="eyebrow">Triage workspace</p><h1>New patient</h1></div><span class="mode"><span class="dot"></span>Offline</span></header>
+      <div class="workspace">
+        <section class="panel">
+          <header class="panel-head"><div><p class="eyebrow">Conversation</p><h2>Triage assistant</h2></div><span class="badge">Suggestion only</span></header>
+          <div class="chat">
+            <div class="message assistant"><p class="author">TriageDesk assistant</p><div class="bubble"><p>Start with the complaint. The structured intake opens when you are ready to record vitals.</p></div></div>
+            <div class="message assistant"><p class="author">TriageDesk assistant</p><div class="bubble"><p><strong>No case yet.</strong> Enter the patient's vitals and complaint, then choose Get suggested priority.</p></div></div>
+          </div>
+          <div class="composer"><label>Message the triage assistant</label><div class="composer-row"><textarea placeholder="Describe the complaint…"></textarea><button class="button primary">Send</button></div></div>
+        </section>
+        <details class="drawer" open>
+          <summary>Structured intake — patient vitals</summary>
+          <form style="margin-top:12px">
+            <fieldset class="field-group"><legend>Patient context</legend><div class="field-grid"><div class="field"><label>Age (years)</label><input></div><div class="field"><label>Age unclear</label><span class="check"><input type="checkbox"> Not stated</span></div></div></fieldset>
+            <fieldset class="field-group"><legend>Observations</legend><div class="field-grid"><div class="field"><label>Breathing rate</label><input></div><div class="field"><label>Heart rate</label><input></div><div class="field"><label>Systolic BP</label><input></div><div class="field"><label>Temperature (°C)</label><input></div></div></fieldset>
+            <fieldset class="field-group"><legend>Presentation</legend><div class="field full"><label>Complaint</label><textarea></textarea></div></fieldset>
+            <div class="form-actions"><button class="button primary" type="button">Get suggested priority</button></div>
+          </form>
+        </details>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showVariant(id, button) {
+  document.querySelectorAll('.variant').forEach(function (v) { v.classList.remove('active'); });
+  document.querySelectorAll('.variant-tab').forEach(function (t) { t.classList.remove('active'); });
+  document.getElementById('variant-' + id).classList.add('active');
+  button.classList.add('active');
+}
+</script>
+</body>
+</html>

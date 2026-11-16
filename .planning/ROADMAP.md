@@ -6,6 +6,7 @@
 - ✅ **v1.1 Score Uplift** — Phases 6–12 (shipped 2026-10-13) — archived at `.planning/milestones/v1.1-ROADMAP.md`
 - ✅ **v1.2 Coverage Recovery** — Phases 15–18 (shipped 2026-11-13) — archived at `.planning/milestones/v1.2-phases/`
 - 🚧 **v1.3 Adaptive Triage** — Phases 19–24 (started 2026-11-13)
+- 🚧 **v1.4 Desk demo & integration** — Phase 25 (started 2026-11-16)
 
 ## Phases
 
@@ -80,8 +81,6 @@ coverage deferrals 18/37 (48.6%), colour stability 15/16 (E-11), p95 latency 55.
 - [x] **Phase 18: Eval expansion, honest measurement and docs** (3/3 plans) — 24 cases (6 held-out), report-derived EVALS.md
 
 </details>
-
----
 
 ## v1.3 Adaptive Triage
 
@@ -174,3 +173,24 @@ Plans:
 - [x] 24-01-PLAN.md — Eval facts: investigation steps, action sequence, elicitation outcome, guard override, emergency bypass; cases resolvable only by asking
 - [x] 24-02-PLAN.md — Report: adaptive-vs-baseline block, invariants re-proven, `EVALS.md` regenerated (`--check` exits 0)
 - [x] 24-03-PLAN.md — ARCHITECTURE/STATUS/README/DECISIONS/MCP.md + skill sweep; regenerate the canonical diagrams from shipped code; the written reviewer answer
+
+---
+
+## v1.4 Desk demo & integration
+
+**Milestone goal:** The desk demonstrates the system to a reviewer — a modern chat workspace beside
+the structured intake, and a visible map of how the demo desk, the core solution, and the MCP
+station integration fit together.
+
+### Phase 25: Modern chat desk and visible integration map
+
+**Goal:** A nurse gets a modern conversation workspace beside the authoritative structured intake,
+and a reviewer can see the desk vs core vs MCP distinction and the wire protocol in the product
+itself; the three UI-review blockers are closed without changing the safety kernel.
+**Requirements**: none (demo/integration surface)
+**Depends on:** Phase 24
+**Plans:** 1/1 plan complete — completed 2026-11-16
+
+Plans:
+
+- [x] 25-01-PLAN.md — chat workspace, note intake, `/system` map, and the UI-review blocker fixes
