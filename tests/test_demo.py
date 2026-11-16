@@ -9,7 +9,11 @@ gated commit behaves honestly on screen:
   a write without a named nurse);
 * the tracer emits the owned tool names each beat actually reaches — the escalation
   beat's FIVE (``raise_recheck_flag`` is NOT reached: E-02 carries no ``previous_case``)
-  and the deterioration beat's ``raise_recheck_flag``.
+  and the deterioration beat's ``raise_recheck_flag``;
+* every run opens with exactly ONE ``mode:`` line (the ONE ``mode_line`` text), and the
+  online line names the model tag the client actually uses (``DEFAULT_MODEL``, imported);
+* the CLI raises the ``httpx`` logger to WARNING, so an online run prints no
+  ``HTTP Request`` INFO lines between the ``[tool]`` lines.
 
 The store double is the shared ``triagedesk.store.memory.InMemoryStore`` (CONVENTIONS §1:
 one double, not a new one per test module).
@@ -17,9 +21,14 @@ one double, not a new one per test module).
 
 from __future__ import annotations
 
+import json
+import logging
+
 from pytest import CaptureFixture
 
-from triagedesk.demo.run import load_storyboard, run_demo
+from triagedesk.cli import main
+from triagedesk.demo.run import load_storyboard, mode_line, run_demo
+from triagedesk.llm.client import DEFAULT_MODEL
 from triagedesk.store.memory import InMemoryStore
 
 # The five owned tools the escalation beat (E-02) actually reaches, in call order.
@@ -38,9 +47,9 @@ async def test_full_storyboard_returns_zero() -> None:
 
 
 async def test_manifest_names_every_declared_beat() -> None:
-    """The storyboard declares the five demo beats (D-07)."""
+    """The storyboard declares the six demo beats (D-07; ``clarify`` is the additive sixth)."""
     names = [beat.name for beat in load_storyboard()]
-    assert names == ["routine", "escalation", "deterioration", "refusal", "failure"]
+    assert names == ["routine", "escalation", "deterioration", "refusal", "failure", "clarify"]
 
 
 async def test_named_approval_commits_exactly_one_row() -> None:
@@ -75,3 +84,48 @@ async def test_deterioration_beat_reaches_raise_recheck_flag(
     assert await run_demo(beats=["deterioration"], store=InMemoryStore()) == 0
     out = capsys.readouterr().out
     assert "[tool] raise_recheck_flag " in out
+
+
+def test_cli_demo_opens_with_offline_mode_line_and_quiets_httpx(
+    capsys: CaptureFixture[str],
+) -> None:
+    """The bare CLI demo prints the offline mode line first and leaves httpx at WARNING."""
+    httpx_logger = logging.getLogger("httpx")
+    saved = httpx_logger.level
+    httpx_logger.setLevel(logging.NOTSET)
+    try:
+        assert main(["demo", "--beat", "routine"]) == 0
+        first = capsys.readouterr().out.splitlines()[0]
+        assert first == mode_line(offline=True)
+        assert first.startswith("mode: offline")
+        assert httpx_logger.level == logging.WARNING
+        assert not httpx_logger.isEnabledFor(logging.INFO)
+    finally:
+        httpx_logger.setLevel(saved)
+
+
+def test_online_mode_line_names_the_client_model_tag() -> None:
+    """The online header names the tag the model client defaults to — never a re-typed one."""
+    line = mode_line(offline=False)
+    assert line.startswith("mode: online")
+    assert DEFAULT_MODEL in line
+
+
+async def test_run_prints_exactly_one_mode_line_first(
+    capsys: CaptureFixture[str],
+) -> None:
+    """A multi-beat run prints ONE mode header, and it is the first stdout line."""
+    assert await run_demo(beats=["routine", "escalation"], store=InMemoryStore()) == 0
+    lines = capsys.readouterr().out.splitlines()
+    modes = [line for line in lines if line.startswith("mode:")]
+    assert modes == [lines[0]]
+
+
+def test_render_decodes_adapter_content_blocks_like_an_in_process_result() -> None:
+    """An adapter-backed tool line shows the decoded result, never the MCP wire wrapper."""
+    from triagedesk.demo.run import _render
+
+    decoded = {"answers": ["low blood sugar"], "outcome": "accepted", "reason": None}
+    blocks = [{"id": "lc_x", "type": "text", "text": json.dumps(decoded)}]
+    assert _render(blocks) == _render(decoded)
+    assert "lc_x" not in _render(blocks)

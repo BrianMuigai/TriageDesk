@@ -12,14 +12,16 @@ is a config change behind this wrapper (SOLID: D).
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import ollama
 
-from triagedesk.core.schema import ExtractionResult
+from triagedesk.core.grounding import ground_extraction
+from triagedesk.core.planner import admissible_actions
+from triagedesk.core.schema import ExtractionResult, InvestigationState, PlanProposal
 from triagedesk.llm.notes import grounded_case
-from triagedesk.llm.prompts import EXTRACTION_PROMPT
+from triagedesk.llm.prompts import EXTRACTION_PROMPT, PLAN_PROMPT
 from triagedesk.observability import span
 
 # The injectable usage seam (D-08, Pitfall 16): a caller may supply a sink that is
@@ -188,6 +190,25 @@ async def _async_generate(*, model: str, prompt: str, schema: dict[str, Any]) ->
     )
 
 
+async def extract_grounded(
+    note: str,
+    *,
+    extract: Callable[[str], Awaitable[ExtractionResult]] | None = None,
+) -> ExtractionResult:
+    """Read a free-text note into a **grounded** extraction — the ONE note→case composition.
+
+    Composes the model call with the deterministic evidence check
+    (``core.grounding.ground_extraction``), which also applies the closed-set filter. Every
+    surface that turns a raw note into a case — the owned ``normalize_case`` tool and the
+    terminal intake — calls this, so the two can never disagree about what a note supports.
+
+    ``extract`` is injectable so the server keeps its own patchable ``extract_async`` seam:
+    the composition is shared, the model call is still stubbable where the tests expect it.
+    """
+    result = await (extract or extract_async)(note)
+    return ground_extraction(result, note)
+
+
 async def extract_async(
     note: str,
     *,
@@ -214,3 +235,61 @@ async def extract_async(
     if usage_sink is not None:
         usage_sink(attrs["tokens_in"], attrs["tokens_out"])
     return _parsed(response, note)
+
+
+def _proposal(response: Any) -> PlanProposal | None:
+    """Validate one planner response — ``None`` on any empty/unparsable/schema-invalid payload.
+
+    The planner path DEGRADES rather than raises: a transport or schema failure becomes
+    ``None`` so :func:`triagedesk.core.planner.validate_proposal` can substitute the default
+    (ADAPT-02). The extraction path keeps its fail-loud :class:`ExtractionError` contract,
+    because there is no safe default extraction — there is a safe default action.
+    """
+    raw = _response_text(response)
+    if not raw.strip():
+        return None
+    try:
+        return PlanProposal.model_validate_json(raw)
+    except ValueError:  # pydantic's ValidationError is a ValueError
+        return None
+
+
+async def propose_plan_async(
+    state: InvestigationState,
+    *,
+    model: str = DEFAULT_MODEL,
+    usage_sink: UsageSink | None = None,
+) -> PlanProposal | None:
+    """Ask the local model to PROPOSE the next investigation action (ADAPT-02).
+
+    Structured output only: the grammar is ``PlanProposal.model_json_schema()``, sent as the
+    ``format=`` constraint exactly as the extraction call does, through the SAME lazily-built
+    async client and the SAME ``model`` span with the same minimal attributes (never the note,
+    the prompt or the completion — D7-08).
+
+    The prompt's admissible list comes from :func:`triagedesk.core.planner.admissible_actions`
+    — the guard's own policy — so the prompt cannot drift from the validator that judges the
+    answer (DRY).
+
+    Returns ``None`` when the model is unavailable or its payload is empty, unparsable or
+    schema-invalid. The caller (``plan_next_step``) hands that ``None`` to the guard, which
+    substitutes ``finish_investigation``; this function never raises and never returns
+    unvalidated data.
+    """
+    schema = PlanProposal.model_json_schema()
+    admissible = ", ".join(sorted(action.value for action in admissible_actions(state)))
+    prompt = PLAN_PROMPT.format(
+        schema=schema,
+        admissible=admissible,
+        state=state.model_dump_json(indent=2),
+    )
+    attrs: dict[str, Any] = {"model": model}
+    with span("model", model, attributes=attrs):
+        try:
+            response = await _async_generate(model=model, prompt=prompt, schema=schema)
+        except Exception:  # noqa: BLE001 — a transport failure degrades to the guard (ADAPT-02)
+            return None
+        _usage_attrs(response, attrs)
+    if usage_sink is not None:
+        usage_sink(attrs["tokens_in"], attrs["tokens_out"])
+    return _proposal(response)

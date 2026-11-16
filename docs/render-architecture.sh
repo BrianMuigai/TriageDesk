@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Render docs/assets/architecture.mmd to docs/assets/architecture.svg and
-# docs/assets/architecture.pdf.
+# Render a Mermaid architecture diagram to SVG + PDF.
+#
+# Default source is docs/assets/architecture.mmd -> architecture.svg/.pdf.
+# Pass a stem to render a variant from the SAME renderer (DRY), e.g.:
+#   ./docs/render-architecture.sh architecture-v1.3
 #
 # The flow story is embedded in the .mmd source, so both assets are regenerated
 # from one file (single source of truth).
@@ -11,17 +14,18 @@
 #     (override with CHROME_BIN=/path/to/chrome)
 #
 # Usage:
-#   ./docs/render-architecture.sh
+#   ./docs/render-architecture.sh [stem]
 
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 assets="$here/assets"
-src="$assets/architecture.mmd"
+stem="${1:-architecture}"
+src="$assets/$stem.mmd"
 puppeteer="$assets/puppeteer-config.json"
-out_svg="$assets/architecture.svg"
-out_pdf="$assets/architecture.pdf"
-work="/tmp/opencode/arch-render"
+out_svg="$assets/$stem.svg"
+out_pdf="$assets/$stem.pdf"
+work="/tmp/opencode/arch-render-$stem"
 page_width_in=20
 
 [ -f "$src" ] || { echo "Missing source: $src" >&2; exit 1; }

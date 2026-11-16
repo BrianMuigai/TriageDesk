@@ -1,0 +1,77 @@
+%% Diagram B — Component & Infrastructure Architecture (PROPOSED, v1.3)
+%% Audience: software engineer. Trace one model call, one MCP interaction, one DB
+%% access, one checkpoint write and one audit record.
+%% Detail of the clinical sequence lives in architecture-workflow.mmd.
+flowchart LR
+    DESK["Nurse-facing app<br/>desk surface + CLI"]
+
+    subgraph ENGINE["LangGraph execution engine"]
+        direction TB
+        GRAPH["LangGraph graph<br/>adaptive envelope + frozen kernel"]
+        PLAN["plan node +<br/>deterministic guard"]
+        CP[("checkpoints.db<br/>runtime state")]
+        GRAPH --> PLAN
+        GRAPH <-->|"pause / resume"| CP
+    end
+
+    ADAPTER["MCP client<br/>langchain.mcp adapter · stdio"]
+
+    subgraph SERVER["Owned Triage MCP server · nine tools"]
+        direction TB
+        T1["normalize_case"]
+        T2["match_discriminators"]
+        T3["retrieve_evidence"]
+        T4["assess_confidence"]
+        T5["score_priority"]
+        T6["raise_recheck_flag"]
+        T_PLAN["plan_next_step<br/>model proposal"]
+        T_ASK["request_clarification<br/>elicits mid-call"]
+        T_COMMIT["commit_priority<br/>act + gated"]
+        T1 ~~~ T2 ~~~ T3
+        T4 ~~~ T5 ~~~ T6
+        T_PLAN ~~~ T_ASK ~~~ T_COMMIT
+    end
+
+    subgraph DEPS["Local dependencies and storage"]
+        direction TB
+        LLM["Ollama · offline<br/>qwen2.5:1.5b measured default<br/>qwen3.5:4b documented fallback"]
+        RULES["Clinical knowledge<br/>data/sats_tews.yaml<br/>data/sats_discriminators.yaml<br/>data/text_terms.yaml"]
+        BORROW["Borrowed SQLite MCP<br/>read-only access paths"]
+        STORE["Store seam<br/>gated queue write"]
+        DB[("triage.db<br/>cases · queue · audit")]
+        SPANS["spans.jsonl<br/>execution spans"]
+        CHAIN["Hash-chained audit<br/>one record per tool call"]
+    end
+    EXT["External APIs<br/>none required"]
+    LEGEND["Legend: amber = human · grey = deterministic · blue = model proposal<br/>green = persistence · red = gated write"]
+
+    DESK -->|"case in"| GRAPH
+    GRAPH --> ADAPTER
+    ADAPTER --> SERVER
+    PLAN --> T_PLAN
+    T_ASK -.->|"elicit question, via the MCP client"| DESK
+    DESK -.->|"answer, then the interrupted graph resumes"| GRAPH
+    SERVER -->|"structured output"| LLM
+    SERVER -->|"rules + terms"| RULES
+    SERVER -->|"audit record"| CHAIN
+    SERVER --> BORROW
+    BORROW -->|"read"| DB
+    T_COMMIT --> STORE
+    STORE -->|"approved write only"| DB
+    GRAPH --> SPANS
+    ADAPTER -. "no network" .-> EXT
+
+    classDef human fill:#fff3cd,stroke:#8a6d3b,color:#1a1a1a
+    classDef det fill:#e2e3e5,stroke:#41464b,color:#1a1a1a
+    classDef ai fill:#cfe2ff,stroke:#084298,color:#1a1a1a
+    classDef store fill:#d1e7dd,stroke:#0f5132,color:#1a1a1a
+    classDef gated fill:#f8d7da,stroke:#842029,color:#1a1a1a
+
+    class DESK human
+    class GRAPH,PLAN,ADAPTER,SERVER,T1,T2,T3,T4,T5,T6,BORROW,STORE det
+    class LLM,T_PLAN ai
+    class T_ASK human
+    class CP,DB,SPANS,CHAIN,RULES store
+    class T_COMMIT gated
+    class EXT det
+    class LEGEND det

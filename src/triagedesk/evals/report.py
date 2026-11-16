@@ -126,6 +126,22 @@ class ReportCase(BaseModel):
     # volatile latency/token totals): it is run diagnostics beside, not, a published safety
     # figure — the fail-closed ``ABORT`` outcome it produces IS sealed via ``outcomes``.
     run_errors: list[str | None] = Field(default_factory=list)
+    # The adaptive facts (MEAS-01), one entry per run and index-aligned with ``outcomes``.
+    # They are VOLATILE run facts — like ``latency_s`` and the token totals — so they are NOT
+    # sealed in ``report_digest``: the digest contract must not move for an older report, and
+    # a re-measure that changes only how many steps the planner took must not read as a change
+    # in published safety behaviour. The safety facts (``outcomes``, ``invariants``) stay sealed.
+    #
+    # ``investigation_steps`` is ``None`` for a run on the baseline arm (no planner node ever
+    # wrote the accumulator) and for an errored run. ``plan_actions`` is the decision history
+    # as ``PlanAction`` values; ``guard_overrides`` counts proposals the guard replaced;
+    # ``elicitation_outcomes`` is the four-way outcome seen, if any; ``emergency_bypass`` is
+    # whether the deterministic fast arm fired.
+    investigation_steps: list[int | None] = Field(default_factory=list)
+    plan_actions: list[list[str]] = Field(default_factory=list)
+    guard_overrides: list[int] = Field(default_factory=list)
+    elicitation_outcomes: list[str | None] = Field(default_factory=list)
+    emergency_bypass: list[bool] = Field(default_factory=list)
 
 
 class GateViolation(BaseModel):
@@ -194,6 +210,29 @@ class Calibration(BaseModel):
     small_sample_caveat: str = ""
 
 
+class Adaptive(BaseModel):
+    """The adaptivity facts over a measured report (MEAS-01, MEAS-02).
+
+    A small, honest block: it says how often the planner actually investigated, how many
+    steps it took, which actions it chose, how often the guard replaced a proposal, what the
+    elicitation produced, and which cases took the deterministic emergency bypass. A baseline
+    report (no planner node) yields an all-zero block rather than an error, so the two arms
+    are always comparable through the same analyser.
+
+    ``mean_steps`` is taken over runs that actually recorded steps, so a baseline run's
+    ``None`` never biases it to zero. It is a count of decisions, not a latency or a risk
+    figure.
+    """
+
+    runs_with_investigation: int = 0
+    mean_steps: float = 0.0
+    max_steps: int = 0
+    action_counts: dict[str, int] = Field(default_factory=dict)
+    guard_override_rate: float = 0.0
+    elicitation_counts: dict[str, int] = Field(default_factory=dict)
+    emergency_bypass_cases: list[str] = Field(default_factory=list)
+
+
 class Analysis(BaseModel):
     """The safety-relevant aggregate block over a report (EVAL-04, EVAL-05, D-03).
 
@@ -256,6 +295,9 @@ class Analysis(BaseModel):
     clarification_rate: float = 0.0
     clarification_cases: list[str] = Field(default_factory=list)
     calibration: Calibration = Field(default_factory=Calibration)
+    # The adaptivity facts (MEAS-01/02), defaulted so an older report validates and a bare
+    # ``Analysis()`` still constructs.
+    adaptive: Adaptive = Field(default_factory=Adaptive)
 
 
 class Report(BaseModel):
@@ -273,6 +315,10 @@ class Report(BaseModel):
     runs: int
     cases_dir: str
     provenance: Provenance
+    # Which arm produced this report (MEAS-02). ``True`` is the adaptive arm (the planner
+    # runs); ``False`` is the baseline (``retrieve -> finish_investigation``, the v1.2 path).
+    # Defaulted so a report written before the field existed still validates.
+    planner: bool = True
     cases: list[ReportCase] = Field(default_factory=list)
     invariants: dict[str, bool] = Field(default_factory=dict)
     gate: GateResult = Field(default_factory=GateResult)
@@ -429,6 +475,7 @@ def write_report(path: str | Path, report: Report) -> Report:
 
 
 __all__ = [
+    "Adaptive",
     "Analysis",
     "Calibration",
     "GateResult",

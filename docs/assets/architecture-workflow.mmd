@@ -1,0 +1,59 @@
+%% Diagram A — Adaptive Clinical Workflow (PROPOSED, v1.3)
+%% Audience: competition judge, clinician, product reviewer. Readable in under a minute.
+%% One question this diagram answers: what happens to one patient, in order?
+%% Detail lives in architecture-components.mmd and architecture-v1.3.mmd.
+flowchart TD
+    START(["Patient arrives at the OPD triage desk"])
+    OBS["Nurse records vitals<br/>and a one-line complaint<br/>observations only"]
+    EMERG{"Deterministic emergency check<br/>clinician-approved protocol<br/>no model · no planner"}
+    FAST["Immediate cited priority<br/>fast path · skips model and planner"]
+    NORM["normalize<br/>structure the note<br/>local model, offline"]
+    MATCH["retrieve<br/>match approved SATS<br/>discriminators + coverage"]
+    PLAN["plan<br/>model proposes<br/>deterministic guard decides"]
+    A1["gather_evidence<br/>cited passages"]
+    A2["ask_question<br/>one targeted question<br/>from approved definitions"]
+    A3["re_extract<br/>re-read the note<br/>never overwrites observations"]
+    A4["finish_investigation<br/>stop investigating"]
+    BUDGET["Hard bounds<br/>3 steps · one answer round<br/>no repeated action<br/>exhaustion concludes, never guesses"]
+    KERNEL["Frozen safety kernel<br/>score · ground · verify · recheck · assess"]
+    GATE{"approval_gate<br/>named clinician decides<br/>approve · edit · dismiss"}
+    COMMIT["commit<br/>gated queue write<br/>only an approval gets here"]
+    CARD["handover<br/>sourced card"]
+    QUEUE["Queue order<br/>approved priority, then arrival time<br/>no AI ranking of patients"]
+    SAFE["Safe exits<br/>clarify · re-measure · escalate<br/>no colour · no queue"]
+    NOTE["The planner cannot score, approve, or commit<br/>its four actions are read-only"]
+    LEGEND["Legend: yellow = human decision · grey = deterministic · blue = model proposal · red = safe exit"]
+
+    START --> OBS --> EMERG
+    EMERG -->|"critical vitals"| FAST
+    EMERG -->|"not critical, or no structured vitals"| NORM
+    NORM --> MATCH --> PLAN
+    PLAN --> A1
+    PLAN --> A2
+    PLAN --> A3
+    PLAN --> A4
+    A1 -->|"back to plan, bounded"| PLAN
+    A3 -->|"re-evaluate"| MATCH
+    A2 -->|"answer is an observation, not an approval"| MATCH
+    A4 -->|"investigation done"| KERNEL
+    FAST --> KERNEL
+    BUDGET -.-> PLAN
+    NOTE -.-> PLAN
+    KERNEL --> GATE
+    GATE -->|"approve or edit"| COMMIT
+    GATE -->|"dismiss"| SAFE
+    KERNEL -->|"unresolved, failed check"| SAFE
+    COMMIT --> CARD --> QUEUE
+
+    classDef human fill:#fff3cd,stroke:#8a6d3b,color:#1a1a1a
+    classDef det fill:#e2e3e5,stroke:#41464b,color:#1a1a1a
+    classDef ai fill:#cfe2ff,stroke:#084298,color:#1a1a1a
+    classDef fail fill:#f8d7da,stroke:#842029,color:#1a1a1a
+
+    class START,OBS,GATE human
+    class EMERG,MATCH,KERNEL,COMMIT,QUEUE,FAST,CARD,BUDGET det
+    class NORM,PLAN,A1,A2,A3,A4 ai
+    class SAFE fail
+    classDef note fill:#ffffff,stroke:#842029,stroke-dasharray:4 3,color:#1a1a1a
+    class NOTE note
+    class LEGEND det

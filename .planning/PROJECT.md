@@ -18,16 +18,36 @@ challenge (Health & Wellbeing track, **Symptom-based priority scoring**).
 **A triage nurse gets a sourced, confirmable priority for each patient in seconds, and nothing reaches
 the queue without her approval.** If everything else fails, this must work.
 
-## Current Milestone: v1.1 Score Uplift
+## Current Milestone: v1.3 Adaptive Triage
 
-**Goal:** Close the ranked gaps in `STATUS.md` — the submission blocker, cheap docs/eval fixes, the desk-facing UX, and the highest-leverage capability gaps — without regressing the frozen v1.0 safety spine.
+**Goal:** Replace the fixed investigation ladder with a bounded, audited planner that genuinely decides
+what to do next — while the safety kernel (`score → verify → recheck → assess → gate → commit`) stays a
+non-skippable suffix.
+
+**Why now:** a reviewer challenged the system's agentic depth directly: *"is this genuinely an agentic
+system, or a deterministic clinical rules engine with an LLM extraction step and an MCP integration?"*
+`STATUS.md` already conceded the two named limitations — fixed routing rather than dynamic planning, and
+no MCP elicitation. This milestone answers the challenge with behaviour, not adjectives, and leaves the
+safety invariants provably unchanged.
 
 **Target features:**
-- Docs & rigour: one-command README; reconciled EVALS numbers; milestone-end documentation refresh
-- Evaluation: fix E-04 + E-07; re-run the measured suite; calibrated confidence + abstention
-- Desk UX: human-readable priority card; real approve/edit/dismiss gate; no-match banner; vitals-entry surface
-- Agentic depth: exercise the borrowed MCP beyond `query`; durable checkpoints E2E; RAG grounding; span tracing + replay
-- Review & demo: rehearse the live review; clinician review + quote if access allows; 2–3 min narrated demo
+- **Bounded planner** — a `plan` node chooses the next investigation action from a closed set (gather
+  evidence, ask a targeted question, re-extract with a hint, conclude) inside a hard step budget. The
+  local model *proposes*; a deterministic admissibility guard *disposes*; every decision is typed and
+  audited.
+- **Frozen safety kernel** — `conclude` is the only edge into `score`; no investigation action can
+  produce a colour, skip `verify`/`recheck`, or reach `commit`.
+- **Real MCP elicitation** — a new `request_clarification` owned tool calls `ctx.elicit()` mid-tool-call;
+  the adapter turns it into a LangGraph `interrupt()`, and a decline/cancel is a refusal, never an answer.
+- **Honest measurement** — adaptive-vs-baseline comparison on the same eval suite, investigation facts
+  published, all four safety invariants re-proven on every run.
+- **Deterministic emergency bypass** — a pure pre-check on structured vitals skips the model and the
+  planner for a critical case, and still cannot bypass the kernel or the clinician.
+- **Two audience-split diagrams** — a clinical workflow a judge reads in under a minute, and a component
+  map an engineer can trace; one vocabulary, one legend, every element labelled implemented/tested/
+  proposed/outstanding.
+- **Reviewer-facing docs** — a written answer to "is this a rules engine?", with the bounded-autonomy
+  defence recorded as a decision (D31) rather than argued in prose alone.
 
 ## Requirements
 
@@ -44,6 +64,13 @@ the queue without her approval.** If everything else fails, this must work.
 
 ### Active
 
+- [ ] **Adaptive investigation** — a bounded `plan` node selects the next read-only investigation action
+      from a closed set; the model proposes, the admissibility guard disposes, and the safety kernel stays
+      non-skippable (v1.3)
+- [ ] **MCP elicitation** — the owned `request_clarification` tool elicits mid-call via `ctx.elicit()`,
+      mapped to a LangGraph `interrupt()`; decline/cancel is a refusal (v1.3)
+- [ ] **Honest adaptivity measurement** — adaptive-vs-baseline on the same suite, investigation facts in the
+      report, all four invariants re-proven (v1.3)
 - [x] **Docs & rigour** — one-command README, EVALS counts reconciled, milestone-end documentation refresh ✅ (Phases 11–12)
 - [x] **Evaluation** — E-04 and E-07 fixed; suite re-run; `EVALS.md` regenerated from `report.json` ✅ (Phase 11)
 - [x] **Desk UX** — priority card, real approve/edit/dismiss gate, loud no-match/low-confidence banner, minimal vitals-entry surface ✅ (Phase 10)
@@ -115,20 +142,24 @@ _(Not monetized. This is a challenge submission; delete this section if it becom
 | `no_match` forces a deferral (absolute) | Discriminator coverage is the known gap; the colour would rest on TEWS alone, so the human decides | ✅ Phase 8, owner-confirmed (D8-11) |
 | Retrieval is colour-free and advisory (`evidence` channel only) | Grounding must *show* provenance, never *set* a priority; one place a colour is produced | ✅ Phase 9 (D9-03/D9-07) |
 | The borrowed server stays read-only on the agent path (allowlist + fail-closed guard) | The borrowed MCP is the storage authority; the agent path must not mutate it | ✅ Phase 9 (D9-12), hardened after review |
+| A bounded planner may choose among **read-only investigation** actions; it may never choose a colour, score, or commit | "Agentic" must be demonstrable, not asserted; the one place a colour is produced stays deterministic and the safety kernel stays a non-skippable suffix | ⏳ v1.3 (D31) |
+| The model proposes, a deterministic admissibility guard disposes | A 1.5B CPU model is a credible *proposer* and an unacceptable *authority*; the guard makes an unsafe or illegal proposal unrepresentable rather than merely unlikely | ⏳ v1.3 |
+| Clarification is elicited by the **server** mid-tool-call (`ctx.elicit()`), not assembled by the client | MCP elicitation is the spec's agent↔server negotiation; putting the question where the evidence is keeps one source for what is asked and makes decline/cancel a first-class refusal | ⏳ v1.3 |
 
 ## Current State
 
 **Shipped:** v1.0 MVP (2026-10-10) — all 5 phases complete & verified.
-**Complete:** v1.1 Score Uplift — all 7 phases (6–12) complete (2026-10-13).
+**Shipped:** v1.1 Score Uplift (2026-10-13) — 7 phases (6–12).
+**Shipped:** v1.2 Coverage Recovery (2026-11-13) — 4 phases (15–18): three-way coverage, bounded
+clarification terminal, deterministic stated-vital recovery, 24-case suite, real-mode report regenerated.
 
 - Frozen at tag `v1.0-submission`; pushed at `github.com/BrianMuigai/TriageDesk`.
-- 454 tests pass; one-command `uv run triagedesk demo` runs offline from a clean clone (no model, no borrowed subprocess).
-- Phase 6: durable execution (`demo --durable` + `triagedesk resume`; an edit supersedes the queue row in place).
-- Phase 7: local observability (one JSONL span sink, cloud tracing inert, `trace_id` on every audit record) and a structurally read-only `triagedesk replay`.
-- Phase 8: calibrated confidence & abstention (the `assess_confidence` tool + `assess` node; a one-way safety property; a deferral rate and calibration block in the published report). The published report remains `mode: real`, honestly showing the pre-existing E-04/E-07/E-13 failures that **Phase 11** owns.
-- Phase 9: retrieval grounding (`retrieve_evidence` + a routing-neutral `ground` node and an advisory `evidence` channel) and borrowed-MCP read-path depth behind the unchanged `Store` protocol with a fail-closed statement guard.
-- Milestone archive: `.planning/milestones/v1.0-ROADMAP.md`, `v1.0-REQUIREMENTS.md`.
-- Demo video recorded: `docs/triagedesk-demo.mp4` (human upload to YouTube/Vimeo pending).
+- `uv run triagedesk demo` runs offline from a clean clone (no model, no borrowed subprocess).
+- Latest measured run: 48/48 colour-expected runs correct, 0 under/over-triage, coverage 48/60,
+  9/60 clarified, 0/60 deferred, gate delivery 24/24; p50 17.83 s / p95 59.98 s.
+- Milestone archives: `.planning/milestones/v1.0-*`, `v1.1-*`; v1.2 archives on close.
+- **Open reviewer challenge (v1.3):** fixed routing rather than dynamic planning, and no MCP
+  elicitation — see `STATUS.md` §3/§5 (G7) and §7. This milestone closes both with behaviour.
 
 ## Evolution
 
@@ -148,4 +179,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-13 after Phase 12 (milestone v1.1 complete)*
+*Last updated: 2026-11-13 at the start of milestone v1.3 (Adaptive Triage)*

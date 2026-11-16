@@ -1,22 +1,26 @@
 # DEMO — TriageDesk submission video runbook
 
 > **One unedited screen recording, tool calls on screen, no slides.** The submission video is a real
-> screen recording of the shipped CLI — every line is what `uv run triagedesk demo` prints. It is
-> **2:28** (`docs/assets/triagedesk-demo.mp4`): the seven owned tools' calls across the five beats, the
-> measured evaluation, and the declared E-09 failure. It is reproducible from the repository (see
-> *Rendering the video* below).
+> screen recording of the shipped CLI — every line is what `uv run triagedesk demo` prints. The
+> repository file (`docs/assets/triagedesk-demo.mp4`) is a **2:29** re-recording (2026-11-15) on the
+> local model `qwen2.5:1.5b`: the online `escalation` beat and the online `clarify` beat with **live MCP
+> elicitation** (the agent stops inside `request_clarification`; the answer is typed at the real
+> `[nurse] q1>` prompt), then the `refusal` beat and the declared E-09 `failure` on the offline golden
+> fixture — each run's mode line says which — and the measured evaluation. The calls of **8** distinct
+> owned tools are on screen. It is reproducible from the repository (see *Rendering the video* below).
 >
-> **Upload status.** The video was uploaded to Google Drive during submission
-> ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)). The brief names
-> YouTube or Vimeo, so re-hosting there remains a platform caveat (`STATUS.md` G1,
-> `docs/REQUIREMENTS.md` G-9) — and the Drive folder should be confirmed viewable by anyone with the
-> link. This runbook documents the recording script.
+> **Upload status.** The earlier **2:28 v1.0 recording** was uploaded to Google Drive during submission
+> ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)). The 2:29
+> re-recording is **not yet uploaded**. The brief names YouTube or Vimeo, so hosting the re-recording
+> there remains the platform step (`STATUS.md` G1, `docs/REQUIREMENTS.md` G-9) — and the Drive folder
+> should be confirmed viewable by anyone with the link. This runbook documents the recording script.
 >
 > **Record against the current state (this commit), not the frozen `v1.0-submission` tag.** The
 > Durable-mode and desk sections below document v1.1+ behaviour — `--durable`/`resume`/`replay`,
 > `desk`, and v1.2's three-way coverage (delivered / clarified / deferred) — none of which exists at
-> `v1.0-submission`, whose CLI exposes only `eval` and `demo`. **The uploaded 2:28 recording predates
-> v1.2**: it shows the earlier `no_match` deferral on the routine and deterioration beats. The beats
+> `v1.0-submission`, whose CLI exposes only `eval` and `demo`. **The 2:28 v1.0 recording uploaded to
+> Google Drive predates v1.2**: it shows the earlier `no_match` deferral on the routine and
+> deterioration beats (the 2:29 re-recording plays neither). The beats
 > below are transcribed from the shipped v1.2 runner; where they differ from the recording, the text
 > says so explicitly. The frozen tag remains the reference for the **freeze protocol**
 > ([`ROADMAP.md`](ROADMAP.md) §Freeze), not for this runbook's commands. The canonical storyboard is
@@ -50,12 +54,17 @@ uv run triagedesk demo --beat escalation
 uv run triagedesk demo --beat deterioration
 uv run triagedesk demo --beat refusal
 uv run triagedesk demo --beat failure
+uv run triagedesk demo --online --beat clarify   # live: the agent asks the nurse (see below)
 ```
 
-The bare command runs all five beats in order, prints every owned tool call, and pauses at the
-approval gate. `--beat <name>` runs just that beat; the beat names are exactly those
+The bare command runs all six beats in order, prints every owned tool call, and pauses at the
+approval gate. Offline, the `clarify` beat shows the same E-09 terminal as `failure`, because the
+deterministic planner never asks — the question appears only `--online` (see
+[*Live final: the agent asks the nurse*](#live-final-the-agent-asks-the-nurse-online-clarify-beat)). `--beat <name>` runs just that beat; the beat names are exactly those
 `uv run triagedesk demo --list` prints. Add `--online` only to drive the pulled local model instead of
-the offline golden fixture.
+the offline golden fixture. Every run opens with ONE mode line, so the screen says which path is live:
+offline prints `mode: offline — golden fixture (no model)`, online prints
+`mode: online — local model <tag> via Ollama` with the tag the model client actually uses.
 
 ## The measured eval on screen (not a live run)
 
@@ -84,11 +93,18 @@ bash docs/render-demo.sh
 ```
 
 - [`scripts/record_demo.py`](../scripts/record_demo.py) drives a real `bash` over a pty, types each
-  `--beat` command, and captures the real output with real timings. It writes the asciicast **and** the
-  caption track, deriving each narration line's timing from where that beat's output actually appears.
-  The beat **names** come from the ONE manifest, `demo/storyboard.yaml`, so the video cannot name a beat
-  the CLI does not expose.
-- `agg` renders the cast to mp4; `ffmpeg` pads a caption band and burns `docs/assets/demo-captions.ass`.
+  `--beat` command, and captures the real output with real timings. The `escalation` and `clarify` beats
+  run **online on the real local model** (Ollama up, model warm — timings vary run to run); the recorder
+  waits for each run to return to the prompt, and in `clarify` types the nurse's answer only at the real
+  `[nurse] q1>` prompt (Enter at each further prompt; never `--answer`) — a run in which the model asks
+  nothing aborts the recording.
+- It writes the asciicast **and** the caption track, timing each narration line from where the output it
+  narrates appears — and refusing to burn one without it: a missing marker or mode line, a traceback or
+  warning on screen, or a run that does not return in time aborts before any video is rendered. The beat
+  **names** come from the ONE manifest, `demo/storyboard.yaml`; the projection caption's figures are
+  computed from `evals/results/report.json`.
+- `agg` renders the cast to mp4 and **never compresses idle time** (its idle limit is the duration
+  limit); `ffmpeg` pads a caption band and burns `docs/assets/demo-captions.ass`.
 - The script fails if the result is **≥ 3 min**.
 
 It needs `agg` on `PATH` (`cargo install --git https://github.com/asciinema/agg`) plus `ffmpeg` and the
@@ -165,13 +181,13 @@ Every line below is transcribed from the shipped runner (`uv run triagedesk demo
 a hand-written mock. Tool calls print as `[tool] <name> <inputs> -> <outputs>`; each beat closes with a
 `--- outcome ---` block carrying the **sourced priority** — colour, target, the matched discriminator
 ids, and the citation(s) behind the colour. Case ids are content-derived, so they are stable per case.
-The run shows **seven owned tools** — `normalize_case`, `match_discriminators`, `score_priority`,
-`retrieve_evidence`, `assess_confidence`, `raise_recheck_flag`, `commit_priority` — and only the
-`escalation` beat commits a queue row (at position 1).
+Offline the run shows **eight of the nine owned tools**; `request_clarification` appears when the online
+planner chooses to ask — the `clarify` beat (see *Live final: the agent asks the nurse* below). The beats that
+reach a named approval (`routine`, `escalation`, `deterioration`) commit, and `refusal` writes no row.
 
-**`routine` (E-01 → GREEN, then delivered).** Five tool calls — `normalize_case`,
-`match_discriminators`, `score_priority`, `retrieve_evidence`, `assess_confidence` — then the named
-approval reaches the gated commit:
+**`routine` (E-01 → GREEN, then delivered).** Six tool calls — `normalize_case`,
+`match_discriminators`, `plan_next_step`, `score_priority`, `retrieve_evidence`, `assess_confidence`
+— then the named approval reaches the gated `commit_priority`:
 
 > **Narration cue:** "Watch the routine case score GREEN. The complaint names no discriminator, so the
 > recorded vitals are the complete SATS basis — it is delivered, and committed only after the named
@@ -187,10 +203,11 @@ approval reaches the gated commit:
 ```
 
 `match_discriminators` reports `retrieval_status: no_candidate` for "sore throat": no discriminator
-applies, so the case is **not** deferred. (The recorded 2:28 video predates v1.2 and shows the earlier
-deferral here; the shipped behaviour is the delivery above.)
+applies, so the case is **not** deferred. (The 2:28 v1.0 video uploaded to Google Drive predates v1.2
+and shows the earlier deferral here; the 2:29 re-recording does not play the routine beat. The shipped
+behaviour is the delivery above.)
 
-**`escalation` (E-02 → ORANGE, committed under the named nurse).** Six tool calls — the five above plus
+**`escalation` (E-02 → ORANGE, committed under the named nurse).** The same six calls plus
 `commit_priority` — and three citations:
 
 > **Narration cue:** "Watch an ORANGE escalation commit at queue position 1 — only after a named
@@ -208,8 +225,9 @@ deferral here; the shipped behaviour is the delivery above.)
   handover card: {"case_id":"9300336d37c3651c","colour":"ORANGE","target":"< 10 min", ...}
 ```
 
-**`deterioration` (E-07 → second look, delivered).** Six tool calls — the five above plus
-`raise_recheck_flag` — which flags the serial-vitals change **without re-classifying** the patient:
+**`deterioration` (E-07 → second look, delivered).** The same six calls plus
+`raise_recheck_flag` and the gated `commit_priority` — the flag marks the serial-vitals change
+**without re-classifying** the patient:
 
 > **Narration cue:** "Watch the second look raise a recheck flag without re-classifying the patient.
 > Since v1.2 the vitals colour is delivered with that flag; the gate still waits for a named human."
@@ -227,8 +245,9 @@ deferral here; the shipped behaviour is the delivery above.)
 ```
 
 The `second look` line carries the deterioration facts and no colour of its own: the flag never
-re-classifies, and the commit happens only through the named approval. (The recorded video predates
-v1.2 and shows the earlier deferral here.)
+re-classifies, and the commit happens only through the named approval. (The 2:28 v1.0 Drive
+recording predates v1.2 and shows the earlier deferral here; the re-recording does not play this
+beat.)
 
 **`refusal` (the climax).** The same E-02 priority is scored, but the gate is resumed with a `dismiss`
 naming **no approver**, so the gated commit refuses and writes nothing — the refusal is read from the
@@ -267,8 +286,85 @@ measured outcome on screen:
 Narrate the failure while it is on screen: the vague complaint's discriminator is **not retrieved**. Since
 v1.2 the case is a **bounded clarification** — it asks for a capillary glucose and ketones and delivers
 no colour — rather than a dead-end deferral. The printed colour is the residual vitals-only result shown
-*before* the clarification routes the case to its terminal; the demo does not hide the miss. The recorded
-video predates v1.2 and shows the earlier deferral.
+*before* the clarification routes the case to its terminal; the demo does not hide the miss. The 2:28 v1.0
+Drive recording predates v1.2 and shows the earlier deferral; the 2:29 re-recording shows the output
+above.
+
+## Live final: the agent asks the nurse (online clarify beat)
+
+The strongest answer to "is this genuinely agentic?" is the agent visibly asking a human mid-run and
+acting on her answer — through MCP, live. The `clarify` beat runs E-09 (*"feeling unwell"*, known
+diabetic) with the local model:
+
+```bash
+# Live, in front of the judges: the presenter types the answer at each `[nurse] q1>` prompt
+# (name the finding, e.g. "low glucose, 2.1 mmol/L"); Enter on every prompt = decline.
+uv run triagedesk demo --online --beat clarify
+
+# Rehearsal / scripted: the answer is supplied up front (repeatable, in question order).
+uv run triagedesk demo --online --beat clarify --answer "low glucose, 2.1 mmol/L"
+```
+
+Excerpt of a real run (2026-11-15, `qwen2.5:1.5b` via Ollama, the `--answer` form; long JSON elided with
+`…`). The model decides whether to ask; temperature 0, so runs repeat, but it is a model — across two
+runs the chosen actions were identical while the model's free-text rationale wording differed:
+
+```
+mode: online — local model qwen2.5:1.5b via Ollama
+[tool] plan_next_step {…"retrieval_status": "ambiguous"…} -> {"action": "ask_question", …, "overridden": false, "proposed_action": "ask_question", …}
+[elicit] request_clarification: One detail would resolve this triage case. Answer what you can — a blank field is an unanswered question, not a finding.
+[elicit] request_clarification asks q1: Ask about: Hypoglycaemia — glucose < 3 mmol/L
+[elicit] request_clarification asks q2: Ask about: Diabetic glucose > 11 with ketonuria
+[elicit] request_clarification asks q3: Ask about: Diabetic glucose > 17 without ketonuria
+[nurse] q1: low glucose, 2.1 mmol/L
+[nurse] q2: (no answer)
+[nurse] q3: (no answer)
+[tool] request_clarification {"candidates": ["hypoglycaemia", "diabetic_hyperglycaemia_ketonuria", "diabetic_hyperglycaemia_no_ketonuria"]} -> [{… "text": "{\n  \"outcome\": \"accepted\",\n  \"answers\": [\n    \"low glucose, 2.1 mmol/L\"\n  ],\n  \"reason\": null\n}", "type": "text"}]
+[tool] match_discriminators {"complaint": "feeling unwell low glucose, 2.1 mmol/L", …} -> {"candidates": ["hypoglycaemia"], "matched_ids": ["hypoglycaemia"], "no_match": false, "questions": [], "retrieval_status": "matched", "warning": null}
+…
+--- outcome ---
+  colour       : RED
+  target       : Immediate
+  matched ids  : ['hypoglycaemia']
+  answers      : ['low glucose, 2.1 mmol/L']
+  elicitation  : accepted
+  citation     : SATS Training Manual 2012 (EMSSA), adult clinical discriminators — SATS Table: Emergency discriminators
+  commit       : committed case 52a30522f6fe4a61 at queue position 1 (RED)
+  …
+  DECLARED     : ORANGE (the eval expectation for the note alone — not compared: this run added a nurse answer)
+```
+
+**How it works.** The run pauses **inside** the `request_clarification` MCP tool call: the online beat
+loads that one tool through the shipped `langchain.mcp` adapter, in process (a real 2026-07-28 MCP
+session, `mcp/adapter.py`'s `with_live_clarification` seam), so the tool returns an input-required round
+and the adapter raises a real `mcp_elicitation` interrupt. The `[elicit]` lines are the server's own
+questions, read from that interrupt (each derived from the discriminator data — the demo authors none).
+The answer resumes the **same** run; the `[tool] request_clarification` line prints after the resume, with
+the tool's `accepted` result.
+
+**Safety rules — what an answer can and cannot do.**
+
+- The answer is an **observation**: it is appended to the complaint text and re-matched by the
+  deterministic matcher. The colour is `score_priority`'s, never the model's or the answer's.
+- The commit still needs the **named approval** — here the demo's synthetic nurse. An answer never
+  answers the approval gate.
+- A decline or a blank answer records nothing. A non-interactive run without `--answer` declines
+  (`[nurse] declined — no answer given; nothing is recorded`) and **never waits** on stdin; the case then
+  ends as the `failure` beat does (GREEN, `SHOWN MISMATCH`, no commit).
+- **Alias-matching caveat.** Matching is alias text from `data/sats_discriminators.yaml`: an answer that
+  names the finding as one of its aliases spells it (for example "low glucose") resolves it; a bare
+  number such as "glucose 2.1" is recorded but matches nothing, so the case stays unresolved and defers.
+  There is no number parsing.
+
+**Why `DECLARED` has no verdict on an answered run.** The declared ORANGE is the eval expectation for the
+note **alone**; this run added an observation the note did not contain, so comparing the two would
+measure a different input. It is printed, not compared. The unanswered `failure` beat keeps its
+`DECLARED` / `MEASURED` pair unchanged.
+
+**The batch eval is unchanged.** `triagedesk eval` has no human to answer, so it keeps the in-process
+tool, which records `unavailable` whenever its planner asks; its sealed reports are unchanged by this
+beat and no new eval numbers are claimed. `--durable` never pauses at a question either — the two-command
+durability story keeps the in-process tool.
 
 ## The desk surface (browser screen recording)
 
@@ -332,8 +428,8 @@ The video must be as honest as the docs. Point the close at what the repository 
   published SATS rules, not clinician adjudication. **No** triage nurse/clinician review was obtained as
   of 2026-10-13. The interview is prepared but unattested
   ([`CLINICIAN-INTERVIEW.md`](CLINICIAN-INTERVIEW.md)).
-- The video is recorded (`docs/assets/triagedesk-demo.mp4`, 2:28) and was **uploaded to Google Drive
-  during submission** (folder link above). The brief's YouTube/Vimeo requirement is the residual
-  platform caveat.
+- The repository video (`docs/assets/triagedesk-demo.mp4`) is the 2:29 re-recording on the local
+  model, not yet uploaded; the 2:28 v1.0 recording was **uploaded to Google Drive during submission**
+  (folder link above). The brief's YouTube/Vimeo requirement is the residual platform caveat.
 
 Record the close over the running terminal, not over slides: open source, offline, synthetic.

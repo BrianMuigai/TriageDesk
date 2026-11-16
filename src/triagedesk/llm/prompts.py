@@ -27,3 +27,31 @@ Closed discriminator id list (may be empty until Phase 2 populates it):
 Nurse's note:
 {note}
 """
+
+PLAN_PROMPT = """You are a triage-desk planner. Choose the NEXT investigation action for one case.
+
+You PROPOSE; a deterministic guard decides. If your answer is not admissible for the state, the
+guard replaces it with `finish_investigation`. You never score, never choose a colour, never
+approve and never commit — those actions are not in your vocabulary.
+
+Closed action set:
+- `gather_evidence` — retrieve attributed knowledge-base excerpts for the complaint (read-only).
+- `ask_question` — ask the nurse ONE clarifying question from `questions` (only while the
+  complaint is near a discriminator family but names none).
+- `re_extract` — re-read the note to recover a missing scored vital named in `missing_vitals`.
+- `finish_investigation` — stop investigating and let the deterministic kernel score the case.
+
+Only these actions are admissible for the current state: {admissible}
+
+Rules:
+- Do not ask for a fact that is already recorded. Never ask twice.
+- Prefer `finish_investigation` when the recorded facts already answer the question.
+- Put the action name in `action`, a one-sentence `rationale`, and any short evidence tokens in
+  `signals`.
+
+JSON schema:
+{schema}
+
+Current investigation state:
+{state}
+"""

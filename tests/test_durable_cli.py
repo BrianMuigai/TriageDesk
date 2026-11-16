@@ -21,10 +21,12 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
-from triagedesk.cli import _build_parser, main
+from triagedesk.cli import _build_parser, _resume_policy, main
 from triagedesk.demo.run import run_demo
 from triagedesk.durable import run_to_gate
 from triagedesk.evals.case import load_cases
@@ -289,3 +291,123 @@ def test_resume_reports_an_unexpected_failure_cleanly(
     err = capsys.readouterr().err
     assert "Client failed to connect" in err
     assert "Traceback" not in err
+
+
+# ------------------------------------------------- the elicitation resume (Plan 21-03)
+# The CLI's whole answer logic is ``_resume_policy``; these tests drive it directly with a
+# synthetic interrupt payload, because no shipped graph node elicits yet (Phase 23 wires the
+# ``plan`` node). The tool → adapter → interrupt → answer path is proved against the real
+# adapter in ``tests/test_elicitation_roundtrip.py``.
+def _elicitation_payload() -> dict[str, Any]:
+    """One form request with two derived questions, in the wire shape the adapter emits."""
+    return {
+        "type": "mcp_elicitation",
+        "tool_name": "request_clarification",
+        "requests": [
+            {
+                "key": "clarification",
+                "mode": "form",
+                "message": "one detail would resolve this case",
+                "requested_schema": {
+                    "type": "object",
+                    "properties": {
+                        "q1": {"type": "string", "description": "Ask about: chest_pain"},
+                        "q2": {"type": "string", "description": "Ask about: dyspnoea"},
+                    },
+                },
+            }
+        ],
+    }
+
+
+def test_resume_parser_accepts_repeatable_answers() -> None:
+    """``--answer`` repeats, and ``--decision`` is optional (an answer-only resume is legal)."""
+    args = _build_parser().parse_args(
+        ["resume", "--thread-id", "t", "--answer", "yes", "--answer", "no"]
+    )
+    assert args.answer == ["yes", "no"]
+    assert args.decision is None
+
+    gate = _build_parser().parse_args(["resume", "--thread-id", "t", "--decision", "dismiss"])
+    assert gate.answer is None
+    assert gate.decision == "dismiss"
+
+
+def test_resume_policy_answers_an_elicitation_in_question_order() -> None:
+    """The answers are paired with the questions in the order they were asked."""
+    args = _build_parser().parse_args(
+        ["resume", "--thread-id", "t", "--answer", "crushing", "--answer", "on exertion"]
+    )
+
+    resume = _resume_policy(args)(_elicitation_payload())
+
+    assert resume == {
+        "responses": {
+            "clarification": {
+                "action": "accept",
+                "content": {"q1": "crushing", "q2": "on exertion"},
+            }
+        }
+    }
+
+
+def test_resume_policy_declines_an_elicitation_with_no_answer() -> None:
+    """No ``--answer`` declines — the documented default, never a fabricated value."""
+    args = _build_parser().parse_args(["resume", "--thread-id", "t"])
+
+    resume = _resume_policy(args)(_elicitation_payload())
+
+    assert resume == {"responses": {"clarification": {"action": "decline"}}}
+
+
+def test_resume_policy_builds_the_gate_decision_for_an_approval() -> None:
+    """An approval payload is answered by the ONE ``approval_decision`` builder."""
+    args = _build_parser().parse_args(
+        [
+            "resume",
+            "--thread-id",
+            "t",
+            "--decision",
+            "approve",
+            "--approver",
+            "Nurse Demo",
+            "--role",
+            "triage nurse",
+        ]
+    )
+
+    resume = _resume_policy(args)({"type": "approval", "case_id": "c-1"})
+
+    assert resume["decision"] == "approve"
+    assert resume["approved_by"] == "Nurse Demo"
+
+
+def test_resume_policy_names_the_missing_decision_for_an_approval() -> None:
+    """An approval with no ``--decision`` names the flag rather than inventing a decision."""
+    args = _build_parser().parse_args(["resume", "--thread-id", "t", "--answer", "yes"])
+
+    with pytest.raises(RuntimeError, match="--decision"):
+        _resume_policy(args)({"type": "approval", "case_id": "c-1"})
+
+
+def test_resume_reports_a_still_paused_run_and_commits_nothing(
+    injected_store,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Answering a question that reveals the gate exits 0 and says nothing was committed."""
+    payload = _elicitation_payload()
+
+    async def _paused_again(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        return {"__interrupt__": [SimpleNamespace(value={"type": "approval", "case_id": "c-1"})]}
+
+    monkeypatch.setattr("triagedesk.durable.resume_thread", _paused_again)
+
+    code = main(["resume", "--thread-id", "t", "--answer", "yes"])
+
+    assert code == 0
+    err = capsys.readouterr().err
+    assert "approval gate" in err
+    assert "nothing has been committed" in err
+    assert injected_store.rows == [], "a resume that is still paused wrote a queue row"
+    assert payload["type"] == "mcp_elicitation"  # the fixture is the wire shape under test

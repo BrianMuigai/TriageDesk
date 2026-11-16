@@ -47,6 +47,17 @@ _CLARIFICATION_COPY = (
     "One detail would resolve this case. Answer below and resubmit — no priority has been "
     "committed."
 )
+# The mid-call question panel (ELICIT-05): a QUESTION, never a decision. The framing line is
+# what stops a nurse (or a reviewer) mistaking this surface for the approval gate.
+_QUESTION_HEADING = "A question before this case continues"
+_QUESTION_FRAMING = "Answering is not an approval — nothing is queued from this form."
+_QUESTION_ACCEPT = "Send answer"
+_QUESTION_DECLINE = "Decline to answer"
+_QUESTION_SENT = "Answer sent — the case continues; nothing has been committed."
+_QUESTION_DECLINED = "You declined to answer — nothing has been committed."
+_QUESTION_UNAVAILABLE = (
+    "The question could not be delivered — nothing has been committed."
+)
 # The word the read-only card shows instead of a colour (nurse stress test S2-3).
 _DEFERRED_BADGE = "DEFERRED"
 _ESCALATED_COPY = "This case was escalated for human review — no priority was committed."

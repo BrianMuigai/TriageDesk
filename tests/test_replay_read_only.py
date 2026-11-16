@@ -27,7 +27,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import async_return
+from conftest import async_return, stub_planner_seam
 from triagedesk.cli import _build_parser, main
 from triagedesk.core.schema import ExtractionResult
 from triagedesk.durable import approval_decision, resume_paused, run_to_gate
@@ -68,6 +68,7 @@ async def _run_to_commit(
         "extract_async",
         async_return(ExtractionResult(case=case.case, matched_discriminator_ids=[])),
     )
+    stub_planner_seam(monkeypatch)
     tools = build_tools(case, offline=False, recorder=UsageRecorder())
     paused = await run_to_gate(tools, raw_note=case.note, case=case.case, db_path=db_path)
     assert paused.paused, "the case did not pause at the approval gate"

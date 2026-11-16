@@ -111,6 +111,7 @@ p {
 .vitals-form,
 .priority-card,
 .approval-gate,
+.clarification-panel,
 .state-panel {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -457,4 +458,20 @@ button[disabled] {
   font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
+}
+
+/* The mid-call question panel: a question, not a decision (ELICIT-05). Its framing line is
+ * muted so the panel reads as an aside, never as the approval gate. */
+.clarification-framing {
+  color: var(--muted-text);
+  margin-top: 0;
+}
+
+/* The question panel's action row reuses the same wrapping rules as the gate's, declared as
+ * its own rule so the served-CSS proxies can still read each selector's block. */
+.clarification-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
 }

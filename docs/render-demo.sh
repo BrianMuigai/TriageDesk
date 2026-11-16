@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 #
 # Render the TriageDesk submission demo video — one unedited screen recording of the
-# shipped CLI, under 3 minutes, with the owned tool calls on screen and the measured
-# evaluation and the declared failure shown. Deterministic given the shipped CLI output.
+# shipped CLI, under 3 minutes, with the owned tool calls on screen, live MCP elicitation,
+# and the measured evaluation and the declared failure shown.
+#
+# The escalation and clarify beats run ONLINE on the real local model (Ollama must be up with
+# the default model, warm), so timings vary run to run. The recorder waits for each run to
+# return to the prompt, types the nurse's answer only at the real `[nurse]` prompt, and refuses
+# to caption output that did not appear (any guard miss aborts before a video is rendered).
 #
 # Pipeline: record (real pty -> asciinema cast + captions) -> agg (cast -> mp4)
 #           -> ffmpeg (pad a caption band, burn the captions) -> duration guard.
 #
-# Requires on PATH: python3, agg (cargo install --git https://github.com/asciinema/agg),
-# ffmpeg, and the project's own `uv`. Produces docs/assets/triagedesk-demo.mp4.
+# Requires on PATH: agg (cargo install --git https://github.com/asciinema/agg), ffmpeg, and the
+# project's own `uv`. Produces docs/assets/triagedesk-demo.mp4.
 #
 set -euo pipefail
 
@@ -29,6 +34,9 @@ RAW_HEIGHT=1098
 BAND=142                      # the caption band padded below the terminal
 HEIGHT=$(( RAW_HEIGHT + BAND ))
 TRAILING=1                    # seconds of frozen last frame agg adds
+# The ONE duration limit: the guard below, and agg's idle limit — so agg never compresses an
+# idle gap and the video keeps the real timeline the captions were timed against.
+LIMIT_S=180
 
 command -v agg >/dev/null || {
   echo "agg not found on PATH (cargo install --git https://github.com/asciinema/agg)" >&2
@@ -41,12 +49,12 @@ echo "[render-demo] recording the shipped CLI into an asciicast + captions ..."
 SPANS="spans.jsonl"
 _spans_preexisting=0
 [ -e "$SPANS" ] && _spans_preexisting=1
-python3 scripts/record_demo.py --cast "$CAST" --captions "$CAPTIONS"
+uv run python scripts/record_demo.py --cast "$CAST" --captions "$CAPTIONS"
 [ "$_spans_preexisting" -eq 0 ] && rm -f "$SPANS"
 
 echo "[render-demo] rendering the cast with agg ..."
 agg -q --font-family "DejaVu Sans Mono" --font-size 16 --theme dracula \
-    --idle-time-limit 60 --last-frame-duration "$TRAILING" "$CAST" "$RAW"
+    --idle-time-limit "$LIMIT_S" --last-frame-duration "$TRAILING" "$CAST" "$RAW"
 
 raw_w=$(ffprobe -v error -select_streams v -show_entries stream=width -of csv=p=0 "$RAW")
 [ "$raw_w" = "$WIDTH" ] || {
@@ -63,10 +71,10 @@ ffmpeg -v error -y -i "$RAW" \
 
 dur=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$FINAL")
 echo "[render-demo] wrote $FINAL (${dur}s, ${WIDTH}x${HEIGHT})"
-python3 - "$dur" <<'PY'
+python3 - "$dur" "$LIMIT_S" <<'PY'
 import sys
-d = float(sys.argv[1])
-if d >= 180:
-    raise SystemExit(f"video is {d:.1f}s - over the 3-minute limit")
-print(f"[render-demo] under the 3-minute limit ({d:.1f}s)")
+d, limit = float(sys.argv[1]), float(sys.argv[2])
+if d >= limit:
+    raise SystemExit(f"video is {d:.1f}s - over the {limit:.0f}s limit")
+print(f"[render-demo] under the {limit:.0f}s limit ({d:.1f}s)")
 PY

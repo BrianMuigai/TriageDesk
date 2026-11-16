@@ -1,19 +1,20 @@
 ---
-gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Coverage Recovery
-current_phase: 18
-status: completed
-stopped_at: "v1.2 Coverage Recovery implemented: three-way coverage classification, bounded clarification terminal (one round, max three questions), deterministic stated-vital recovery, 8 new eval cases (24 total, 6 held-out); real-mode report regenerated; PR open to main"
-last_updated: "2026-11-13T14:30:42.869Z"
-last_activity: 2026-11-13
-last_activity_desc: Milestone v1.2 implemented
+gsd_state_version: "1.0"
+milestone: v1.3
+milestone_name: Adaptive Triage
+status: Awaiting next milestone
+stopped_at: Phase 24 complete — all phases complete
+last_updated: "2026-11-15T19:24:56.035Z"
+last_activity: 2026-11-15
+last_activity_desc: Milestone v1.3 completed and archived
+state_head: ca9515788b5f230f2a3e6d59b8b6bdeead809ccc
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
-current_phase_name: Coverage Recovery
+  total_phases: 6
+  completed_phases: 6
+  total_plans: 14
+  completed_plans: 14
+  percent: 100
+current_phase: 24
 ---
 
 # Project State
@@ -23,14 +24,32 @@ current_phase_name: Coverage Recovery
 See: .planning/PROJECT.md (updated 2026-11-13)
 
 **Core value:** A triage nurse gets a sourced, confirmable priority for each patient in seconds, and nothing reaches the queue without her approval.
-**Current focus:** Milestone v1.2 Coverage Recovery implemented — PR open to `main`
+**Current focus:** Milestone v1.3 Adaptive Triage — bounded planner over a frozen safety kernel, plus real MCP elicitation
 
 ## Current Position
 
-Phase: 18 — COMPLETE
+Phase: Milestone v1.3 complete
 Plan: —
-Status: Milestone v1.2 implemented; awaiting PR review
-Last activity: 2026-11-13 — Coverage recovery shipped
+Status: Awaiting next milestone
+Last activity: 2026-11-15 - Completed quick task 261115-lgd: re-recorded demo video (2:29, live model, live elicitation)
+
+## Reviewer Challenge (drives this milestone)
+
+> "Is this genuinely an agentic system, or a deterministic clinical rules engine with an LLM
+> extraction step and an MCP integration?"
+
+`STATUS.md` §3/§5/§7 conceded two named limitations: **fixed routing rather than dynamic planning**
+and **no MCP elicitation (G7)**. v1.3 answers with behaviour + a structural proof:
+
+- a bounded `plan` node that chooses the next read-only investigation action (model proposes, guard disposes);
+- `finish_investigation` as the only edge into `score`, so the safety kernel is a non-skippable suffix;
+- `request_clarification` eliciting mid-tool-call → LangGraph `interrupt()`, with
+  accepted / declined / cancelled / unavailable distinguished (the 2026-07-28 transport carries the
+  question inside an `InputRequiredResult`; `ctx.elicit` remains the legacy-era path);
+
+- a deterministic emergency bypass so a critical structured case never waits for the model or the planner;
+- two diagrams split by audience (clinical workflow; components and infrastructure), honestly labelled;
+- an adaptive-vs-baseline measurement published from `report.json`, never hand-typed.
 
 ## Performance Metrics
 
@@ -54,6 +73,12 @@ Last activity: 2026-11-13 — Coverage recovery shipped
 | 12 | 3 | - | - |
 | 13 | 3 | - | - |
 | 14 | 3 | - | - |
+| 19 | 1 | - | - |
+| 20 | 4 | - | - |
+| 21 | 3 | - | - |
+| 22 | 3 | - | - |
+| 23 | 4 | - | - |
+| 24 | 4 | - | - |
 
 **Recent Trend:**
 
@@ -84,6 +109,11 @@ Last activity: 2026-11-13 — Coverage recovery shipped
 | Phase 12 P01 | 20min | 2 tasks | 3 files |
 | Phase 12 P02 | 4min | 3 tasks | 3 files |
 | Phase 12 P03 | 18min | 3 tasks | 6 files |
+| Phase 21 P01 | 35min | 6 tasks | 12 files |
+| Phase 21 P02 | 30min | 4 tasks | 4 files |
+| Phase 21 P03 | 40min | 6 tasks | 15 files |
+| Phase 22 P01 | 35min | 4 tasks | 8 files |
+| Phase 22 P02 | 20min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -97,6 +127,28 @@ Recent decisions affecting current work:
 - [v1.1 Roadmap]: Phase 7 retires the second HIGH blocker — replay must be read-only by construction (commit structurally unreachable), riding on Phase 6's checkpoint.
 - [v1.1 Roadmap]: Phases 7/8/9 depend only on Phase 6 and are independent/parallelisable; Phase 10 (UX adapter) consumes Phases 8 and 9; DOCS-06 lands in the final Phase 12.
 - [v1.0, carried]: Nothing edits the scorer, the citation helper, or the audit interceptor — every v1.1 change attaches at a published seam (new node / new tool / new contract / adapter behind an existing protocol) (D-18).
+- [v1.3 Phase 21]: The installed SDK's 2026-07-28 revision forbids a server-initiated request, so
+  `request_clarification` asks over the input-required round trip and keeps `ctx.elicit` for an older
+  connection; both share one question derivation and one outcome mapper.
+
+- [v1.3 Phase 21]: The interrupt discriminator (`approval` | `mcp_elicitation`) lives once in
+  `core.schema.InterruptType`, so the graph never imports `mcp` and no surface repeats a literal.
+
+- [v1.3 Phase 21]: One interrupt loop behind an injectable `RespondPolicy`; the default answers an
+  approval and STOPS at a question, so no existing caller changed and an approval never answers one.
+
+- [v1.3 Phase 21]: `request_clarification` is the ninth owned tool but is unwired — no graph node
+  calls it until Phase 23 wires the `plan` node. The nine-tool count stays "7 shipped + 2 substrate"
+  in README/ARCHITECTURE/SECURITY/STATUS.
+
+- [v1.3 Phase 22]: The emergency pre-check reads the kernel's own `score_priority(case, [])` and
+  derives the most urgent band from `colour_urgency()`; it emits no colour, so the kernel stays the
+  ONE colour producer. The fast arm skips `normalize` only and rejoins at `retrieve`.
+
+- [v1.3 Phase 22]: The internal arm route tokens are `fast`/`normal`, not the word `emergency`,
+  because that spelling is a loaded discriminator category. The state/payload key stays `emergency`
+  per CONTEXT, carried by ONE pinned structural-key exemption in the SATS DRY guard.
+
 - [v1.0, carried]: `checkpoints.db` (runtime state) is a separate file from `triage.db` (clinical record + audit); the queue write is the ONE idempotent write keyed on immutable case content.
 - [v1.0, carried]: Colour is produced in exactly one place (`core/scorer.score_priority`, `citations == triggered_rules`); the agent path stays offline and model-free on the score path.
 - [v1.0, carried]: `approval_gate` is side-effect-free before `interrupt()`, and `commit` is reachable only through the resumed interrupt.
@@ -184,6 +236,11 @@ None yet.
 | 8 | fix two correctness defects: handover card shows the committed colour after an edit; the dead verify retry edge fails closed | 2026-11-04 | 119890c | complete | [261104-ueu-fix-two-correctness-defects-1-the-handov](./quick/261104-ueu-fix-two-correctness-defects-1-the-handov/) |
 | 9 | add safe lay/OPD phrasing aliases to existing discriminators and show DEFERRED (not GREEN) on the read-only card | 2026-11-04 | bb73945 | complete | [261104-w53-expand-safe-lay-phrasing-aliases-only-fo](./quick/261104-w53-expand-safe-lay-phrasing-aliases-only-fo/) |
 | 10 | close the three nurse stress-test defects (negation, incomplete-case refusal, extraction grounding) plus the named recovery copy | 2026-11-04 | 8c41d54 | complete | [261104-nst-nurse-stress-test-fixes](./quick/261104-nst-nurse-stress-test-fixes/) |
+| 261114-io6 | Final-round polish: nine-tool docs, SW-1, EVALS denominator note, quiet httpx + demo mode line | 2026-11-14 | 2028403 | complete | [261114-io6-final-round-polish-reconcile-nine-tool-c](./quick/261114-io6-final-round-polish-reconcile-nine-tool-c/) |
+| 261115-jlr | Live MCP elicitation in the demo clarify beat and online desk; resume answers reach the real tool | 2026-11-15 | 413b2f4 | Verified | [261115-jlr-live-mcp-elicitation-in-the-demo-and-des](./quick/261115-jlr-live-mcp-elicitation-in-the-demo-and-des/) |
+| 14 | Demo renders adapter-backed tool results decoded | 2026-11-15 | 413b2f4 | complete | — |
+| 261115-lgd | Re-record the demo video on the live model with the clarify beat (2:29) | 2026-11-15 | 6949b6e | complete | [261115-lgd-re-record-the-submission-demo-video-on-t](./quick/261115-lgd-re-record-the-submission-demo-video-on-t/) |
+| 261115-uys | Interactive terminal triage: raw notes or fields, driving the shipped graph | 2026-11-15 | 97898fd | complete | [261115-uys-interactive-terminal-triage](./quick/261115-uys-interactive-terminal-triage/) |
 
 ## Deferred Verification
 
@@ -211,10 +268,11 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T14:30:42.781Z
-Stopped at: v1.2 Coverage Recovery implemented: three-way coverage classification, bounded clarification terminal (one round, max three questions), deterministic stated-vital recovery, 8 new eval cases (24 total, 6 held-out); real-mode report regenerated; PR open to main
+Last session: 2026-11-14T00:00:00.000Z
+Stopped at: Phase 24 complete — all phases complete
 Resume file: None
 
 ## Operator Next Steps
+
 
 - Start the next milestone with /gsd-new-milestone

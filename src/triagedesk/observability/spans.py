@@ -11,7 +11,11 @@ The single JSON line carries exactly these keys, and no clinical text ever enter
 
     trace_id, span_id, parent_id, kind, name, started, ended, duration_ms, attributes
 
-``kind`` is ``"tool"``, ``"node"`` or ``"model"`` (D7-07). ``attributes`` is a small,
+``kind`` is ``"tool"``, ``"node"``, ``"model"`` or ``"decision"`` (D7-07). A ``"decision"``
+span is the planner's structural fact — which investigation action was chosen, at which step,
+and whether the deterministic guard overrode the model's proposal. It carries ids, counters
+and flags only, never the rationale text: the full decision (rationale included) is the
+``plan_next_step`` audit record (ADAPT-05). ``attributes`` is a small,
 caller-supplied mapping of ids/timings/counts — never a complaint, prompt or completion.
 The sink path is named ONCE (:data:`SPANS_PATH`) and is overridable for tests via
 :func:`set_sink`, mirroring the store seam ``mcp.server.set_store`` (SOLID: D). The

@@ -8,21 +8,28 @@ integer exit code is returned from ``main``, which the console script passes to 
 
 No graph, store or decision-shape logic lives here: the durable decision rule is the ONE
 ``durable.approval_decision`` and the resume mechanism is the ONE
-``durable.resume_thread`` (SOLID: S).
+``durable.resume_thread`` (SOLID: S); ``resume`` injects the adapter seam
+(``mcp.adapter.with_live_clarification``) so ``--answer`` reaches the real
+``request_clarification`` tool when a paused question node re-executes.
 
 ``main``'s FIRST statement is ``observability.offline.harden_offline`` — the ONE place the
 transitive tracer environment is neutralised and asserted off, so no command egresses
 (D7-03). The command handlers are imported lazily *after* it, so no transitive dependency can
-prime a tracer from the environment at import time (WR-06).
+prime a tracer from the environment at import time (WR-06). Its SECOND statement is
+``_quiet_http_logs`` — the ONE place the ``httpx`` logger is raised to WARNING, so every
+command's screen shows the tool trace without per-request INFO lines.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import sqlite3
 import sys
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from triagedesk.observability.offline import harden_offline
 
@@ -30,6 +37,73 @@ from triagedesk.observability.offline import harden_offline
 DEFAULT_CASES_DIR = "evals/cases"
 DEFAULT_REPORT_PATH = "evals/results/report.json"
 DEFAULT_RUNS = 3
+
+
+def _quiet_http_logs() -> None:
+    """Raise the ``httpx`` logger to WARNING — the ONE place it is set (SOLID: S).
+
+    Importing ``triagedesk.mcp.server`` constructs the mcp SDK's ``MCPServer``, which installs a
+    root RichHandler at INFO (via ``logging.basicConfig``). The httpx client the ``ollama``
+    package uses logs every request at INFO, so on an online run those ``HTTP Request`` lines
+    interleave with the ``[tool]`` lines on screen. Only the httpx logger is raised: the root
+    logger, the mcp handler and every WARNING-or-above record (transport failures) are
+    untouched, and the hash-chained audit is independent of logging altogether.
+    """
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
+def _resume_policy(args: argparse.Namespace) -> Any:
+    """Build the ONE respond policy for ``resume`` — the CLI's whole answer logic (ELICIT-05).
+
+    The policy receives each interrupt payload and returns what to resume with:
+
+    * an **elicitation** is answered with ``--answer`` values, one per question in the order
+      they were asked; with no ``--answer`` it is **declined** — the documented default,
+      because a refusal is never converted into a value;
+    * an **approval** is answered with ``--decision`` through the ONE
+      ``durable.approval_decision`` (which rejects a blank identity or a missing colour). When
+      the approval is the PENDING payload, a missing ``--decision`` names the flag rather than
+      inventing a decision; when this resume has just answered a question and the run reached
+      the gate, a missing ``--decision`` leaves the gate paused (``None``) so ``main`` reports
+      "paused again at the approval gate" — answering is never approving (ELICIT-05).
+
+    Both imports are lazy: this function runs inside ``main`` after ``harden_offline()``, so no
+    transitive dependency can prime a tracer from the environment at import time (D7-03).
+    """
+    from triagedesk.durable import DurableError, approval_decision
+    from triagedesk.mcp.elicitation import is_elicitation, resume_with_answers
+
+    answered_a_question = False
+
+    def policy(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
+        nonlocal answered_a_question
+        if is_elicitation(payload):
+            answered_a_question = True
+            # The ONE answers->resume rule (shared with the demo): an all-blank or absent
+            # ``--answer`` declines, so no empty reply is ever sent as an acceptance.
+            return resume_with_answers(payload, args.answer or [])
+        if decision is None and answered_a_question:
+            return None  # the gate this answer revealed stays paused for a named decision
+        if decision is None:
+            raise DurableError(
+                "--decision is required when the paused case is an approval gate"
+            )
+        return decision
+
+    # Validate the decision EAGERLY when one was supplied, so a blank identity or a missing
+    # edit colour is refused before the checkpoint is even opened (T-06-05, WR-06). An
+    # elicitation-only resume supplies no ``--decision`` and is therefore not validated here.
+    decision = (
+        approval_decision(
+            args.decision,
+            approver=args.approver,
+            role=args.role,
+            colour=args.colour,
+        )
+        if args.decision
+        else None
+    )
+    return policy
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -58,6 +132,16 @@ def _build_parser() -> argparse.ArgumentParser:
     eval_parser.add_argument(
         "--case", dest="case_filter", default=None, help="run a single case id"
     )
+    eval_parser.add_argument(
+        "--no-planner",
+        dest="planner",
+        action="store_false",
+        default=True,
+        help=(
+            "run the baseline arm: retrieve -> finish_investigation, no planner and no "
+            "investigation (the v1.2 path, MEAS-02)"
+        ),
+    )
 
     demo_parser = subcommands.add_parser(
         "demo", help="run the scripted demo storyboard (offline by default)"
@@ -79,6 +163,18 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="list_beats",
         action="store_true",
         help="list the storyboard beat names and labels, then exit",
+    )
+    demo_parser.add_argument(
+        "--answer",
+        dest="answers",
+        action="append",
+        default=None,
+        metavar="ANSWER",
+        help=(
+            "one answer per question the agent asks, in question order (repeatable); "
+            "online only — with none, an interactive terminal is asked and anything else "
+            "declines"
+        ),
     )
     demo_parser.add_argument(
         "--fixture", default=DEFAULT_CASES_DIR, help="directory of case fixtures"
@@ -105,8 +201,8 @@ def _build_parser() -> argparse.ArgumentParser:
     resume_parser.add_argument(
         "--decision",
         choices=["approve", "edit", "dismiss"],
-        required=True,
-        help="the clinician's decision at the gate",
+        default=None,
+        help="the clinician's decision at the gate (required when an approval is pending)",
     )
     resume_parser.add_argument(
         "--approver", default=None, help="the named clinician (required for approve/edit)"
@@ -116,6 +212,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     resume_parser.add_argument(
         "--colour", default=None, help="the edited colour (required for an edit decision)"
+    )
+    resume_parser.add_argument(
+        "--answer",
+        action="append",
+        default=None,
+        metavar="ANSWER",
+        help=(
+            "one answer per question, in the order the questions were asked (repeatable). "
+            "An elicitation with no --answer is declined"
+        ),
     )
     resume_parser.add_argument(
         "--db",
@@ -157,6 +263,28 @@ def _build_parser() -> argparse.ArgumentParser:
         help="run the real local model on the free-text complaint (default: offline)",
     )
 
+    triage_parser = subcommands.add_parser(
+        "triage", help="run one patient interactively in the terminal (no browser)"
+    )
+    triage_parser.add_argument(
+        "--db",
+        default=None,
+        help="checkpoint file (default: checkpoints.db)",
+    )
+    triage_parser.add_argument(
+        "--online",
+        action="store_true",
+        help="run the real local model on the free-text complaint (default: offline)",
+    )
+    triage_parser.add_argument(
+        "--note",
+        default=None,
+        help=(
+            "a raw nurse note to read into the case instead of prompting for fields "
+            "(requires --online; use '-' to read it from stdin)"
+        ),
+    )
+
     skill_parser = subcommands.add_parser(
         "skill", help="install or locate the packaged usage skill"
     )
@@ -185,6 +313,8 @@ def main(argv: list[str] | None = None) -> int:
     # prime a tracer from the environment at import time (D7-03, WR-06). The handlers are
     # imported lazily below this line, never at module import.
     harden_offline()
+    # SECOND: quiet the per-request httpx INFO lines for every command, from this one place.
+    _quiet_http_logs()
     args = _build_parser().parse_args(argv)
     if args.command == "skill":
         # Imported LAZILY inside ``main``, after ``harden_offline()`` has already run,
@@ -206,9 +336,10 @@ def main(argv: list[str] | None = None) -> int:
     # without the full graph/model stack. They are still imported after
     # ``harden_offline()``, never at module import (D7-03, WR-06).
     from triagedesk.demo.run import list_beats, run_demo
-    from triagedesk.durable import approval_decision, resume_thread
+    from triagedesk.durable import resume_thread
     from triagedesk.evals.runner import run_eval
     from triagedesk.graph.build import CHECKPOINTS_DB_PATH
+    from triagedesk.mcp.elicitation import is_elicitation
     from triagedesk.replay import replay_case
 
     if args.command == "eval":
@@ -219,6 +350,7 @@ def main(argv: list[str] | None = None) -> int:
                 report_path=args.report,
                 offline=args.offline,
                 case_filter=args.case_filter,
+                planner=args.planner,
             )
         )
     if args.command == "demo":
@@ -231,21 +363,22 @@ def main(argv: list[str] | None = None) -> int:
                 fixture_dir=args.fixture,
                 durable=args.durable,
                 db_path=args.db,
+                answers=args.answers,
             )
         )
     if args.command == "resume":
+        # A paused question node re-executes on resume; only the adapter-backed tool consumes
+        # ``--answer``, so the seam is injected (imported lazily, after ``harden_offline()``).
+        from triagedesk.mcp.adapter import with_live_clarification
+
         try:
-            decision = approval_decision(
-                args.decision,
-                approver=args.approver,
-                role=args.role,
-                colour=args.colour,
-            )
             result = asyncio.run(
                 resume_thread(
                     thread_id=args.thread_id,
-                    decision=decision,
+                    decision=None,
                     db_path=args.db or CHECKPOINTS_DB_PATH,
+                    respond=_resume_policy(args),
+                    wrap_tools=with_live_clarification,
                 )
             )
         except (ValueError, RuntimeError, sqlite3.Error, ExceptionGroup) as exc:
@@ -256,6 +389,18 @@ def main(argv: list[str] | None = None) -> int:
             # exit rather than a raw traceback (WR-04).
             print(str(exc), file=sys.stderr)
             return 1
+        # A resume can answer a QUESTION and leave the case at the gate: say so, because
+        # "nothing was committed" is the fact the operator must not have to infer (ELICIT-05).
+        pending = result.get("__interrupt__")
+        if pending:
+            payload = dict(pending[0].value)
+            at = "a question" if is_elicitation(payload) else "the approval gate"
+            print(
+                f"paused again at {at}; nothing has been committed. "
+                "Run resume again to continue.",
+                file=sys.stderr,
+            )
+            return 0
         # Surface the gate's outcome so a refused approve/edit is never mistaken for a
         # commit (WR-02): a ``dismiss`` refusal is legitimate and exits 0; any other
         # refusal exits non-zero. The reason is the ONE ``CommitResult.reason`` the gate
@@ -283,6 +428,23 @@ def main(argv: list[str] | None = None) -> int:
             print(str(exc), file=sys.stderr)
             return 1
         return 0
+    if args.command == "triage":
+        # Presentation only: the interactive surface delegates to the desk's own pipeline, so
+        # this command adds no decision path. Imported lazily, after ``harden_offline``.
+        from triagedesk.desk.interactive import main as interactive_main
+
+        try:
+            note = args.note
+            if note == "-":
+                note = sys.stdin.read()
+            return interactive_main(
+                db_path=args.db or CHECKPOINTS_DB_PATH,
+                online=args.online,
+                note=note,
+            )
+        except (ValueError, RuntimeError, sqlite3.Error, ExceptionGroup) as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
     if args.command == "desk":
         # Imported LAZILY inside ``main`` — after ``harden_offline()`` has already run — so no
         # transitive dependency can prime a tracer from the environment at import time (D10-03,

@@ -1,5 +1,27 @@
 # Milestones
 
+## v1.3 v1.3 (Shipped: 2026-11-14)
+
+**Phases completed:** 6 phases, 14 plans, 0 tasks
+
+**Key accomplishments:**
+- complete · **Commits:** `db418aa`, `4286ce4`
+- complete · **Commit:** `0d87633`
+- complete · **Commit:** `a7f385a`
+- complete · **Commit:** `bf207ec`
+- complete · **Commits:** `e215f68` (plans), `0d87633`, `a7f385a`, `bf207ec`
+- the owned server genuinely asks the nurse a bounded, data-sourced question *inside* a
+- complete · **Commit:** `18bc16f`
+- complete · **Commit:** `056c1a4`
+- complete · **Commit:** `056c1a4`
+- complete · **Commits:** `18bc16f`, `056c1a4` (plus the phase-record commit)
+- complete · **Commit:** `ed4a095`
+- complete · **Commit:** `1b8cf76`
+- complete · **Commit:** `91e64c0`
+- complete · **Commits:** `ed4a095`, `1b8cf76`, `91e64c0`
+
+---
+
 ## v1.1 Score Uplift (Shipped: 2026-10-13)
 
 **Phases completed:** 7 phases, 19 plans, 42 tasks

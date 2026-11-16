@@ -366,6 +366,67 @@ completion from the note — never imputation.
 **Consequence:** the deterministic path is stable over repeated runs; a value the note does not state is
 still never invented, so an incomplete note still recovers.
 
+### D31 — Bounded autonomy over a frozen kernel
+**Decision:** the graph is two layers. An **adaptive envelope** (`retrieve → plan → action … →
+finish_investigation`) may choose *how much* to investigate; a **frozen safety kernel** (`score →
+ground → verify → recheck → assess → approval_gate → commit → handover`) decides *what the answer
+is* and is a non-skippable suffix. `finish_investigation` is the kernel's only inbound edge and
+`commit` keeps exactly one inbound edge.
+**Why:** the reviewer's question — "rules engine or agent?" — cannot be answered by adding a
+free agent to a safety-critical path. It is answered by giving the system real, observable
+decisions *inside* a boundary the model cannot cross. The kernel stays deterministic and
+auditable; the envelope can ask, gather, re-read and stop.
+**Consequence:** adaptive behaviour is measurable against a baseline that omits the envelope
+(`build_graph(..., planner=False)`), and the structural claims are asserted on the compiled graph
+(`tests/test_frozen_kernel.py`, `tests/test_eval_adaptive.py`). The measured delta is published
+in `EVALS.md` §3.3, including when it is zero or negative.
+
+### D32 — The model proposes, the guard disposes
+**Decision:** the planner's model call returns a typed `PlanProposal` over a closed `PlanAction`
+set. `core.planner.admissible_actions` computes what the current state admits, and
+`validate_proposal` accepts only a member of that set; anything missing, malformed, inadmissible
+or over-budget becomes `finish_investigation` with `overridden=True` and a reason. The tool's fast
+path does not call the model at all when the only admissible action is the exit.
+**Why:** a 1.5B CPU model is not a reliable authority. Making the guard — not the prompt — the
+enforcement point means a bad proposal can only end the investigation, never widen it. The
+override is recorded, so the degradation is visible rather than silent.
+**Consequence:** the returned action is always admissible by construction; the guard-override
+rate is a published measurement; a routine case costs no extra model call.
+
+### D33 — Server-side elicitation with four outcomes
+**Decision:** `request_clarification` asks at most three targeted questions **inside the tool
+call**, deriving the question text from the closed-set candidate ids. On a 2026-07-28 connection
+the first round returns an `InputRequiredResult`, which the adapter turns into a LangGraph
+`interrupt()` of type `mcp_elicitation`; the legacy `ctx.elicit` path remains for older clients.
+Exactly four outcomes are distinguished: `accepted` (the only one carrying answers), `declined`,
+`cancelled`, `unavailable`.
+**Why:** G7 asked for real MCP elicitation, not a CLI prompt in disguise. A decline or an
+unavailable client is **not** a negative clinical finding and must never become a value; a
+server-side tool that cannot distinguish those cases would fabricate one.
+**Consequence:** an answer is an observation appended to the case facts — never an approval, never
+a colour. The outcome is recorded on the state channel and in the audit trail, so the eval
+harness reports what actually happened.
+
+### D34 — Deterministic emergency bypass
+**Decision:** a deterministic pre-check runs before any model call. A critical structured case
+takes the fast arm `retrieve → finish_investigation`, skipping extraction and the planner but not
+the kernel, the gate or the clinician. The verdict is typed and audited.
+**Why:** autonomy must not delay the sickest patient. The bypass is the counterweight that makes
+"the planner may decide" defensible: it can only shorten the path, never remove a control.
+**Consequence:** the emergency arm and the normal arm share the kernel's single entry point, so
+the structural proof holds on both; the eval records whether the bypass fired per run.
+
+### D1 — narrow revision: "the LLM never routes" → "the LLM never chooses the answer"
+**Revised:** D1's original consequence — "the model never routes" — was true of v1.0, where the
+graph was fixed. v1.3 adds a bounded planner, so the precise rule is narrower and stronger: **the
+model may propose a read-only investigation action; it may never choose the colour, the
+approval, the queue position or the control flow into the kernel.** The deterministic scorer
+still owns every number, `finish_investigation` is still the only door into `score`, and the
+guard — not the model — decides which proposal is honoured (D32).
+**Why:** leaving the old sentence unqualified would misdescribe the shipped system; deleting it
+would hide the invariant it protected. The revision keeps the invariant and names the one new,
+bounded permission.
+
 ---
 
 ## Disclosed third-party components (DQ-8)

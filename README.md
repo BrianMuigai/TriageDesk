@@ -88,7 +88,7 @@ The four safety invariants are unchanged — retrieval informs coverage, never a
 | Security & hardening | ✅ Documented → [`SECURITY.md`](SECURITY.md) |
 | MCP server / agent / evals | ✅ Built & tested → [`tests/`](tests) |
 | Evaluation (measured) | ✅ Run → [`EVALS.md`](EVALS.md) |
-| Demo video | 🎬 Uploaded (2:28) — Google Drive, during submission → [`docs/DEMO.md`](docs/DEMO.md) |
+| Demo video | 🎬 Re-recorded (2:29) on the local model with live MCP elicitation; the 2:28 v1.0 recording was uploaded to Google Drive during submission → [`docs/DEMO.md`](docs/DEMO.md) |
 | Status & gap analysis | 🟡 Honest self-assessment → [`STATUS.md`](STATUS.md) |
 | Clinician interview | 📋 Prepared, **unattested** → [`docs/CLINICIAN-INTERVIEW.md`](docs/CLINICIAN-INTERVIEW.md) |
 
@@ -100,9 +100,10 @@ fit-to-desk claim is scoped to what was built and measured. The interview is pre
 improvised — eight questions, drafted responses, and the module that must make each answer true, in
 [`docs/CLINICIAN-INTERVIEW.md`](docs/CLINICIAN-INTERVIEW.md). If a review is arranged, that page is run,
 its attestation is signed, and an attributed quote (name/role/date, with consent) is added to
-[`EVALS.md`](EVALS.md) §7 — nothing is claimed until it is. The demo video is **recorded**
-(`docs/assets/triagedesk-demo.mp4`, a 2:28 screen recording of the shipped CLI with the tool calls on
-screen) and was **uploaded to Google Drive during submission**
+[`EVALS.md`](EVALS.md) §7 — nothing is claimed until it is. The demo video in the repository
+(`docs/assets/triagedesk-demo.mp4`) is a **2:29 re-recording** of the shipped CLI on the local model,
+with the tool calls on screen and live MCP elicitation (not yet uploaded); the earlier 2:28 v1.0
+recording is what was **uploaded to Google Drive during submission**
 ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3); runbook in
 [`docs/DEMO.md`](docs/DEMO.md)). [`EVALS.md`](EVALS.md) is the single source for every number. A full
 honest gap analysis — UX considerations and state-of-the-art gaps — is in [`STATUS.md`](STATUS.md).
@@ -118,6 +119,9 @@ uv run triagedesk demo
 
 # The optional second command: serve the local desk surface (loopback only, no external request).
 uv run triagedesk desk
+
+# Prefer a terminal to a browser? Paste a raw note (or type the fields) and drive the graph there.
+uv run triagedesk triage --online
 ```
 
 The bare demo runs **offline by default** — it needs only `uv` and the locked dependencies (no model
@@ -170,8 +174,10 @@ loopback only and makes no external request. The recorded walkthrough is
 A **deterministic SATS scorer** inside an **explicit LangGraph plan** on a **local open-weights
 model**, gated by **human approval before anything reaches a queue**. The LLM handles language; **no
 number comes from the model**, so a priority is defensible under audit. The full shape, agent graph,
-MCP servers and data flow are in [`ARCHITECTURE.md`](ARCHITECTURE.md); the diagram is
-[`docs/assets/architecture.pdf`](docs/assets/architecture.pdf).
+MCP servers and data flow are in [`ARCHITECTURE.md`](ARCHITECTURE.md). Two diagrams split by audience:
+[clinical workflow](docs/assets/architecture-workflow.pdf) (judge or clinician, under a minute) and
+[components and infrastructure](docs/assets/architecture-components.pdf) (engineer). Both are
+**proposed for v1.3** and labelled as such; the shipped shape is the one in `ARCHITECTURE.md` §3–5.
 
 ## Agent architecture
 
@@ -179,6 +185,14 @@ An explicit LangGraph plan — `ingest → normalize → retrieve → score → 
 assess → approval_gate → commit → handover`, with `request_missing_info` and `escalate` terminals. The
 model is used only to structure language; the colour is computed deterministically from `data/*.yaml`.
 Node table and edges: [`ARCHITECTURE.md`](ARCHITECTURE.md) §3.
+
+**Shipped in v1.3 — the bounded planner.** A `plan` node sits between `retrieve` and `score`: it chooses
+one **read-only** investigation action from a closed set (`gather_evidence`, `ask_question`,
+`re_extract`, `finish_investigation`) inside a three-step budget. The model proposes; a deterministic
+guard disposes. `finish_investigation` is the only edge into `score`, so the safety kernel stays a
+non-skippable suffix. A deterministic emergency check may skip the model and the planner for a critical
+structured case — never the kernel or the clinician. The reviewer-facing answer, with the measured
+adaptive-vs-baseline delta, is [`docs/AGENTIC.md`](docs/AGENTIC.md).
 
 ## MCP implementation
 
@@ -189,10 +203,12 @@ swapped in one module. Rationale: [`docs/DECISIONS.md`](docs/DECISIONS.md) D5, D
 
 ## MCP tools & servers
 
-**Owned `triage` server — 7 tools.** Read-only: `normalize_case`, `match_discriminators`,
-`retrieve_evidence`, `assess_confidence`. Acting: `score_priority`, `raise_recheck_flag`.
-Acting and gated: `commit_priority`. Three of the seven act, and **only `commit_priority` mutates the
-queue** — it refuses to run without a valid approval token.
+**Owned `triage` server — 9 tools.** Read-only: `normalize_case`, `match_discriminators`,
+`retrieve_evidence`, `assess_confidence`, `plan_next_step` (model proposal over the closed action set),
+`request_clarification` (elicits up to three targeted questions mid-call, with accepted / declined /
+cancelled / unavailable distinguished). Acting: `score_priority`, `raise_recheck_flag`.
+Acting and gated: `commit_priority`. Only `commit_priority` mutates the queue — it refuses to run without
+a valid approval token — and the two elicitation/planning tools take no token and write no row.
 
 **Borrowed server.** A maintained SQLite MCP server (`mcp-sqlite@1.0.9`) for persistence — *"persistence,
 schema and query safety are solved; a hand-rolled DB adds zero triage value"* — its read paths are
@@ -201,7 +217,7 @@ exercised behind the unchanged `Store` protocol. Full tool contracts: [`ARCHITEC
 **Installing it.** One command writes the block your harness expects — OpenCode, Claude Code, Claude
 Desktop, Cursor, VS Code, Codex, Gemini CLI, Zed, Windsurf/Devin — **and** installs the packaged
 `triagedesk-triage` usage skill beside it, so the agent knows the safe call sequence and the
-fail-closed rules. [`docs/MCP.md`](docs/MCP.md) has the worked call shape for each of the seven tools
+fail-closed rules. [`docs/MCP.md`](docs/MCP.md) has the worked call shape for each of the nine tools
 and the gated approval token.
 
 ```bash
@@ -267,7 +283,8 @@ From [`STATUS.md`](STATUS.md) §7:
 - **Multimodal intake** (voice + cuff/chart photo) — the real desk UX.
 - **Vitals-entry ergonomics** (units, missing-vital prompting).
 - **Approver authentication** (identity is recorded today, not authenticated).
-- **MCP sampling / elicitation** — the current spec's agent↔server negotiation.
+- **MCP sampling** — the current spec's agent↔server negotiation (elicitation ships — see
+  [`docs/DEMO.md`](docs/DEMO.md)).
 
 ## Repository map
 

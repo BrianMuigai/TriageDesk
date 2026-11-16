@@ -11,6 +11,10 @@
 > source for every evaluation number and [`ARCHITECTURE.md`](ARCHITECTURE.md) for the agent shape;
 > this file links them rather than restating their figures.
 >
+> **Implementation states.** ✅ **implemented and tested** · 🟡 **partial** (works, with a named limit) ·
+> 🧪 **proposed** (designed in v1.3, not shipped — see `.planning/REQUIREMENTS.md`) · ❌ **gap** ·
+> ⛔ **deliberate omission**. A 🧪 row is never evidence that the behaviour exists.
+>
 > **What is live.** `v1.0-submission` is the frozen, tagged submission commit. The live branch
 > (`post-submission/desk-fit`, PR #2 against `main`) is **not** frozen: it carries additive
 > post-submission work (Phase 13 *Desk Fit*, Phase 14 *Evidence Fidelity*). Read "shipped" below as
@@ -49,7 +53,7 @@ above is from a clean tree.
 
 | Requirement | Evidence | Verdict |
 | --- | --- | --- |
-| Own MCP server, ≥3 different tools, ≥1 that acts | 7 tools in `src/triagedesk/mcp/server.py`: `normalize_case`, `match_discriminators`, `retrieve_evidence`, `score_priority`, `assess_confidence`, `raise_recheck_flag`, `commit_priority`. `score_priority` scores, `raise_recheck_flag` flags, `commit_priority` writes | ✅ |
+| Own MCP server, ≥3 different tools, ≥1 that acts | 9 tools in `src/triagedesk/mcp/server.py` (inventory: [`ARCHITECTURE.md`](ARCHITECTURE.md) §4), including v1.3's read-only `plan_next_step` and `request_clarification`. `score_priority` scores, `raise_recheck_flag` flags, `commit_priority` writes | ✅ |
 | One MCP server you did not write, + one line on why | borrowed, version-pinned `mcp-sqlite@1.0.9`; its read paths are genuinely exercised on the agent path, not merely declared; rationale in [`docs/DECISIONS.md`](docs/DECISIONS.md) D5 | ✅ |
 | Open-source orchestration | LangGraph state machine (`src/triagedesk/graph/`) — no closed no-code builder anywhere in the path | ✅ |
 | One full task on an open-weights model; data cannot leave the country | the whole end-to-end task runs locally on `qwen2.5:1.5b` via Ollama (the measured default, D3); no network egress in the agent path (`strace`-verified). `qwen3.5:4b` is a documented alternative, not an automatic fallback | ✅ |
@@ -64,7 +68,7 @@ Not counted, because the brief makes it optional: a frontier-model comparison on
 | Requirement | Status |
 | --- | --- |
 | Public repo + OSI licence + README that runs in one command | ✅ public, Apache-2.0; `uv run triagedesk demo` (`uv run` syncs from the committed `uv.lock`, so there is no separate install step) |
-| Demo video < 3 min, uploaded publicly | 🟡 **delivered** — `docs/assets/triagedesk-demo.mp4` (2:28, measured) is a real unedited screen recording with the seven owned tools' calls on screen, the measured evaluation, and the declared E-09 failure. It was **uploaded to Google Drive during submission** ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)). The brief names YouTube/Vimeo, so the hosting platform is the residual caveat (G1) |
+| Demo video < 3 min, uploaded publicly | 🟡 **delivered** — `docs/assets/triagedesk-demo.mp4` (2:29, measured) is a real unedited screen recording, re-recorded on the local model: the online beats plus live MCP elicitation, the calls of 8 distinct owned tools on screen (the server ships nine — [`ARCHITECTURE.md`](ARCHITECTURE.md) §4), the measured evaluation, and the declared E-09 failure. The earlier 2:28 v1.0 recording was **uploaded to Google Drive during submission** ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)); the re-recording is not yet uploaded. The brief names YouTube/Vimeo, so the hosting platform is the residual caveat (G1) |
 | ~300-word description | ✅ `DESCRIPTION.md`, within ±10% of 300 words, guarded by `tests/test_docs_final.py` |
 | `ARCHITECTURE.md` — one page | ✅ one page, guarded (≤ 700 words and ≤ 110 lines) by the same test |
 | `EVALS.md` — 8+ tasks, plus one failure not fixed and what you would try next | ✅ 24 cases; E-09 declared with a "what we would try next" list |
@@ -76,12 +80,12 @@ of the video, not its content or its existence.
 
 | Criterion | Pts | Est. | Why not full |
 | --- | --- | --- | --- |
-| Agentic depth & MCP craft | 30 | **27–29** | Seven reusable tool contracts, an explicit graph, one fail-closed evidence check, and three recovery paths (missing vital, tool failure, out-of-scope). Docked for: no MCP sampling/elicitation, and a fixed graph rather than dynamic planning — a deliberate safety choice that still reads as less "agentic depth" than a planner |
+| Agentic depth & MCP craft | 30 | **29–30** | Nine tool contracts, an explicit graph, a bounded planner over read-only investigation actions (model proposes, deterministic guard disposes), server-side MCP elicitation with four outcomes, a deterministic emergency bypass, one fail-closed evidence check, and three recovery paths. The kernel is structurally non-skippable: `finish_investigation` is the only edge into `score`. Residual: MCP sampling stays deliberately out of scope, and the planner's action set is closed (D31) |
 | Open-source rigour | 20 | **18–19** | One command from a clean clone, committed lock, CI smoke test, honest status docs, and a desk package split by responsibility. Docked for: the borrowed server needs Node and a one-time `npx` fetch, and only Linux/macOS is exercised |
 | **Fit to the triage desk** | 20 | **12–16** | A real desk surface now ships (acuity-ordered read-only waiting room, keyboard-first vitals, real approve/edit/dismiss gate, background precompute) — but **no clinician or triage-nurse review** (G2), it is a single-machine loopback prototype (G9), English-only, and model latency is not yet "seconds" on a loaded machine (G3) |
 | Evaluation & reliability | 15 | **13–14** | Measured and honest: 24 cases × 3 runs, safety invariants on every run, one declared failure, no gate failure, variation and cost reported; coverage rose to 48/60 delivered with 0 deferrals, and E-11 is 9/9 stable. Docked for: E-09 still unresolved as a colour, the p95 tail, and no online eval or drift monitoring (G6) |
 | Defensibility | 10 | **9–10** | Deterministic SATS scorer, exact citations, hash-chained audit, known cost per run. Nothing material is missing |
-| Demo | 5 | **4–5** | Complete 2:28 recording, tool calls on screen, the measured eval and the declared failure shown. Docked only if the brief's YouTube/Vimeo wording is enforced (G1) |
+| Demo | 5 | **4–5** | Complete 2:29 re-recording on the local model: tool calls on screen, live MCP elicitation, the measured eval and the declared failure shown (the Drive upload is the 2:28 v1.0 recording). Docked only if the brief's YouTube/Vimeo wording is enforced (G1) |
 | **Total** | **100** | **83–93** | **estimate** — the band is wide because three criteria turn on facts outside the repository (clinician access, hosting platform, a quiet machine) |
 
 ## 4. Instant disqualifiers — none ✅
@@ -102,9 +106,9 @@ real and digest-stamped · greenfield and disclosed.
    24-case run; the deterministic scorer is instant, so local model extraction dominates. The E-11
    repeat (9 runs) measured 11.1–15.9 s, so the tail depends on host load. Treat p95 as the honest
    worst case; a quiet-machine re-run and a faster extraction path are the next steps.
-3. **G1 — Demo hosting platform.** The video is delivered and uploaded, but to Google Drive. The
-   brief names YouTube/Vimeo. Re-hosting the existing 2:28 file there closes it; the content does
-   not change. *(Residual caveat, not a blocker.)*
+3. **G1 — Demo hosting platform.** The video is delivered and uploaded, but to Google Drive (the
+   2:28 v1.0 recording). The brief names YouTube/Vimeo. Uploading the 2:29 re-recording there closes
+   it. *(Residual caveat, not a blocker.)*
 4. **G4 — Approver identity is recorded, not authenticated.** The gate captures `approved_by` and
    `role`; it cannot prove who typed them. An authenticated approver (SSO/badge) is a production
    requirement, declared in [`SECURITY.md`](SECURITY.md) T-8.
@@ -116,8 +120,13 @@ real and digest-stamped · greenfield and disclosed.
 6. **G6 — No online evaluation, drift monitoring, or calibrated probability.** The report is an
    offline measurement. Calibration is a declared small-sample ECE, explicitly **not** a validated
    calibrated probability.
-7. **G7 — No MCP sampling or elicitation.** The server exposes static tool contracts; it never asks
-   the client for a model call or a clarification mid-task.
+7. **G7 — Closed for elicitation; sampling stays out of scope.** ✅ The ninth owned tool
+   `request_clarification` asks at most three targeted questions **inside the tool call**, with the
+   question text derived from the closed discriminator set, and distinguishes `accepted` / `declined` /
+   `cancelled` / `unavailable`. A refusal is never converted into a clinical value. MCP **sampling**
+   remains a deliberate omission: the server must not borrow the client's model. Elicitation is
+   exercised live on the online `demo --beat clarify` and the online desk question panel; the batch
+   eval has no human to answer, so it records `unavailable` (no new measurement is claimed).
 8. **G8 — No multimodal intake.** Vitals and complaint are typed. Voice and a chart/cuff photo are
    the real desk interface and are absent.
 9. **G9 — The desk is a single-machine, loopback-only prototype.** `127.0.0.1`, one shared terminal,
@@ -177,15 +186,15 @@ state-of-the-art *general* agent. The distance to "cutting edge" is almost entir
 
 | SOTA agent pillar | TriageDesk | Verdict |
 | --- | --- | --- |
-| Tool use / MCP craft | 7 owned tools + a borrowed SQLite MCP with exercised read paths | ✅ present |
+| Tool use / MCP craft | 9 shipped owned tools + a borrowed SQLite MCP with exercised read paths | ✅ present (9) |
 | Explicit control flow / orchestration | LangGraph state machine | ✅ present |
 | Human-in-the-loop / approval gate | `interrupt()` gate; real approve/edit/dismiss desk surface; durable resume | ✅ present |
 | Reliability engineering | bounded extraction retry, deterministic fallback, idempotency, fail-closed terminals, invariants | ✅ present |
-| Guardrails / safety | structural: no dx/rx tools, citation invariant, gate, fail-closed evidence check | ✅ present (strong) |
+| Guardrails / safety | structural: no dx/rx tools, citation invariant, gate, fail-closed evidence check; v1.3 keeps the kernel non-skippable by construction | ✅ present (strong) |
 | Prompt-injection resistance | prose-as-data + deterministic scorer; E-13 adds no evidence | ✅ present |
 | Reproducibility | hashing, pinned deps, deterministic scorer, sealed schema hash | ✅ present |
 | Evaluation | 24 cases, invariants, honest failures | 🟡 strong offline; no online eval or drift (G6) |
-| Dynamic planning / adaptive routing | fixed graph (bounded) | 🟡 partial — deliberate |
+| Dynamic planning / adaptive routing | bounded `plan` node over a closed set of read-only actions; the model proposes, `core.planner` disposes, the loop is capped at 3 steps, and `finish_investigation` is the only edge into `score` | ✅ present (ADAPT-01..08; `tests/test_frozen_kernel.py`) |
 | Knowledge grounding (RAG) | deterministic lexical retrieval over the YAML KB (no embeddings); evidence is display-only | ✅ present |
 | Grounded extraction | Phase 14 grounds every extracted sign in the complaint text, with a fail-closed check | ✅ present |
 | Calibrated confidence + abstention | deterministic coverage/deferral signal; small-sample ECE, not a calibrated probability | 🟡 partial (G6) |
@@ -194,7 +203,9 @@ state-of-the-art *general* agent. The distance to "cutting edge" is almost entir
 | Online eval / calibration / drift | offline report only | ❌ gap (G6) |
 | Cost / latency management | cost reported; latency reported; a desk precompute cache exists; no model routing or budgets | ❌ gap (G3, G10) |
 | Approver authentication | recorded, not authenticated | ❌ gap (G4) |
-| MCP sampling / elicitation | static tool calls only | ❌ gap (G7) |
+| MCP elicitation | `request_clarification` elicits mid-call through the shipped adapter, with four distinct outcomes and an answer that is an observation, never an approval | ✅ present (ELICIT-01..08) |
+| MCP sampling | never requests a client-side model call | ⛔ deliberate (G7 remainder) |
+| Deterministic emergency bypass | critical structured case skips extraction and the planner, never the kernel or the clinician | ✅ present (v1.3, EMERG-01..05; proven by `tests/test_emergency_bypass.py`) |
 | Long-term / episodic memory | per-case only | ⛔ deliberate |
 | Multimodal (voice/vision) | text only | ⛔ deliberate (G8) |
 | Multi-agent (planner/executor/critic) | single graph + `verify` node | ⛔ deliberate |
@@ -205,8 +216,8 @@ state-of-the-art *general* agent. The distance to "cutting edge" is almost entir
 
 1. **Calibrated confidence + abstention** (selective prediction) — the coverage signal is
    deterministic; the ECE is a declared small-sample bound, not a probability.
-2. **MCP sampling / elicitation** — the current spec's agent↔server negotiation; the natural home for
-   the clarifying question E-09 needs.
+2. **MCP elicitation** — the current spec's agent↔server negotiation; the natural home for the
+   clarifying question E-09 needs. ✅ **Shipped in v1.3** (sampling stays out of scope).
 3. **Model routing / budgets / a real fallback path** — attacks desk latency and makes the
    `qwen3.5:4b` alternative operational instead of documented.
 4. **Online evaluation + drift monitoring.**
@@ -224,8 +235,9 @@ that half-work").
 
 ## 8. Action list
 
-**Delivered (no longer blocking):** the demo video is recorded (2:28) and uploaded to Google Drive
-during submission. Submission itself is complete.
+**Delivered (no longer blocking):** the demo video is recorded and uploaded to Google Drive during
+submission (the 2:28 v1.0 recording); the repository now holds a 2:29 re-recording on the local model
+with live MCP elicitation. Submission itself is complete.
 
 **Top score movers, in order:**
 1. **One clinician or triage-nurse review** (G2) — run
@@ -233,10 +245,10 @@ during submission. Submission itself is complete.
    attributed quote in `EVALS.md` §7 and the README. The largest single gain available.
 2. **A quiet-machine latency re-run** (G3) — re-run the measured evaluation on an idle host and let
    `scripts/emit_evals.py` republish the figures. The current number is pessimistic.
-3. **Re-host the video on YouTube or Vimeo** (G1) — same file, no re-recording.
+3. **Host the video on YouTube or Vimeo** (G1) — upload the 2:29 re-recording (a user action).
 
 **Then (capability, in value order):** approver authentication (G4) · online eval and drift (G6) ·
-calibrated confidence (G6) · MCP sampling/elicitation (G7) · multimodal intake (G8) · model routing
+calibrated confidence (G6) · MCP sampling (G7) · multimodal intake (G8) · model routing
 and a real fallback (G10) · vitals-entry units and missing-vital prompting (U4) · accessibility and
 environment work (U5).
 
@@ -257,5 +269,5 @@ never be required to run).
   than any code change still on the list — then by the **pessimistic latency figure** and the
   **video platform**. Honest estimate: **83–93 of 100**, not 100.
 - **State of the art:** already ahead of most on **trust, auditability, and honesty**. The remaining
-  capability distance is **online eval, calibrated confidence, sampling/elicitation, multimodal
+  capability distance is **online eval, calibrated confidence, MCP sampling, multimodal
   intake, and memory** — the last of which is a deliberate omission, not an oversight.

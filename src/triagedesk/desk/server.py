@@ -47,10 +47,10 @@ from triagedesk.desk.extraction import PrecomputeCache, extract_complaint
 from triagedesk.desk.forms import _CSRF_FIELD, form_to_case
 from triagedesk.desk.gate import editable_colours
 from triagedesk.desk.loop import DeskLoop
-from triagedesk.desk.pipeline import decide, submit_case
+from triagedesk.desk.pipeline import answer_clarification, decide, submit_case
 from triagedesk.desk.views import banner_trigger, render_state, terminal_kind
 from triagedesk.desk.waiting import read_rows, waiting_html
-from triagedesk.durable import DurableError
+from triagedesk.durable import DurableError, PausedRun
 from triagedesk.graph.build import CHECKPOINTS_DB_PATH
 from triagedesk.store import Store
 
@@ -316,6 +316,8 @@ class DeskHandler(BaseHTTPRequestHandler):
             self._send_html(self._handle_case(form))
         elif path == "/decision":
             self._send_html(self._handle_decision(form))
+        elif path == "/clarify":
+            self._send_html(self._handle_clarify(form))
         elif path == "/precompute":
             self._handle_precompute(form)
         else:
@@ -421,6 +423,40 @@ class DeskHandler(BaseHTTPRequestHandler):
             return self._page(error=_FAILURE_COPY, form_values=form)
         return self._page(result=result, form_values=form)
 
+    def _handle_clarify(self, form: Mapping[str, str]) -> str:
+        """Resume a paused QUESTION with the nurse's answers — never a decision (ELICIT-05).
+
+        The route sits behind the same preamble as ``/case`` and ``/decision`` (loopback Host,
+        same-origin, CSRF, body cap) and runs under the ONE serialised write lock. The state
+        the resume returns is rendered through the ordinary paused view, so whatever comes
+        next — usually the approval gate — appears as itself, and an answer can never approve
+        anything. A refusal or an unknown action declines, which commits nothing.
+        """
+        thread_id = str(form.get("thread_id", "")).strip()
+        if not thread_id:
+            return self._page(error=_NO_THREAD_COPY, form_values=form)
+        try:
+            result = self.server.loop.run(
+                self.server.serialised(
+                    answer_clarification(thread_id, form, self.server.db_path)
+                )
+            )
+        except DurableError as exc:
+            return self._page(error=str(exc), form_values=form)
+        except Exception:  # noqa: BLE001 - a failure leaves the question unresolved
+            return self._page(error=_FAILURE_COPY, form_values=form)
+        pending = result.get("__interrupt__")
+        payload = dict(pending[0].value) if pending else None
+        paused = PausedRun(
+            thread_id=thread_id,
+            config={},
+            result=result,
+            payload=payload,
+            paused=payload is not None,
+            existed=False,
+        )
+        return self._page(paused=paused, form_values=form)
+
 
 def _validation_field(exc: ValidationError) -> str | None:
     """The field the schema's first error names (the ``loc`` head), or ``None``.
@@ -524,6 +560,7 @@ __all__ = [
     "DeskHandler",
     "DeskServer",
     "STATIC_DIR",
+    "answer_clarification",
     "banner_trigger",
     "decide",
     "editable_colours",
