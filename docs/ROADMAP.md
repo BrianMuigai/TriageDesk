@@ -29,7 +29,8 @@ Six days off the calendar (Oct 9 → Oct 15) map onto the v1.0 phases; the phase
 
 ## Demo storyboard (< 3 min, unedited)
 
-Unedited screen recording, **tool calls on screen, no slides**; uploaded publicly to YouTube or Vimeo.
+Unedited screen recording, **tool calls on screen, no slides**; published publicly on YouTube —
+[**watch the 2:29 demo**](https://youtu.be/EWGe4ykJ-aU).
 
 | Time | Content |
 | --- | --- |

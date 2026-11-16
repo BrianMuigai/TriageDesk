@@ -9,11 +9,12 @@
 > fixture — each run's mode line says which — and the measured evaluation. The calls of **8** distinct
 > owned tools are on screen. It is reproducible from the repository (see *Rendering the video* below).
 >
-> **Upload status.** The earlier **2:28 v1.0 recording** was uploaded to Google Drive during submission
-> ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)). The 2:29
-> re-recording is **not yet uploaded**. The brief names YouTube or Vimeo, so hosting the re-recording
-> there remains the platform step (`STATUS.md` G1, `docs/REQUIREMENTS.md` G-9) — and the Drive folder
-> should be confirmed viewable by anyone with the link. This runbook documents the recording script.
+> **Published.** The 2:29 re-recording is **live on YouTube**:
+> [**triagedesk demo — 2:29**](https://youtu.be/EWGe4ykJ-aU). The brief names YouTube or Vimeo, so the
+> hosting requirement (`STATUS.md` G1, `docs/REQUIREMENTS.md` G-9) is **satisfied**. The earlier
+> **2:28 v1.0 recording** remains on Google Drive from submission
+> ([folder](https://drive.google.com/drive/folders/1s1sgXHJjr6XsGr-ggTlyY6BT3FSG9ZJ3)). This runbook
+> documents the recording script.
 >
 > **Record against the current state (this commit), not the frozen `v1.0-submission` tag.** The
 > Durable-mode and desk sections below document v1.1+ behaviour — `--durable`/`resume`/`replay`,
@@ -428,8 +429,9 @@ The video must be as honest as the docs. Point the close at what the repository 
   published SATS rules, not clinician adjudication. **No** triage nurse/clinician review was obtained as
   of 2026-10-13. The interview is prepared but unattested
   ([`CLINICIAN-INTERVIEW.md`](CLINICIAN-INTERVIEW.md)).
-- The repository video (`docs/assets/triagedesk-demo.mp4`) is the 2:29 re-recording on the local
-  model, not yet uploaded; the 2:28 v1.0 recording was **uploaded to Google Drive during submission**
-  (folder link above). The brief's YouTube/Vimeo requirement is the residual platform caveat.
+- The video (`docs/assets/triagedesk-demo.mp4`) is the 2:29 re-recording on the local model and is
+  **published on YouTube** ([watch](https://youtu.be/EWGe4ykJ-aU)), satisfying the brief's
+  YouTube/Vimeo requirement; the earlier 2:28 v1.0 recording remains on Google Drive (folder link
+  above).
 
 Record the close over the running terminal, not over slides: open source, offline, synthetic.

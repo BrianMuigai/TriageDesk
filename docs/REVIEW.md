@@ -8,8 +8,9 @@
 > **data edit** — one line in `data/sats_discriminators.yaml`, no code change.
 
 > **What is human.** The screen recording and the public upload (YouTube/Vimeo) are **HUMAN** actions.
-> This runbook prepares the beats and a runnable dry-run; it does **not** claim a video exists or is
-> hosted. Everything else here is driven live from the page.
+> The recording is now published on YouTube ([2:29 demo](https://youtu.be/EWGe4ykJ-aU)); this runbook
+> still prepares the beats and a runnable dry-run rather than restating the video. Everything else here
+> is driven live from the page.
 
 > **"Reload" means a fresh process.** The discriminator substrate is loaded **once per process**
 > (`get_discriminators()` is `@lru_cache`d), so a YAML edit is honoured by running a **NEW**

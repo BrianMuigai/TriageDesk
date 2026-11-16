@@ -297,8 +297,9 @@ over-claim" — a rehearsal that pretended to hot-reload, a demo that faked a ~1
 fabricated clinician quote would each be a scored repudiation risk (D12-02, D12-05, D12-06, D12-07).
 **Consequence:** the reviewer can drive the live extension from [`REVIEW.md`](REVIEW.md) and see the
 same re-score the harness proves; the measured numbers live only in [`EVALS.md`](EVALS.md); and the two
-genuinely-human steps stay visible as open items (STATUS G1/G2) rather than papered over. No source
-behaviour and no dependency changed.
+genuinely-human steps were kept visible as open items (STATUS G1/G2) rather than papered over. The
+demo-video upload has since closed G1 — the 2:29 recording is published on
+[YouTube](https://youtu.be/EWGe4ykJ-aU) — leaving G2. No source behaviour and no dependency changed.
 
 ### D26 — The committed queue position is a typed field, never parsed from the reason
 **Decision:** the queue position the gated write assigned is exposed as a typed
