@@ -10,6 +10,8 @@ from typing import Any
 
 from triagedesk.desk.assets import STATIC_DIR
 from triagedesk.desk.card import _card_html, _card_payload_from_state
+from triagedesk.desk.chat import handover_html as _handover_html
+from triagedesk.desk.chat import transcript
 from triagedesk.desk.clarification import _question_html
 from triagedesk.desk.copy import (
     _BANNER_HEADLINE,
@@ -17,6 +19,20 @@ from triagedesk.desk.copy import (
     _BANNER_NO_MATCH_BODY,
     _BANNER_VITALS_ONLY_BODY,
     _BANNER_VITALS_ONLY_HEADLINE,
+    _CHAT_ASSISTANT,
+    _CHAT_BADGE_SCORED,
+    _CHAT_BADGE_SUGGESTION,
+    _CHAT_COMPOSER_HINT,
+    _CHAT_COMPOSER_LABEL,
+    _CHAT_COMPOSER_PLACEHOLDER,
+    _CHAT_PANEL_CONVERSATION,
+    _CHAT_PANEL_INTAKE,
+    _CHAT_PANEL_WAITING_COPY,
+    _CHAT_RAIL_FOOT,
+    _CHAT_RAIL_STATION_BODY,
+    _CHAT_RAIL_STATION_EYEBROW,
+    _CHAT_RAIL_STATION_TITLE,
+    _CHAT_SEND_NOTE,
     _CLARIFICATION_COPY,
     _DEFERRED_COPY,
     _DISMISSED_COPY,
@@ -28,7 +44,11 @@ from triagedesk.desk.copy import (
     _UNREACHED_COPY,
     recovery_copy,
 )
-from triagedesk.desk.forms import _csrf_field, _vitals_fields
+from triagedesk.desk.forms import (
+    _csrf_field,
+    _vitals_fieldset,
+    case_to_form_values,
+)
 from triagedesk.desk.gate import _gate_html
 from triagedesk.desk.markup import _escaped
 from triagedesk.durable import PausedRun
@@ -91,8 +111,7 @@ def _panel(copy: str, kind: str) -> str:
     dynamic text straight through can no longer leak markup.
     """
     return (
-        f'<section class="state-panel state-{kind}" role="status">'
-        f"<p>{_escaped(copy)}</p></section>"
+        f'<section class="state-panel state-{kind}" role="status"><p>{_escaped(copy)}</p></section>'
     )
 
 
@@ -165,9 +184,16 @@ def _paused_view(paused: PausedRun, csrf_token: str | None = None) -> dict[str, 
     (D10-19). Every gate carries the per-server CSRF token (WR-01).
     """
     state = paused.result
+    kind = terminal_kind(state)
     trigger = banner_trigger(state)
-    banner = _banner_html(trigger) if trigger is not None else ""
+    # The uncertainty banner is about a SUGGESTION that may be incomplete. A clarification,
+    # recovery or escalation has no suggestion to qualify, so the banner would contradict the
+    # terminal's own "nothing was committed" copy (UI review 25-01, BLOCKER 3).
+    suppress_banner = kind in ("clarification", "recovery", "escalated")
+    banner = _banner_html(trigger) if trigger is not None and not suppress_banner else ""
     evidence = state.get("evidence")
+    paused_case = state.get("case")
+    case_values = case_to_form_values(paused_case) if paused_case is not None else None
 
     if paused.paused and paused.payload is not None:
         # A QUESTION, not a decision: an elicitation payload renders the question panel and
@@ -176,22 +202,19 @@ def _paused_view(paused: PausedRun, csrf_token: str | None = None) -> dict[str, 
         if is_elicitation(paused.payload):
             return {
                 "state_panel": "",
-                "banner": banner,
+                "banner": "",
                 "card": "",
                 "gate": "",
-                "clarification": _question_html(
-                    paused.payload, paused.thread_id, csrf_token
-                ),
+                "clarification": _question_html(paused.payload, paused.thread_id, csrf_token),
             }
         return {
             "state_panel": "",
             "banner": banner,
             "card": _card_html(paused.payload, evidence),
-            "gate": _gate_html(str(paused.payload.get("case_id") or ""), csrf_token),
+            "gate": _gate_html(str(paused.payload.get("case_id") or ""), csrf_token, case_values),
             "clarification": "",
         }
 
-    kind = terminal_kind(state)
     if kind is not None:
         card = (
             _card_html(
@@ -229,7 +252,7 @@ def _paused_view(paused: PausedRun, csrf_token: str | None = None) -> dict[str, 
             "state_panel": "",
             "banner": banner,
             "card": _card_html(_card_payload_from_state(state, paused.thread_id), evidence),
-            "gate": _gate_html(paused.thread_id, csrf_token),
+            "gate": _gate_html(paused.thread_id, csrf_token, case_values),
             "clarification": "",
         }
     return {
@@ -265,7 +288,9 @@ def _decision_view(result: Mapping[str, Any], form: Mapping[str, str]) -> dict[s
             copy = f"Edited to {form.get('colour', '')} by {name} ({role}) — {suffix}"
         else:
             copy = f"Approved by {name} ({role}) — {suffix}"
-        panel = _panel(copy, "success")
+        handover = result.get("handover")
+        handover_html = _handover_html(handover, commit) if handover is not None else ""
+        panel = _panel(copy, "success") + handover_html
     else:
         reason = getattr(commit, "reason", None) or _FAILURE_COPY
         panel = _panel(reason, "error")
@@ -284,6 +309,111 @@ def _error_panel(message: str) -> str:
     return _panel(message, "error")
 
 
+def _intake_panel(
+    form: Mapping[str, str],
+    csrf_token: str | None,
+    field_error: tuple[str, str] | None,
+    clarification_round: int = 0,
+) -> str:
+    """The structured vitals card — the scored input, always visible beside the chat."""
+    round_field = (
+        f'<input type="hidden" name="clarification_round" value="{clarification_round}">'
+        if clarification_round
+        else ""
+    )
+    focus_name = field_error[0] if field_error is not None else None
+    return (
+        '<aside class="intake-panel" aria-labelledby="intake-heading">'
+        '<header class="panel-head">'
+        f'<div><p class="eyebrow">{_escaped(_CHAT_PANEL_INTAKE)}</p>'
+        '<h2 id="intake-heading">Patient vitals</h2></div>'
+        f'<span class="badge">{_escaped(_CHAT_BADGE_SCORED)}</span></header>'
+        '<form id="vitals-form" class="vitals-form" method="post" action="/case">'
+        f"{_csrf_field(csrf_token)}{round_field}"
+        f"{_vitals_fieldset(form, field_error, autofocus_name=focus_name)}"  # noqa: E501
+        '<div class="form-actions">'
+        '<button type="submit" id="submit-vitals" class="primary">'
+        "Get suggested priority</button>"
+        '<button type="reset" class="ghost" data-confirm="Clear form: this removes the '
+        'vitals you have typed. Clear the form?">Clear form</button>'
+        "</div></form></aside>"
+    )
+
+
+def _composer() -> str:
+    """The chat composer, associated with the vitals form so it posts the current values."""
+    return (
+        '<div class="composer">'
+        f'<label class="composer-label" for="note-input">'
+        f"{_escaped(_CHAT_COMPOSER_LABEL)}</label>"
+        '<div class="composer-row">'
+        '<textarea id="note-input" name="note" form="vitals-form" rows="2" '
+        f'enterkeyhint="enter" placeholder="{_escaped(_CHAT_COMPOSER_PLACEHOLDER)}">'
+        "</textarea>"
+        '<button type="submit" form="vitals-form" name="action" value="note" '
+        'class="primary composer-send">'
+        f"{_escaped(_CHAT_SEND_NOTE)}</button></div>"
+        f'<p class="composer-hint">{_escaped(_CHAT_COMPOSER_HINT)}</p>'
+        "</div>"
+    )
+
+
+def _triage_workspace(
+    view: Mapping[str, str],
+    form: Mapping[str, str],
+    csrf_token: str | None,
+    field_error: tuple[str, str] | None,
+    chat_log: str,
+    clarification_round: int = 0,
+) -> str:
+    """The conversation + structured-intake workspace (the default desk surface)."""
+    banner = view["banner"]
+    banner_html = (
+        f'<div class="uncertainty-banner" aria-live="polite">{banner}</div>' if banner else ""
+    )
+    result = "".join(
+        [
+            view["state_panel"],
+            banner_html,
+            view["card"],
+            view["gate"],
+            view.get("clarification", ""),
+        ]
+    )
+    result_html = (
+        f'<div class="chat-result">'
+        f'<p class="chat-author">{_escaped(_CHAT_ASSISTANT)}</p>{result}</div>'
+        if result
+        else ""
+    )
+    return (
+        '<div class="workspace">'
+        '<section class="conversation" aria-labelledby="conversation-heading">'
+        '<header class="panel-head">'
+        f'<div><p class="eyebrow">{_escaped(_CHAT_PANEL_CONVERSATION)}</p>'
+        '<h2 id="conversation-heading">Triage assistant</h2></div>'
+        f'<span class="badge">{_escaped(_CHAT_BADGE_SUGGESTION)}</span></header>'
+        '<div class="chat-log" role="log" aria-live="polite" '
+        f'aria-relevant="additions text">{chat_log}{result_html}</div>'
+        f"{_composer()}"
+        "</section>"
+        f"{_intake_panel(form, csrf_token, field_error, clarification_round)}"
+        "</div>"
+    )
+
+
+def _waiting_page(waiting: str) -> str:
+    """The waiting-room page: the same shell, the queue in place of the conversation."""
+    return (
+        '<section class="waiting-page" aria-label="Waiting room">'
+        f'<p class="page-copy">{_escaped(_CHAT_PANEL_WAITING_COPY)}</p>'
+        f"{waiting}"
+        '<div class="page-actions">'
+        '<a class="button-link" href="/">New case</a></div>'
+        "</section>"
+    )
+
+
 def _render(
     view: Mapping[str, str],
     form: Mapping[str, str],
@@ -291,37 +421,73 @@ def _render(
     field_error: tuple[str, str] | None = None,
     mode_label: str = _MODE_OFFLINE,
     waiting: str = "",
+    note: str | None = None,
+    extraction: Any = None,
+    note_failed: bool = False,
     clarification_round: int = 0,
+    system: bool = False,
 ) -> str:
     """Substitute the server-rendered regions into the hand-authored page (string.Template).
 
     ``string.Template`` (not ``str.format``) is used because the markup carries CSS braces; the
-    page's only ``$`` characters are its placeholders. The vitals field block is rendered
-    from *form* (the submitted values), so a rejected submission repopulates the form and — when
+    page's only ``$`` characters are its placeholders. The structured intake is rendered from
+    *form* (the submitted values), so a rejected submission repopulates the form and — when
     *field_error* names the offending field — renders the schema's own message beside it. The
-    ``csrf_field`` region carries the per-server token into the vitals form (WR-01).
-    ``mode_label`` names the live extraction mode (Plan 13-02); it defaults to the offline
-    label, so a direct render states the default truthfully. ``waiting`` is the waiting-room
-    panel (Plan 13-03); it defaults to empty, so a direct render shows no panel.
+    per-server CSRF token travels into every POST form. ``mode_label`` names the live extraction
+    mode (Plan 13-02). ``waiting`` selects the queue page and defaults to the triage workspace.
+    *note*/*extraction* drive the chat transcript for a pasted-note turn.
     """
     template = string.Template((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
-    # A clarification page carries the round marker into the NEXT submission, so the desk's
-    # re-ask is bounded: one answer round, then a deferral (COV-03). No marker, no round.
-    round_field = (
-        f'<input type="hidden" name="clarification_round" value="{clarification_round}">'
-        if clarification_round
-        else ""
-    )
+    chat_log = transcript(form, note=note, extraction=extraction, note_failed=note_failed)
+    if system:
+        workspace = (STATIC_DIR / "system.html").read_text(encoding="utf-8")
+        page_title = "System map"
+        page_eyebrow = "Integration"
+        topbar_action = '<a class="topbar-action" href="/">New case</a>'
+        new_case_flag = ""
+        waiting_flag = ""
+        system_flag = ' aria-current="page"'
+    elif waiting:
+        workspace = _waiting_page(waiting)
+        page_title = "Waiting room"
+        page_eyebrow = "Queue"
+        topbar_action = '<a class="topbar-action" href="/">New case</a>'
+        new_case_flag = ""
+        waiting_flag = ' aria-current="page"'
+        system_flag = ""
+    else:
+        workspace = _triage_workspace(
+            view, form, csrf_token, field_error, chat_log, clarification_round
+        )
+        page_title = "New patient"
+        page_eyebrow = "Triage workspace"
+        topbar_action = '<a class="topbar-action" href="/waiting">Waiting room</a>'
+        new_case_flag = ' aria-current="page"'
+        waiting_flag = ""
+        system_flag = ""
     return template.substitute(
-        vitals_fields=_vitals_fields(form, field_error) + round_field,
-        csrf_field=_csrf_field(csrf_token),
         mode_label=mode_label,
-        state_panel=view["state_panel"],
-        banner=view["banner"],
-        waiting=waiting,
-        card=view["card"],
-        gate=view["gate"],
-        clarification=view.get("clarification", ""),
+        workspace=workspace,
+        page_title=page_title,
+        page_eyebrow=page_eyebrow,
+        topbar_action=topbar_action,
+        new_case_current=new_case_flag,
+        waiting_current=waiting_flag,
+        system_current=system_flag,
+        rail_station_eyebrow=_escaped(_CHAT_RAIL_STATION_EYEBROW),
+        rail_station_title=_escaped(_CHAT_RAIL_STATION_TITLE),
+        rail_station_body=_escaped(_CHAT_RAIL_STATION_BODY),
+        rail_foot=_escaped(_CHAT_RAIL_FOOT),
+    )
+
+
+def render_system(mode_label: str = _MODE_OFFLINE) -> str:
+    """Render the read-only system / integration map page."""
+    return _render(
+        _empty_view(),
+        {},
+        mode_label=mode_label,
+        system=True,
     )
 
 
@@ -335,20 +501,24 @@ def render_state(
     csrf_token: str | None = None,
     mode_label: str = _MODE_OFFLINE,
     waiting: str = "",
+    note: str | None = None,
+    extraction: Any = None,
+    note_failed: bool = False,
 ) -> str:
     """Render the page for one state: empty, paused card+gate, terminal, decision, or error.
 
-    With no case submitted it renders the quickstart panel and the empty vitals form with the
-    ``No case yet`` heading and body and NO ``priority-card`` or ``approval-gate`` region. On
-    the committable path (``paused is True``) it renders the card plus the gate and no banner.
-    *error* is a server/graph failure and renders in the state panel (the ``state-panel`` is the
-    single surface for that copy). *field_error* is a schema rejection — ``(field, message)`` —
-    and renders beside the offending field instead, so the mandated "Check the highlighted field"
-    copy is literally true (the UI-SPEC ``## UI Considerations`` ``error | vitals-form`` row).
-    *csrf_token* is the per-server secret the rendered forms carry (WR-01); it is optional so a
-    direct (non-request) render — a test or a proof — needs no server. *mode_label* names the
-    live extraction mode (Plan 13-02); a direct render therefore labels the offline default.
-    *waiting* is the waiting-room panel (Plan 13-03); a direct render shows no panel.
+    With no case submitted it renders the welcome conversation and the empty structured
+    intake with the ``No case yet`` heading and body and NO ``priority-card`` or
+    ``approval-gate`` region. On the committable path (``paused is True``) it renders the card
+    plus the gate and no banner. *error* is a server/graph failure and renders in the state
+    panel (the ``state-panel`` is the single surface for that copy). *field_error* is a schema
+    rejection — ``(field, message)`` — and renders beside the offending field instead, so the
+    mandated "Check the highlighted field" copy is literally true (the UI-SPEC ``## UI
+    Considerations`` ``error | vitals-form`` row). *csrf_token* is the per-server secret the
+    rendered forms carry (WR-01); it is optional so a direct (non-request) render — a test or a
+    proof — needs no server. *mode_label* names the live extraction mode (Plan 13-02).
+    *waiting* is the waiting-room panel (Plan 13-03). *note*/*extraction* carry the chat
+    intake projection for a pasted-note turn; *note_failed* reports a failed read honestly.
     """
     form = form_values or {}
     if result is not None:
@@ -358,6 +528,9 @@ def render_state(
             csrf_token,
             mode_label=mode_label,
             waiting=waiting,
+            note=note,
+            extraction=extraction,
+            note_failed=note_failed,
         )
     if paused is not None:
         return _render(
@@ -366,9 +539,10 @@ def render_state(
             csrf_token,
             mode_label=mode_label,
             waiting=waiting,
-            clarification_round=(
-                1 if terminal_kind(paused.result) == "clarification" else 0
-            ),
+            note=note,
+            extraction=extraction,
+            note_failed=note_failed,
+            clarification_round=(1 if terminal_kind(paused.result) == "clarification" else 0),
         )
     if error is not None:
         return _render(
@@ -383,6 +557,9 @@ def render_state(
             csrf_token,
             mode_label=mode_label,
             waiting=waiting,
+            note=note,
+            extraction=extraction,
+            note_failed=note_failed,
         )
     if field_error is not None:
         return _render(
@@ -398,7 +575,17 @@ def render_state(
             field_error,
             mode_label=mode_label,
             waiting=waiting,
+            note=note,
+            extraction=extraction,
+            note_failed=note_failed,
         )
     return _render(
-        _empty_view(), form, csrf_token, mode_label=mode_label, waiting=waiting
+        _empty_view(),
+        form,
+        csrf_token,
+        mode_label=mode_label,
+        waiting=waiting,
+        note=note,
+        extraction=extraction,
+        note_failed=note_failed,
     )

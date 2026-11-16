@@ -55,9 +55,7 @@ _QUESTION_ACCEPT = "Send answer"
 _QUESTION_DECLINE = "Decline to answer"
 _QUESTION_SENT = "Answer sent — the case continues; nothing has been committed."
 _QUESTION_DECLINED = "You declined to answer — nothing has been committed."
-_QUESTION_UNAVAILABLE = (
-    "The question could not be delivered — nothing has been committed."
-)
+_QUESTION_UNAVAILABLE = "The question could not be delivered — nothing has been committed."
 # The word the read-only card shows instead of a colour (nurse stress test S2-3).
 _DEFERRED_BADGE = "DEFERRED"
 _ESCALATED_COPY = "This case was escalated for human review — no priority was committed."
@@ -75,6 +73,8 @@ def recovery_copy(missing: list[str] | tuple[str, ...]) -> str:
     if not names:
         return _RECOVERY_COPY
     return f"A scored vital is missing ({names}). Re-measure before scoring."
+
+
 _UNREACHED_COPY = "This case did not reach the approval gate — nothing has been committed."
 _DISMISSED_COPY = "Dismissed — nothing has been committed."
 _TIMEOUT_COPY = "No decision was made — nothing has been committed."
@@ -87,8 +87,77 @@ _NO_THREAD_COPY = "There is no paused case to decide. Submit the vitals first."
 # The waiting room's own copy (Plan 13-03): its heading, the no-rows line, and the line the
 # failure panel shows when the store read raises. Presentation only — no clinical value.
 _WAITING_HEADING = "Waiting room"
+_WAITING_CAPTION = "Committed queue"
 _WAITING_EMPTY = "No patients are waiting. Approved cases appear here."
 _WAITING_FAILED = (
     "The waiting room could not be read. Nothing has been changed. "
     "Try again, or check the desk log."
+)
+
+# The chat workspace's own copy (presentation only, no clinical value). The assistant is a
+# triage-support surface: it says what it heard and what the deterministic scorer recommends,
+# and it never claims to give clinical advice or to act on its own.
+_CHAT_ASSISTANT = "TriageDesk assistant"
+_CHAT_NURSE = "You"
+_CHAT_WELCOME_LEAD = (
+    "Record the vitals, add the presenting complaint, and I will return a sourced SATS "
+    "suggestion for you to confirm."
+)
+_CHAT_WELCOME_BODY = (
+    "This workspace supports triage only. It does not give clinical advice, and nothing "
+    "reaches the queue without a named clinician's approval."
+)
+_CHAT_WELCOME_STEPS = (
+    "1. Add the complaint or paste a note. 2. Complete the structured intake. "
+    "3. Review the suggestion and its evidence. 4. Approve, edit, or dismiss."
+)
+_CHAT_COMPOSER_LABEL = "Message the triage assistant"
+_CHAT_COMPOSER_PLACEHOLDER = "Describe the complaint or paste a nurse's note…"
+_CHAT_COMPOSER_HINT = (
+    "Online, the local model structures a pasted note for your review. Offline, the text "
+    "becomes the presenting complaint. The structured intake is always the scored input."
+)
+_CHAT_SEND_NOTE = "Send note"
+_CHAT_NOTE_OFFLINE = (
+    "Added as the presenting complaint. Complete the vitals in the structured intake; the "
+    "deterministic scorer uses those values."
+)
+_CHAT_NOTE_FAILED = (
+    "I could not read that note. Your form is unchanged — complete it manually, or try again."
+)
+_CHAT_NOTE_EMPTY = "Type a complaint or paste a note before sending."
+_CHAT_EXTRACTION_HEADING = "Here is what I read"
+_CHAT_EXTRACTION_BODY = "Review and correct the structured intake. Nothing has been scored yet."
+_CHAT_EXTRACTION_NOT_STATED = "Not stated"
+_CHAT_PANEL_CONVERSATION = "Conversation"
+_CHAT_PANEL_INTAKE = "Structured intake"
+_CHAT_PANEL_WAITING = "Queue"
+_CHAT_PANEL_WAITING_COPY = "Approved cases, ordered by acuity."
+_CHAT_BADGE_SUGGESTION = "Suggestion only"
+_CHAT_BADGE_SCORED = "Scored input"
+_CHAT_RAIL_STATION_EYEBROW = "Station link"
+_CHAT_RAIL_STATION_TITLE = "MCP"
+_CHAT_RAIL_STATION_BODY = (
+    "TriageDesk is triage-only. Other hospital stations read the same triage result through "
+    "the TriageDesk MCP server."
+)
+_CHAT_RAIL_FOOT = "Triage support only. Nothing is queued without a named clinician's approval."
+_CHAT_HANDOVER_HEADING = "Handover"
+_CHAT_HANDOVER_FRAMING = (
+    "Approved by a named clinician. These are the same sourced facts the MCP server returns "
+    "to another station."
+)
+_CHAT_HANDOVER_CASE = "Case"
+_CHAT_HANDOVER_PRIORITY = "Priority"
+_CHAT_HANDOVER_TARGET = "Target"
+_CHAT_HANDOVER_APPROVED_BY = "Approved by"
+_CHAT_HANDOVER_DECISION = "Decision"
+_CHAT_HANDOVER_QUEUE = "Queue position"
+_CHAT_HANDOVER_CITATIONS = "Citations"
+_CHAT_HANDOVER_NOT_RECORDED = "Not recorded"
+_CHAT_HANDOVER_SECOND_LOOK = "Second look"
+_CHAT_HANDOVER_NONE = "None"
+_CHAT_HANDOVER_MCP = (
+    "Read-only projection. The committed queue row and the hash-chained audit record remain "
+    "authoritative."
 )

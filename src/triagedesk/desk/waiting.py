@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta
 
 from triagedesk.core.rules import colour_urgency
 from triagedesk.desk.card import _colour_class
-from triagedesk.desk.copy import _WAITING_EMPTY, _WAITING_HEADING
+from triagedesk.desk.copy import _WAITING_CAPTION, _WAITING_EMPTY, _WAITING_HEADING
 from triagedesk.desk.markup import _escaped
 from triagedesk.store import QueueRow, Store, default_store
 
@@ -70,12 +70,13 @@ def _row_html(row: QueueRow, now: datetime) -> str:
     """One waiting-room row: position, labelled colour swatch, wait timer, target."""
     return (
         "<tr>"
-        f'<td class="waiting-position">{_escaped(row.position)}</td>'
-        f'<td><span class="colour-block {_escaped(_colour_class(row.colour))}">'
+        f'<td data-label="Position" class="waiting-position">{_escaped(row.position)}</td>'
+        f'<td data-label="Priority">'
+        f'<span class="colour-block {_escaped(_colour_class(row.colour))}">'
         f'<span class="colour-name">{_escaped(row.colour)}</span></span></td>'
-        f'<td><time datetime="{_escaped(row.created_at.isoformat())}">'
+        f'<td data-label="Waiting"><time datetime="{_escaped(row.created_at.isoformat())}">'
         f"Waiting {_escaped(wait_minutes(row.created_at, now))} min</time></td>"
-        f"<td>{_escaped(row.target or '')}</td>"
+        f'<td data-label="Target">{_escaped(row.target or "")}</td>'
         "</tr>"
     )
 
@@ -100,12 +101,10 @@ def waiting_html(
     if not ordered:
         body = f'<p class="waiting-empty">{_escaped(_WAITING_EMPTY)}</p>'
     else:
-        headers = "".join(
-            f'<th scope="col">{_escaped(column)}</th>' for column in _WAITING_COLUMNS
-        )
+        headers = "".join(f'<th scope="col">{_escaped(column)}</th>' for column in _WAITING_COLUMNS)
         body = (
             '<table class="waiting-table">'
-            f'<caption class="waiting-caption">{_escaped(_WAITING_HEADING)}</caption>'
+            f'<caption class="waiting-caption">{_escaped(_WAITING_CAPTION)}</caption>'
             f"<thead><tr>{headers}</tr></thead><tbody>"
             f"{''.join(_row_html(row, moment) for row in ordered)}"
             "</tbody></table>"

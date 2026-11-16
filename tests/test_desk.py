@@ -1032,7 +1032,7 @@ def test_recovery_panel_names_the_missing_vital() -> None:
     assert "Re-measure before scoring" in body
 
 
-def test_ambiguous_case_renders_the_banner_and_a_clarification_no_gate(
+def test_ambiguous_case_renders_a_clarification_and_no_gate(
     tmp_path: Path, injected_store: Any
 ) -> None:
     """The E-09 class asks ONE targeted question on a read-only panel with NO gate (COV-03)."""
@@ -1040,8 +1040,10 @@ def test_ambiguous_case_renders_the_banner_and_a_clarification_no_gate(
     with _running_server(tmp_path / "checkpoints.db") as server:
         body = _post(_base(server) + "/case", _form_from_case(case.case))
 
-    assert BANNER_HEADLINE in body, "the verbatim banner headline did not render"
-    assert NO_MATCH_BODY in body
+    assert BANNER_HEADLINE not in body, (
+        "a clarification has no suggestion to qualify, so it must not show the uncertainty banner"
+    )
+    assert NO_MATCH_BODY not in body
     assert LOW_CONFIDENCE_BODY not in body
     assert 'class="state-panel state-clarification"' in body
     assert "One detail would resolve this case." in body
@@ -1464,13 +1466,20 @@ def test_baseline_why_vitals_row_is_never_an_empty_list(
 
 
 def _rendered_card_and_banner(tmp_path: Path) -> tuple[str, str, str]:
-    """The card/banner regions for a scored case and the ambiguous case (the scan subject)."""
+    """The card/banner regions for a scored case, the ambiguous case, and a deferred banner."""
     with _running_server(tmp_path / "scored.db") as server:
         scored = _post(_base(server) + "/case", _form_from_case(COMPLETE_CASE))
     case = _ambiguous()
     with _running_server(tmp_path / "ambiguous.db") as server:
         ambiguous = _post(_base(server) + "/case", _form_from_case(case.case))
-    return scored, ambiguous, _banner_region(ambiguous)
+    deferred = render_state(
+        _run_from_state(
+            no_match=False,
+            confidence=ConfidenceResult(deferral=True),
+            priority=PriorityResult(),
+        )
+    )
+    return scored, ambiguous, _banner_region(deferred)
 
 
 def test_rendered_copy_carries_no_forbidden_token(
@@ -1601,12 +1610,12 @@ def test_submit_path_launches_no_borrowed_store(
 
 
 def test_clarification_end_to_end_is_read_only(tmp_path: Path, injected_store: Any) -> None:
-    """The clarification path renders the banner + questions, no gate, no row, no commit."""
+    """The clarification path renders the questions, no banner, no gate, no row, no commit."""
     case = _ambiguous()
     with _running_server(tmp_path / "checkpoints.db") as server:
         body = _post(_base(server) + "/case", _form_from_case(case.case))
 
-    assert BANNER_HEADLINE in body
+    assert BANNER_HEADLINE not in body, "a clarification raised the uncertainty banner"
     assert 'state-panel state-clarification' in body
     assert 'class="approval-gate"' not in body
     assert injected_store.rows == []

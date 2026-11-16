@@ -49,12 +49,22 @@ def _vitals_block(body: str) -> str:
     return body.split('<form id="vitals-form"', 1)[1].split("</form>", 1)[0]
 
 
-def test_first_vital_is_autofocused_exactly_once() -> None:
-    """Exactly one autofocus exists, on the first clinical control (``age_years``)."""
+def test_the_empty_page_does_not_scroll_to_the_form() -> None:
+    """No autofocus on the empty page: the conversation is read before the intake."""
     body = desk_server.render_state()
 
-    assert body.count("autofocus") == 1, "the page carries more than one autofocus"
-    assert re.search(r'id="age_years"[^>]*\bautofocus\b', body)
+    assert "autofocus" not in body, "the empty page steals focus and scrolls to the form"
+
+
+def test_a_schema_error_focuses_the_offending_field() -> None:
+    """A schema rejection gives the offending field the single autofocus."""
+    body = desk_server.render_state(
+        field_error=("respiratory_rate", "Input should be less than or equal to 100")
+    )
+
+    assert body.count("autofocus") == 1
+    assert re.search(r'id="respiratory_rate"[^>]*\bautofocus\b', body)
+    assert '<p class="field-error-message" role="alert">' in body
 
 
 def test_numeric_vitals_carry_enterkeyhint_next() -> None:

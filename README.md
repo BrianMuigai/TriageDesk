@@ -263,8 +263,9 @@ Honest, measured limitations — not aspirational claims:
   clarification rate and the declared E-09 failure are published in [`EVALS.md`](EVALS.md) §3 and §6.
 - **Extraction latency is not "seconds".** The deterministic score is instant; the local model's
   extraction dominates (latency in [`EVALS.md`](EVALS.md) §3).
-- **The desk surface is a prototype** — loopback, single-machine, English-only, with no hospital-system
-  integration ([`docs/DESK.md`](docs/DESK.md)).
+- **The desk surface is a prototype** — loopback, single-machine, English-only. Integration is
+  through the **TriageDesk MCP server** (the desk does not write to a hospital station directly);
+  see [`docs/DESK.md`](docs/DESK.md) and [`docs/MCP.md`](docs/MCP.md).
 - **Approver identity is recorded, not authenticated** ([`SECURITY.md`](SECURITY.md) §6).
 - **English-only and synthetic-data-only** by design.
 - One declared discriminator-selection failure (**E-09**) remains: it now asks a bounded

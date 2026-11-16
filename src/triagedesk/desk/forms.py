@@ -42,6 +42,27 @@ _VITALS_LAYOUT: tuple[tuple[str, str], ...] = (
     ("complaint", "Complaint"),
 )
 
+# The page's reading groups. They partition ``_VITALS_LAYOUT`` in the SAME order, so the DOM
+# order (which is the tab order) is unchanged while the eye gets the clinical blocks a busy
+# desk expects. A test keeps this partition equal to the ONE layout.
+_VITALS_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Patient context", ("age_years", "age_months", "age_ambiguous", "height_cm")),
+    (
+        "Observations",
+        (
+            "avpu",
+            "respiratory_rate",
+            "spo2",
+            "heart_rate",
+            "systolic_bp",
+            "diastolic_bp",
+            "temperature_c",
+        ),
+    ),
+    ("Function", ("mobility", "trauma")),
+    ("Presentation", ("complaint",)),
+)
+
 
 def form_to_case(form: Mapping[str, str]) -> CaseInput:
     """Build and validate a :class:`CaseInput` from the posted vitals form (D10-13).
@@ -202,7 +223,7 @@ def _vitals_field(
     elif kind == "select":
         options = "".join(
             f'<option value="{_escaped(value)}"'
-            f'{" selected" if raw.strip() == value else ""}>'
+            f"{' selected' if raw.strip() == value else ''}>"
             f"{_escaped(_option_label(value))}</option>"
             for value in _enum_values(name)
         )
@@ -223,9 +244,7 @@ def _vitals_field(
         # Mark the control itself invalid for assistive tech (the first ``>`` closes the
         # opening tag), then render the ONE schema's own message beside it inside this field.
         control = control.replace(">", ' aria-invalid="true">', 1)
-        message = (
-            f'<p class="field-error-message" role="alert">{_escaped(field_error[1])}</p>'
-        )
+        message = f'<p class="field-error-message" role="alert">{_escaped(field_error[1])}</p>'
     else:
         message = ""
     inner = f"{control}{label_html}" if checked_layout else f"{label_html}{control}"
@@ -248,3 +267,95 @@ def _vitals_fields(form: Mapping[str, str], field_error: tuple[str, str] | None 
         _vitals_field(name, label, form, field_error, autofocus=(index == 0))
         for index, (name, label) in enumerate(_VITALS_LAYOUT)
     )
+
+
+def _vitals_fieldset(
+    form: Mapping[str, str],
+    field_error: tuple[str, str] | None = None,
+    *,
+    autofocus_name: str | None = None,
+) -> str:
+    """Render the vitals controls in the page's clinical groups, in the ONE layout order.
+
+    The groups are a presentation partition of :data:`_VITALS_LAYOUT`; every field is still
+    rendered by :func:`_vitals_field` from the ONE schema, exactly once. The desk does not
+    autofocus the first vital on page load: the conversation must be read first. A schema
+    rejection can name the offending field, which then receives the single autofocus so the
+    error is reachable without hunting.
+    """
+    labels = dict(_VITALS_LAYOUT)
+    groups: list[str] = []
+    for legend, names in _VITALS_GROUPS:
+        controls = "".join(
+            _vitals_field(
+                name,
+                labels[name],
+                form,
+                field_error,
+                autofocus=(name == autofocus_name),
+            )
+            for name in names
+        )
+        groups.append(
+            '<fieldset class="field-group">'
+            f"<legend>{_escaped(legend)}</legend>"
+            f'<div class="field-grid">{controls}</div>'
+            "</fieldset>"
+        )
+    return "".join(groups)
+
+
+def humanize_rule_detail(detail: str) -> str:
+    """Turn a scorer rule detail (``respiratory_rate=24 -> 2 points``) into a desk label.
+
+    The parameter key is mapped through the ONE clinical layout, so the card shows the same
+    label the form uses. A detail the layout does not name (for example the TEWS baseline
+    row) is returned unchanged — the sourced string is never rewritten.
+    """
+    key, separator, rest = detail.partition("=")
+    labels = dict(_VITALS_LAYOUT)
+    label = labels.get(key) or labels.get(f"{key}_c")
+    if separator and label:
+        return f"{label} {rest}"
+    return detail
+
+
+def merge_form_over_case(form: Mapping[str, str], base: CaseInput) -> CaseInput:
+    """Overlay only the fields the nurse actually posted on a model-extracted *base* case.
+
+    A note-intake flow must not let an empty form erase what the note stated. The raw posted
+    value decides: a blank field keeps the extraction's value, a non-blank field takes the
+    nurse's validated value, and a boolean flag is only overlaid when it is set. Validation is
+    still the ONE :func:`form_to_case`, so the note path can never introduce a value the form
+    would reject.
+    """
+    typed = form_to_case(form)
+    update: dict[str, Any] = {}
+    for name in CaseInput.model_fields:
+        raw = str(form.get(name, "")).strip()
+        if isinstance(getattr(typed, name), bool):
+            if raw.lower() in _TRUTHY:
+                update[name] = True
+            continue
+        if raw:
+            update[name] = getattr(typed, name)
+    return base.model_copy(update=update)
+
+
+def case_to_form_values(case: CaseInput) -> dict[str, str]:
+    """Render a typed case back into the form's string values (the note prefill).
+
+    ``None`` becomes blank (an absent value is never imputed), a true flag becomes the
+    checkbox value, and every other value is its own string. The values are re-validated by
+    the next :func:`form_to_case`, so this function never becomes a second schema.
+    """
+    values: dict[str, str] = {}
+    for name in CaseInput.model_fields:
+        value = getattr(case, name)
+        if isinstance(value, bool):
+            values[name] = "true" if value else ""
+        elif value is None:
+            values[name] = ""
+        else:
+            values[name] = str(value)
+    return values

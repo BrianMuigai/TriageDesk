@@ -24,6 +24,10 @@ room and keyboard-first vitals, and **Phase 14 (Evidence Fidelity)** grounded ev
 complaint text (E-13). Both are complete; the phase detail lives in
 [`../.planning/ROADMAP.md`](../.planning/ROADMAP.md).
 
+**v1.4 — Desk demo & integration** (Phase 25) adds the chat workspace beside the structured intake and
+the visible `/system` map of desk → core → MCP. The phase detail and verification live in
+[`../.planning/phases/25-modern-chat-desk-and-visible-integration-map/`](../.planning/phases/25-modern-chat-desk-and-visible-integration-map/).
+
 Six days off the calendar (Oct 9 → Oct 15) map onto the v1.0 phases; the phase plan in
 [`../.planning/ROADMAP.md`](../.planning/ROADMAP.md) is the single source of truth for sequencing.
 

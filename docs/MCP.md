@@ -447,6 +447,20 @@ shows real tool calls without a subprocess. The stdio transport is exercised by
 `graph.build.load_graph_tools` / `run_case` and by `scripts/spike_mcp.py`; the adapter decision and
 the both-servers handshake are recorded in [`evidence/mcp-spike.json`](../evidence/mcp-spike.json).
 
+### Desk vs core vs MCP
+
+Three layers, one set of core implementations:
+
+| Layer | What it is | Wire |
+| --- | --- | --- |
+| **Desk** (`triagedesk desk`) | The browser demo: chat, structured intake, approval gate, waiting room, handover | HTTP form POST on loopback → server-rendered HTML |
+| **Core** | The deterministic kernel + LangGraph run, the JSON contracts, the audit chain and the queue | In-process Python calls |
+| **MCP server** (`triagedesk-triage`) | The station integration surface: nine tools, elicitation, the gated commit | MCP over stdio (JSON-RPC 2.0); storage via the borrowed `mcp-sqlite@1.0.9` server |
+
+The desk does **not** call the MCP server over the wire; it runs the same tool implementations
+in-process. A hospital station app is the MCP client. The desk's `GET /system` page makes this
+distinction and the protocol visible at runtime; the operator-facing version is [`DESK.md`](DESK.md).
+
 ## 9. Troubleshooting
 
 | Symptom | Cause | Fix |

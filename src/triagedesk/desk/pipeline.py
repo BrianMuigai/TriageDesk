@@ -13,6 +13,7 @@ from triagedesk.core.schema import CaseInput, ExtractionResult
 from triagedesk.desk.clarification import answers_from_form
 from triagedesk.desk.extraction import merge_case
 from triagedesk.durable import (
+    DurableError,
     PausedRun,
     approval_decision,
     resume_thread,
@@ -80,9 +81,7 @@ async def submit_case(
     )
 
 
-async def decide(
-    thread_id: str, form: Mapping[str, str], db_path: str | Path
-) -> Mapping[str, Any]:
+async def decide(thread_id: str, form: Mapping[str, str], db_path: str | Path) -> Mapping[str, Any]:
     """Resume a paused thread with a named human decision (D10-11).
 
     The decision is built by the ONE ``durable.approval_decision`` — a whitespace-only name or
@@ -98,6 +97,14 @@ async def decide(
         role=form.get("role"),
         colour=form.get("colour"),
     )
+    # The gate's colour radios belong to the EDIT disclosure only. An approve must not
+    # silently discard a selected colour: refuse it with a reason the nurse can act on.
+    # (The client also clears stale radios; this is the fail-closed backstop.)
+    if str(form.get("decision", "")).strip() == "approve" and str(form.get("colour", "")).strip():
+        raise DurableError(
+            "A colour is only used with Edit colour. Choose Edit colour to change the "
+            "priority, or approve the suggestion without selecting a colour."
+        )
     return await resume_thread(thread_id=thread_id, decision=decision, db_path=db_path)
 
 

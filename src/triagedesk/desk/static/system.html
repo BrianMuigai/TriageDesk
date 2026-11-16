@@ -1,0 +1,111 @@
+<section class="system-page" aria-labelledby="system-heading">
+  <header class="page-head">
+    <p class="eyebrow">Integration</p>
+    <h2 id="system-heading">How the desk, the core, and MCP connect</h2>
+    <p class="page-copy">The desk is the demo surface. The core is the clinical solution. The MCP server is the station integration path. They share one set of tool implementations — not one transport.</p>
+  </header>
+
+  <div class="system-grid">
+    <article class="system-card">
+      <p class="system-kicker">1 · Demo surface</p>
+      <h3>Desk (this page)</h3>
+      <p>A browser-facing workspace: conversation, structured intake, approval gate, waiting room and handover.</p>
+      <ul>
+        <li>Runs the core graph <strong>in-process</strong>; it does not call the MCP server over the wire.</li>
+        <li>Binds loopback only, makes no external request, and has no authentication.</li>
+        <li>Has no queue write of its own: the only route is the named approval gate → the gated commit tool.</li>
+      </ul>
+      <p class="protocol">Protocol: HTTP form POST (loopback) → server-rendered HTML</p>
+    </article>
+
+    <article class="system-card">
+      <p class="system-kicker">2 · Solution</p>
+      <h3>Core (the clinical logic)</h3>
+      <p>The deterministic kernel plus the LangGraph run: normalize → match → score → evidence → confidence → plan → approval gate → commit → handover.</p>
+      <ul>
+        <li>SATS thresholds and discriminators live only in <code>data/*.yaml</code>.</li>
+        <li>The model may structure a note or propose an investigation step; it never computes a colour or approves.</li>
+        <li>The committed queue row and the hash-chained audit record are authoritative.</li>
+      </ul>
+      <p class="protocol">Protocol: in-process Python calls to the shared tool implementations</p>
+    </article>
+
+    <article class="system-card">
+      <p class="system-kicker">3 · Integration</p>
+      <h3>MCP server (station link)</h3>
+      <p>The owned <code>triagedesk-triage</code> server exposes the core as nine MCP tools to a hospital station app or agent.</p>
+      <ul>
+        <li>Transport: stdio, JSON&#8209;RPC 2.0; the client runs <code>initialize</code> → <code>tools/list</code> → <code>tools/call</code>.</li>
+        <li>Mid-call questions use MCP elicitation; a question is never an approval.</li>
+        <li>Storage: the borrowed <code>mcp-sqlite@1.0.9</code> server holds the queue and audit chain.</li>
+      </ul>
+      <p class="protocol">Protocol: MCP over stdio (JSON&#8209;RPC 2.0)</p>
+    </article>
+  </div>
+
+  <section class="system-block" aria-labelledby="wire-heading">
+    <h3 id="wire-heading">The wire, in order</h3>
+    <ol class="system-flow">
+      <li>
+        <strong>Browser → desk</strong>
+        <span>HTTP form POST on loopback, with the per-server CSRF token; the response is server-rendered HTML.</span>
+      </li>
+      <li>
+        <strong>Desk → core</strong>
+        <span>An in-process tool map: the same nine implementations the MCP server registers, reached without a subprocess.</span>
+      </li>
+      <li>
+        <strong>Station app → MCP server</strong>
+        <span>MCP JSON&#8209;RPC over stdio: discover the tool list, then call a tool by name with a typed argument object.</span>
+      </li>
+      <li>
+        <strong>MCP server → borrowed store</strong>
+        <span>MCP JSON&#8209;RPC over stdio to the pinned <code>mcp-sqlite@1.0.9</code> server. Queue and audit writes go through the gated commit only.</span>
+      </li>
+      <li>
+        <strong>Station app ← handover</strong>
+        <span>The <code>triagedesk.handover/1</code> JSON projection: a read-only machine-readable twin of the clinical handover.</span>
+      </li>
+    </ol>
+  </section>
+
+  <section class="system-block" aria-labelledby="shared-heading">
+    <h3 id="shared-heading">What is shared, what is different</h3>
+    <table class="system-table">
+      <thead>
+        <tr><th scope="col">Concern</th><th scope="col">Desk</th><th scope="col">MCP server</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Scoring, matching, retrieval, confidence</td><td>Same core implementations</td><td>Same core implementations</td></tr>
+        <tr><td>Approval gate</td><td>HTML gate with a named decision</td><td><code>ApprovalToken</code> passed to <code>commit_priority</code></td></tr>
+        <tr><td>Transport</td><td>Loopback HTTP</td><td>MCP over stdio (JSON&#8209;RPC 2.0)</td></tr>
+        <tr><td>Audience</td><td>A human at the demo desk</td><td>A hospital station app or agent</td></tr>
+        <tr><td>Queue write</td><td>Only after the gate</td><td>Only through <code>commit_priority</code></td></tr>
+        <tr><td>Audit</td><td>Every tool call routes through the one interceptor</td><td>Every tool call routes through the same interceptor</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="system-block" aria-labelledby="tools-heading">
+    <h3 id="tools-heading">Nine tools on the MCP surface</h3>
+    <ul class="tool-grid">
+      <li><code>normalize_case</code><span>note → typed case</span></li>
+      <li><code>score_priority</code><span>deterministic SATS colour</span></li>
+      <li><code>match_discriminators</code><span>closed-set complaint match</span></li>
+      <li><code>retrieve_evidence</code><span>attributed SATS excerpts</span></li>
+      <li><code>assess_confidence</code><span>deliver / clarify / defer</span></li>
+      <li><code>raise_recheck_flag</code><span>serial-vitals second look</span></li>
+      <li><code>plan_next_step</code><span>model proposes, guard disposes</span></li>
+      <li><code>request_clarification</code><span>mid-call question, bounded</span></li>
+      <li><code>commit_priority</code><span>the only queue-affecting tool</span></li>
+    </ul>
+    <p class="system-note">The desk does not call these over the wire; it calls the same implementations in-process. A station app is the MCP client.</p>
+  </section>
+
+  <section class="system-block system-callout" aria-labelledby="integration-heading">
+    <h3 id="integration-heading">What this means for integration</h3>
+    <p>Use the MCP server when another hospital station needs to call triage. Do not scrape the desk page: it is a loopback demo with no authentication, and its HTML is presentation, not a contract.</p>
+    <p>The stable integration outputs are the MCP tool contracts and the <code>triagedesk.handover/1</code> JSON projection. The committed queue row and the audit chain win on any disagreement.</p>
+    <p class="system-note">Install the server into a harness with <code>uv run python scripts/install_mcp.py --harness &lt;key&gt; --write</code>; the operator runbook is <code>docs/MCP.md</code>.</p>
+  </section>
+</section>

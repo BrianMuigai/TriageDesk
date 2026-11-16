@@ -13,6 +13,7 @@ from triagedesk.desk.copy import (
     _NO_EVIDENCE_LINE,
     _READ_ONLY_FRAMING,
 )
+from triagedesk.desk.forms import humanize_rule_detail
 from triagedesk.desk.markup import _escaped
 
 
@@ -35,7 +36,7 @@ def _why_vitals_rows(payload: Mapping[str, Any]) -> str:
     """
     rules = payload.get("triggered_rules") or []
     return "".join(
-        f'<li>{_escaped(rule.get("detail", ""))} '
+        f"<li>{_escaped(humanize_rule_detail(str(rule.get('detail', ''))))} "
         f'<span class="citation">{_escaped(rule.get("citation", ""))}</span></li>'
         for rule in rules
     )
@@ -48,9 +49,7 @@ def _evidence_rows(evidence: Any) -> str:
     interrupt payload omits it) and is capped by the substrate's own ``MAX_PASSAGES``, never
     by the surface.
     """
-    passages = (
-        list(getattr(evidence, "passages", None) or []) if evidence is not None else []
-    )
+    passages = list(getattr(evidence, "passages", None) or []) if evidence is not None else []
     if not passages:
         return f'<li class="no-evidence">{_escaped(_NO_EVIDENCE_LINE)}</li>'
     return "".join(
@@ -60,9 +59,7 @@ def _evidence_rows(evidence: Any) -> str:
     )
 
 
-def _card_html(
-    payload: Mapping[str, Any], evidence: Any = None, *, read_only: bool = False
-) -> str:
+def _card_html(payload: Mapping[str, Any], evidence: Any = None, *, read_only: bool = False) -> str:
     """Render the priority card from the graph's own outputs (D10-02/D10-05…D10-08).
 
     Every value is read from the payload (or a payload built from the state snapshot) — the
@@ -149,7 +146,5 @@ def _card_payload_from_state(state: Mapping[str, Any], thread_id: str) -> dict[s
         "target": getattr(priority, "target", None),
         "triggered_rules": rules,
         "missing_vitals": list(getattr(priority, "missing_vitals", None) or []),
-        "second_look": (
-            second_look.model_dump(mode="json") if second_look is not None else None
-        ),
+        "second_look": (second_look.model_dump(mode="json") if second_look is not None else None),
     }

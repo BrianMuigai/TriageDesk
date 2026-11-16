@@ -4,39 +4,45 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TriageDesk — triage desk</title>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<main>
-<h1>TriageDesk — triage desk</h1>
-<nav class="desk-nav" aria-label="Desk pages">
-  <a href="/waiting">Waiting room</a>
-  <a href="/">New case</a>
-</nav>
-<p class="mode-label">$mode_label</p>
-
-<section class="quickstart-panel" aria-labelledby="quickstart-heading">
-  <h2 id="quickstart-heading">Start here</h2>
-  <p class="quickstart-steps">1. Enter the vitals and the complaint. 2. Choose Get suggested priority. 3. Check the suggestion and its evidence. 4. Approve, edit, or dismiss — nothing is committed until you do.</p>
-</section>
-
-<form id="vitals-form" class="vitals-form" method="post" action="/case">
-  <h2>Patient vitals</h2>
-  $csrf_field
-  $vitals_fields
-  <div class="form-actions">
-    <button type="submit" id="submit-vitals" class="primary">Get suggested priority</button>
-    <button type="reset" class="destructive" data-confirm="Clear form: this removes the vitals you have typed. Clear the form?">Clear form</button>
+<a class="skip-link" href="#main">Skip to main content</a>
+<div class="app-shell">
+  <aside class="rail" aria-label="Desk navigation">
+    <a class="brand" href="/" aria-label="TriageDesk home">
+      <span class="brand-mark" aria-hidden="true">TD</span>
+      <span class="brand-copy"><strong>TriageDesk</strong><small>OPD triage desk</small></span>
+    </a>
+    <nav class="desk-nav" aria-label="Desk pages">
+      <a href="/" class="nav-link"$new_case_current>New case</a>
+      <a href="/waiting" class="nav-link"$waiting_current>Waiting room</a>
+      <a href="/system" class="nav-link"$system_current>System map</a>
+    </nav>
+    <div class="rail-card">
+      <p class="rail-eyebrow">$rail_station_eyebrow</p>
+      <p class="rail-title">$rail_station_title</p>
+      <p class="rail-copy">$rail_station_body</p>
+    </div>
+    <p class="rail-foot">$rail_foot</p>
+  </aside>
+  <div class="app-main">
+    <header class="topbar">
+      <div class="topbar-title">
+        <p class="eyebrow">$page_eyebrow</p>
+        <h1>$page_title</h1>
+      </div>
+      <div class="topbar-meta">
+        <span class="mode-pill"><span class="mode-dot" aria-hidden="true"></span><span class="mode-label">$mode_label</span></span>
+        $topbar_action
+      </div>
+    </header>
+    <main id="main" class="page">
+$workspace
+    </main>
   </div>
-</form>
-
-$state_panel
-<div class="uncertainty-banner" aria-live="polite">$banner</div>
-$waiting
-$card
-$gate
-$clarification
-</main>
+</div>
 <script>
 (function () {
   var form = document.getElementById('vitals-form');
@@ -54,7 +60,16 @@ $clarification
         }).catch(function () {});
       });
     }
-    form.addEventListener('submit', function () {
+    form.addEventListener('submit', function (event) {
+      var submitter = event && event.submitter ? event.submitter : null;
+      if (submitter && submitter.getAttribute('value') === 'note') {
+        // Keep the submitter enabled: a disabled submit button is not a "successful
+        // control", so its name=action value=note would be dropped and the desk would run
+        // the case instead of reading the note.
+        submitter.setAttribute('aria-busy', 'true');
+        submitter.textContent = 'Reading the note…';
+        return;
+      }
       var button = document.getElementById('submit-vitals');
       if (!button) { return; }
       button.disabled = true;
@@ -69,6 +84,19 @@ $clarification
         }
       });
     }
+  }
+
+  // The composer is associated with the vitals form (it sits outside it visually). A
+  // Ctrl/Cmd+Enter sends the note; a plain Enter keeps the newline a textarea expects.
+  var note = document.getElementById('note-input');
+  if (note) {
+    note.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        var send = document.querySelector('.composer-send');
+        if (send) { send.click(); }
+      }
+    });
   }
 
   // The gate: a decision in flight disables the submit controls so no second decision is
@@ -92,7 +120,14 @@ $clarification
     gate.addEventListener('submit', function (event) {
       if (gateSubmitted) { event.preventDefault(); return; }
       gateSubmitted = true;
-      disableGate(event && event.submitter ? event.submitter : null);
+      var submitter = event && event.submitter ? event.submitter : null;
+      // The colour radios belong to the edit disclosure. An approve must never carry a
+      // stale selection; the server also refuses one as a fail-closed backstop.
+      if (submitter && submitter.getAttribute('value') === 'approve') {
+        var radios = gate.querySelectorAll('.colour-choices input');
+        for (var j = 0; j < radios.length; j++) { radios[j].checked = false; }
+      }
+      disableGate(submitter);
     });
     var gateDeadlineMs = 5 * 60 * 1000;
     window.setTimeout(function () {

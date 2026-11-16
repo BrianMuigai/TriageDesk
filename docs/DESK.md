@@ -62,30 +62,30 @@ _An illustrative transcript: the edit colours and the target time shown are read
 loaded SATS substrate, and a guard in the test suite keeps them equal to it._
 
 ```text
-Start here
-  1. Enter the vitals and the complaint.
-  2. Choose Get suggested priority.
-  3. Check the suggestion and its evidence.
-  4. Approve, edit, or dismiss — nothing is committed until you do.
+Triage workspace
+  Conversation · Triage assistant                         Suggestion only
+    TriageDesk assistant: Record the vitals, add the presenting complaint, and I
+      will return a sourced SATS suggestion for you to confirm.
+    You: coughing and fast breathing since last night
+    TriageDesk assistant: Suggested priority
+      Suggested colour: GREEN            Target time: < 4 hours
+      Why these vitals: …                Evidence from the SATS knowledge base: …
+    TriageDesk assistant: Your decision
+      Your name: ______    Your role: ______
+      Choose the priority colour:  GREEN   ORANGE   RED   YELLOW
+      [ Approve suggestion ]   [ Edit colour ]   [ Dismiss (commit nothing) ]
 
-No case yet
-  Enter the patient's vitals and complaint, then choose Get suggested priority.
+  Structured intake · Patient vitals                    Scored input
+    Age (years) · Age (months) · Age unclear · Height (cm) · Alertness (AVPU) · Breathing rate
+    Oxygen saturation · Heart rate · Systolic BP · Diastolic BP · Temperature (°C) · Mobility
+    Trauma · Complaint
+    [ Get suggested priority ]   [ Clear form ]
 
-Patient vitals
-  Age (years) · Age (months) · Age unclear · Height (cm) · Alertness (AVPU) · Breathing rate
-  Oxygen saturation · Heart rate · Systolic BP · Diastolic BP · Temperature (°C) · Mobility
-  Trauma · Complaint
-  [ Get suggested priority ]
-
-Suggested priority
-  This is a suggestion, not a decision. You confirm the priority.
-  Suggested colour: GREEN            Target time: < 4 hours
-  Why these vitals: …                Evidence from the SATS knowledge base: …
-
-Your decision
-  Your name: ______    Your role: ______
-  Choose the priority colour:  GREEN   ORANGE   RED   YELLOW
-  [ Approve suggestion ]   [ Edit colour ]   [ Dismiss (commit nothing) ]
+Handover
+  Case …  Priority GREEN  Target < 4 hours
+  Approved by NAME (ROLE) — committed to the queue at position 1.
+  Citations …  Read-only projection. The committed queue row and the hash-chained audit
+  record remain authoritative.
 
 Approved by NAME (ROLE) — committed to the queue at position 1.
 Dismissed — nothing has been committed.
@@ -94,11 +94,46 @@ No decision was made — nothing has been committed.
 No discriminator matched / low confidence — nurse to confirm
 ```
 
-> **Since this transcript was written:** the page now carries a `Waiting room` / `New case` nav and a
-> live mode label (offline by default; `--online` says the local model reads the complaint). `GET
-> /waiting` renders the committed queue as an acuity-ordered, **read-only** waiting room — it never
-> writes a row. The complaint field precomputes its extraction in the background while you finish the
-> vitals, and the form is keyboard-first: the DOM order is the tab order, so no pointer is required.
+The left rail carries **New case** and **Waiting room**, the live mode label, and the
+**Station link: MCP** note. The page is a conversation beside the structured intake, not a
+replacement for it: the intake form remains the scored input, and the conversation is a
+truthful projection of the current case.
+
+> **Since this transcript was written:** the page carries a live **conversation** and a
+> separate **structured intake** card. `GET /waiting` renders the committed queue as an
+> acuity-ordered, **read-only** waiting room — it never writes a row. The complaint field
+> precomputes its extraction in the background while you finish the vitals, and the form is
+> keyboard-first: the DOM order is the tab order, so no pointer is required.
+
+## The chat composer and note intake
+
+Type in **Message the triage assistant** and choose **Send note** (or press `Ctrl`/`Cmd` +
+`Enter`). The composer is associated with the vitals form, so it posts the values already
+entered plus the per-server token; it is an intake step, never a scoring or decision step.
+
+- **Offline (the default):** the note becomes the presenting complaint. Complete the vitals
+  in the structured intake; the deterministic scorer uses those values. No model is called.
+- **Online (`--online`):** the local model reads the note through the grounded extraction
+  seam, and the form is prefilled for review. A value you typed is never overwritten; a
+  blank field may take what the note stated. A failed read is reported honestly and leaves
+  the form untouched.
+
+Nothing is scored from the composer. It never runs the graph, never reaches the approval
+gate, and never writes a queue row.
+
+## Handover and the station link
+
+After a named approval, the conversation renders a **Handover** card: the committed colour,
+target, approver, decision, queue position, citations and the not-recorded/second-look
+facts. It is the same sourced projection the **TriageDesk MCP server** returns to another
+station — the desk is triage-only and does not write to a hospital station itself. The
+handover card is read-only; the committed queue row and the hash-chained audit record remain
+authoritative. See [`MCP.md`](MCP.md) for the MCP surface.
+
+Open **System map** in the rail (`GET /system`) for the visible distinction between the
+demo desk, the core solution, and the MCP integration path, including the transport at each
+hop and the nine tools. The desk runs the core graph in-process; a station app connects to
+the MCP server over stdio. The desk is a demo surface, not the integration API.
 
 A case that cannot be confirmed from the vitals alone shows the same banner above a read-only
 card and **no decision controls** — nothing can be queued from it.

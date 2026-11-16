@@ -36,6 +36,7 @@ from pydantic import ValidationError
 from triagedesk.core.schema import ExtractionResult
 from triagedesk.desk.assets import _ASSETS, STATIC_DIR
 from triagedesk.desk.copy import (
+    _CHAT_NOTE_EMPTY,
     _FAILURE_COPY,
     _MODE_OFFLINE,
     _MODE_ONLINE,
@@ -43,12 +44,17 @@ from triagedesk.desk.copy import (
     _SCHEMA_HINT,
     _WAITING_FAILED,
 )
-from triagedesk.desk.extraction import PrecomputeCache, extract_complaint
-from triagedesk.desk.forms import _CSRF_FIELD, form_to_case
+from triagedesk.desk.extraction import PrecomputeCache, extract_complaint, extract_note
+from triagedesk.desk.forms import (
+    _CSRF_FIELD,
+    case_to_form_values,
+    form_to_case,
+    merge_form_over_case,
+)
 from triagedesk.desk.gate import editable_colours
 from triagedesk.desk.loop import DeskLoop
 from triagedesk.desk.pipeline import answer_clarification, decide, submit_case
-from triagedesk.desk.views import banner_trigger, render_state, terminal_kind
+from triagedesk.desk.views import banner_trigger, render_state, render_system, terminal_kind
 from triagedesk.desk.waiting import read_rows, waiting_html
 from triagedesk.durable import DurableError, PausedRun
 from triagedesk.graph.build import CHECKPOINTS_DB_PATH
@@ -97,9 +103,7 @@ class DeskServer(ThreadingHTTPServer):
     ) -> None:
         if not allow_non_loopback:
             _refuse_non_loopback(server_address[0])
-        super().__init__(
-            server_address, request_handler, bind_and_activate=bind_and_activate
-        )
+        super().__init__(server_address, request_handler, bind_and_activate=bind_and_activate)
         # One token per server lifetime: minted before any request, so ``GET /`` always
         # renders the token the surface will require on the next POST (WR-01).
         self.csrf_token = secrets.token_urlsafe(32)
@@ -249,6 +253,11 @@ class DeskHandler(BaseHTTPRequestHandler):
         if path == "/waiting":
             self._send_html(self._waiting_page())
             return
+        if path == "/system":
+            self._send_html(
+                render_system(mode_label=_MODE_ONLINE if self.server.online else _MODE_OFFLINE)
+            )
+            return
         if name not in _ASSETS:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
@@ -304,10 +313,7 @@ class DeskHandler(BaseHTTPRequestHandler):
         except (TypeError, ValueError, UnicodeDecodeError):
             self._send_html(self._page(error=_FAILURE_COPY))
             return
-        form = {
-            key: values[0]
-            for key, values in parse_qs(raw, keep_blank_values=True).items()
-        }
+        form = {key: values[0] for key, values in parse_qs(raw, keep_blank_values=True).items()}
         if not self._csrf_ok(form):
             self._send_html(self._page(error=_FAILURE_COPY))
             return
@@ -357,6 +363,11 @@ class DeskHandler(BaseHTTPRequestHandler):
             return None
 
     def _handle_case(self, form: Mapping[str, str]) -> str:
+        # The chat composer posts to the SAME form as the structured intake, with
+        # ``action=note``. It is an intake step, never a scoring or decision step: it
+        # validates the current form, fills the form from a read note, and returns.
+        if str(form.get("action", "")).strip() == "note":
+            return self._handle_note(form)
         try:
             case = form_to_case(form)
         except ValidationError as exc:
@@ -367,9 +378,7 @@ class DeskHandler(BaseHTTPRequestHandler):
             field = _validation_field(exc)
             if field is None:
                 return self._page(error=_validation_message(exc), form_values=form)
-            return self._page(
-                field_error=(field, _validation_message(exc)), form_values=form
-            )
+            return self._page(field_error=(field, _validation_message(exc)), form_values=form)
         except (TypeError, ValueError):
             # Defence in depth: any coercion failure that somehow bypassed the schema's own
             # validator is still reported, never an approve (the surface's stated contract).
@@ -385,9 +394,7 @@ class DeskHandler(BaseHTTPRequestHandler):
                 # Resolve the extraction FIRST, outside the write lock: a cache hit is free,
                 # a miss is one in-path model call, and a failure degrades to None (the normal
                 # offline path). Offline mode passes nothing and calls no model.
-                extraction = self.server.loop.run(
-                    self._online_extraction(case.complaint)
-                )
+                extraction = self.server.loop.run(self._online_extraction(case.complaint))
                 pending = submit_case(
                     case,
                     self.server.db_path,
@@ -406,6 +413,60 @@ class DeskHandler(BaseHTTPRequestHandler):
         except Exception:  # noqa: BLE001 - any failure is reported, never an approve
             return self._page(error=_FAILURE_COPY, form_values=form)
         return self._page(paused=paused, form_values=form)
+
+    def _handle_note(self, form: Mapping[str, str]) -> str:
+        """Read a chat note into the structured intake — never score, approve, or commit.
+
+        Offline the note becomes the presenting complaint and the vitals stay the nurse's
+        job. Online the note is read by the ONE grounded extraction seam, and the nurse's
+        posted values overlay it (a blank field keeps what the note stated). A failed read
+        is reported honestly and leaves the form untouched. No graph run, no gate, and no
+        queue writer is reached from this branch.
+        """
+        note = str(form.get("note", "")).strip()
+        if not note:
+            return self._page(error=_CHAT_NOTE_EMPTY, form_values=form)
+        try:
+            form_to_case(form)
+        except ValidationError as exc:
+            field = _validation_field(exc)
+            if field is None:
+                return self._page(
+                    error=_validation_message(exc),
+                    form_values=form,
+                    note=note,
+                )
+            return self._page(
+                field_error=(field, _validation_message(exc)),
+                form_values=form,
+                note=note,
+            )
+        except (TypeError, ValueError):
+            return self._page(error=_FAILURE_COPY, form_values=form, note=note)
+        if not self.server.online:
+            values = dict(form)
+            values["complaint"] = note
+            return self._page(form_values=values, note=note)
+        try:
+            extraction = self.server.loop.run(extract_note(note))
+        except Exception:  # noqa: BLE001 — a failed read is reported, never scored
+            return self._page(form_values=form, note=note, note_failed=True)
+        try:
+            merged = merge_form_over_case(form, extraction.case)
+        except ValidationError as exc:  # defence in depth: form_to_case already ran
+            return self._page(
+                error=_validation_message(exc),
+                form_values=form,
+                note=note,
+                note_failed=True,
+            )
+        if not merged.complaint.strip():
+            merged = merged.model_copy(update={"complaint": note})
+        return self._page(
+            form_values=case_to_form_values(merged),
+            note=note,
+            extraction=extraction,
+        )
 
     def _handle_decision(self, form: Mapping[str, str]) -> str:
         thread_id = str(form.get("thread_id", "")).strip()
@@ -437,9 +498,7 @@ class DeskHandler(BaseHTTPRequestHandler):
             return self._page(error=_NO_THREAD_COPY, form_values=form)
         try:
             result = self.server.loop.run(
-                self.server.serialised(
-                    answer_clarification(thread_id, form, self.server.db_path)
-                )
+                self.server.serialised(answer_clarification(thread_id, form, self.server.db_path))
             )
         except DurableError as exc:
             return self._page(error=str(exc), form_values=form)
@@ -493,9 +552,7 @@ def _refuse_non_loopback(host: str) -> None:
             f"the desk surface binds loopback only (D10-03); refusing {host!r}"
         ) from exc
     if not address.is_loopback:
-        raise ValueError(
-            f"the desk surface binds loopback only (D10-03); refusing {host!r}"
-        )
+        raise ValueError(f"the desk surface binds loopback only (D10-03); refusing {host!r}")
 
 
 def make_server(
@@ -517,9 +574,7 @@ def make_server(
     *store* is the waiting room's injectable read seam (Plan 13-03); ``None`` resolves the
     ONE store factory on demand.
     """
-    server = DeskServer(
-        (host, port), DeskHandler, allow_non_loopback=allow_non_loopback
-    )
+    server = DeskServer((host, port), DeskHandler, allow_non_loopback=allow_non_loopback)
     server.db_path = Path(db_path)
     server.online = online
     server.store = store
