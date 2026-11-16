@@ -12,6 +12,7 @@ is a config change behind this wrapper (SOLID: D).
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -164,15 +165,32 @@ def extract(
 # The async client is built LAZILY on first use and reused afterwards. It is never
 # constructed at import time: ``desk.server`` imports this module, and the offline/harden
 # ordering assumes no client (and no network) is primed just by importing it.
-_ASYNC_CLIENT: ollama.AsyncClient | None = None
+#
+# The cache is keyed on the RUNNING event loop: an ``ollama.AsyncClient`` owns an
+# ``httpx.AsyncClient`` bound to the loop that created it, so reusing one across a second
+# ``asyncio.run(...)`` raises instantly. ``desk.interactive.main`` runs two loops (note
+# extraction, then the graph); the second loop reused the first loop's client, the planner's
+# proposal silently degraded to ``None``, and the guard substituted ``finish_investigation``
+# — which is how E-09 stopped asking its glucose question (user's ``spans.jsonl``: a 1.5 ms
+# ``model`` span with no token counts and ``proposed_action: null``). Keep one client per
+# loop and the failure mode is gone; a closed loop's client is dropped, not closed, because
+# its loop is already gone.
+_ASYNC_CLIENT: tuple[asyncio.AbstractEventLoop, ollama.AsyncClient] | None = None
 
 
 def _async_client() -> ollama.AsyncClient:
-    """Return the ONE lazily-built async Ollama client (never at import time)."""
+    """Return the async Ollama client for the RUNNING event loop (built lazily, once per loop).
+
+    Reusing one loop's client on another loop raises immediately (the underlying ``httpx``
+    client is loop-bound), so the cache is a ``(loop, client)`` pair and a different loop
+    builds a new client. Must be called from inside a running loop — the only caller is
+    :func:`_async_generate`, which is always awaited.
+    """
     global _ASYNC_CLIENT
-    if _ASYNC_CLIENT is None:
-        _ASYNC_CLIENT = ollama.AsyncClient()
-    return _ASYNC_CLIENT
+    loop = asyncio.get_running_loop()
+    if _ASYNC_CLIENT is None or _ASYNC_CLIENT[0] is not loop:
+        _ASYNC_CLIENT = (loop, ollama.AsyncClient())
+    return _ASYNC_CLIENT[1]
 
 
 async def _async_generate(*, model: str, prompt: str, schema: dict[str, Any]) -> Any:

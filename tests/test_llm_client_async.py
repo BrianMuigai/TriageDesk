@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+import ollama
 import pytest
 
 from triagedesk.core.schema import CaseInput, ExtractionResult
@@ -38,6 +39,11 @@ def _response() -> dict[str, Any]:
 def _model_spans() -> list[dict[str, Any]]:
     """The ``model`` spans written so far (the autouse fixture redirects the sink)."""
     return [row for row in read_spans() if row["kind"] == "model"]
+
+
+async def _client_from_this_loop() -> ollama.AsyncClient:
+    """Return the client the module builds for whichever loop is running this coroutine."""
+    return client._async_client()
 
 
 async def test_extract_and_extract_async_share_one_core(
@@ -128,12 +134,32 @@ async def test_extract_async_forwards_usage_from_the_one_response(
     assert recorded == [(11, 7)]
 
 
-def test_async_client_is_built_lazily_and_reused() -> None:
-    """The async client is built on first use and the SAME instance is returned after."""
+async def test_async_client_is_built_lazily_and_reused() -> None:
+    """The async client is built on first use in a loop and reused within that loop."""
     original = client._ASYNC_CLIENT
     client._ASYNC_CLIENT = None
     try:
+        assert client._ASYNC_CLIENT is None, "a client was built before the first use"
         first = client._async_client()
-        assert client._async_client() is first
+        assert client._async_client() is first, "one loop must reuse the SAME client"
+    finally:
+        client._ASYNC_CLIENT = original
+
+
+def test_async_client_is_rebuilt_for_a_new_event_loop() -> None:
+    """A second ``asyncio.run`` gets a NEW client — the loop-bound failure mode is gone.
+
+    An ``ollama.AsyncClient`` wraps a loop-bound ``httpx`` client, so reusing loop 1's client
+    on loop 2 raises instantly; the planner then degraded to ``finish_investigation`` and E-09
+    never asked its glucose question. Identity only: no network, no ``generate`` call.
+    """
+    original = client._ASYNC_CLIENT
+    client._ASYNC_CLIENT = None
+    try:
+        first = asyncio.run(_client_from_this_loop())
+        second = asyncio.run(_client_from_this_loop())
+        assert first is not second, "the closed loop's client was reused on the next loop"
+        third = asyncio.run(_client_from_this_loop())
+        assert third is not first and third is not second, "each loop must get its own client"
     finally:
         client._ASYNC_CLIENT = original
