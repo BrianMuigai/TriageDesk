@@ -174,6 +174,17 @@ Plans:
 - [x] 24-02-PLAN.md — Report: adaptive-vs-baseline block, invariants re-proven, `EVALS.md` regenerated (`--check` exits 0)
 - [x] 24-03-PLAN.md — ARCHITECTURE/STATUS/README/DECISIONS/MCP.md + skill sweep; regenerate the canonical diagrams from shipped code; the written reviewer answer
 
+### Phase 26: Clarify desk intake and review flow, and reset the demo state
+
+**Goal:** The desk guides the nurse through one patient at a time — Record → Confirm → Review & decide → Handover — with an explicit human checkpoint before any scoring; the demo state is reset.
+**Requirements**: none (demo/UX surface)
+**Depends on:** Phase 25
+**Plans:** 1/1 plan complete — completed 2026-11-17
+
+Plans:
+
+- [x] 26-01-PLAN.md — guided step flow, confirm checkpoint, note provenance, edit-details path, and demo-state reset
+
 ---
 
 ## v1.4 Desk demo & integration

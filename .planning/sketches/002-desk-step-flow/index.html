@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TriageDesk — intake/review flow sketch</title>
+<link rel="stylesheet" href="../themes/default.css">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 56px 0 0;
+    background:
+      radial-gradient(900px 480px at 8% -10%, #d9f5f1 0%, transparent 62%),
+      var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  button { font: inherit; }
+  #variant-nav {
+    position: fixed; inset: 0 0 auto 0; z-index: 9998;
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 16px;
+    background: rgba(255,255,255,.94);
+    border-bottom: 1px solid var(--color-border);
+    backdrop-filter: blur(8px);
+  }
+  #variant-nav strong { margin-right: 12px; font-size: 14px; }
+  .variant-tab {
+    border: 1px solid var(--color-border); background: var(--color-surface);
+    color: var(--color-text-muted); border-radius: 9999px; padding: 8px 14px; cursor: pointer;
+  }
+  .variant-tab.active { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+  .variant { display: none; }
+  .variant.active { display: block; }
+
+  .app { display: grid; grid-template-columns: 220px minmax(0,1fr); min-height: calc(100vh - 56px); }
+  .rail { background: var(--color-rail); color: var(--color-rail-text); padding: 22px 18px; display: flex; flex-direction: column; gap: 22px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .mark { width: 36px; height: 36px; border-radius: 11px; background: var(--color-primary); display: grid; place-items: center; font-weight: 800; }
+  .brand strong { display: block; font-size: 15px; }
+  .brand small { color: var(--color-rail-muted); font-size: 11px; }
+  .nav { display: grid; gap: 5px; }
+  .nav a { color: var(--color-rail-muted); text-decoration: none; padding: 10px 12px; border-radius: 9px; font-size: 13px; }
+  .nav a.active { background: rgba(255,255,255,.1); color: #fff; font-weight: 600; }
+  .rail-card { margin-top: auto; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; padding: 13px; background: rgba(255,255,255,.04); }
+  .rail-card p { margin: 5px 0 0; color: var(--color-rail-muted); font-size: 11px; }
+  .rail-card strong { font-size: 14px; }
+  .eyebrow { margin: 0 0 3px; color: var(--color-text-muted); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+  .rail .eyebrow { color: var(--color-rail-muted); }
+  .main { padding: 22px 28px 32px; min-width: 0; }
+  .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+  .topbar h1 { margin: 0; font-size: 22px; letter-spacing: -.02em; }
+  .mode { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--color-border); background: var(--color-surface); border-radius: 9999px; padding: 7px 11px; color: var(--color-text-muted); font-size: 11px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-success); }
+
+  .steps { display: flex; align-items: center; gap: 8px; padding: 10px 14px; margin-bottom: 16px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 14px; box-shadow: var(--shadow-sm); }
+  .step { display: flex; align-items: center; gap: 8px; color: var(--color-text-muted); font-size: 12px; font-weight: 700; }
+  .step .num { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--color-border); background: var(--color-surface-2); font-size: 11px; }
+  .step.done .num { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+  .step.current { color: var(--color-text); }
+  .step.current .num { background: var(--color-primary-soft); border-color: var(--color-primary); color: var(--color-primary-hover); }
+  .step-line { flex: 1; height: 1px; background: var(--color-border); }
+
+  .panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 20px; box-shadow: var(--shadow-md); overflow: clip; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 18px; border-bottom: 1px solid var(--color-border); }
+  .panel-head h2 { margin: 0; font-size: 16px; }
+  .panel-head .eyebrow { margin-bottom: 2px; }
+  .badge { border-radius: 9999px; background: var(--color-primary-soft); color: var(--color-primary-hover); padding: 5px 10px; font-size: 10px; font-weight: 800; }
+  .body { padding: 18px; }
+
+  /* Variant A: note band above full-width form */
+  .note-band { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; box-shadow: var(--shadow-sm); padding: 16px 18px; margin-bottom: 16px; }
+  .note-band h2 { margin: 0 0 4px; font-size: 15px; }
+  .note-band p { margin: 0 0 12px; color: var(--color-text-muted); font-size: 12px; }
+  .note-row { display: flex; gap: 8px; align-items: flex-end; }
+  .note-row textarea { flex: 1; min-height: 52px; resize: vertical; border: 1px solid var(--color-border); border-radius: 9px; padding: 9px 11px; font: inherit; }
+  .button { min-height: 44px; padding: 9px 14px; border: 1px solid var(--color-border); border-radius: 9px; background: var(--color-surface); color: var(--color-text); font-weight: 700; cursor: pointer; }
+  .button.primary { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+  .button.ghost { background: transparent; }
+  .hint { margin: 8px 0 0; color: var(--color-text-muted); font-size: 11px; }
+
+  .field-group { border: 0; margin: 0 0 18px; padding: 0; }
+  .field-group legend { margin-bottom: 8px; padding: 0; color: var(--color-text-muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+  .field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .field.full { grid-column: 1 / -1; }
+  .field label { font-size: 12px; font-weight: 700; }
+  .field input, .field select, .field textarea { width: 100%; min-height: 42px; border: 1px solid var(--color-border); border-radius: 7px; padding: 8px 10px; font: inherit; background: var(--color-surface); }
+  .field textarea { min-height: 78px; resize: vertical; }
+  .check { display: flex; align-items: center; gap: 7px; min-height: 42px; font-size: 12px; }
+  .form-actions { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 4px; }
+  .form-actions .primary { flex: 1; }
+
+  /* Variant B: three-step wizard */
+  .wizard-card { max-width: 720px; margin: 0 auto; }
+  .wizard-card .body { padding: 24px; }
+  .wizard-card h2 { margin: 0 0 6px; font-size: 20px; }
+  .wizard-card .lede { margin: 0 0 18px; color: var(--color-text-muted); font-size: 13px; }
+  .choice-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* Variant C: mode tabs */
+  .mode-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .mode-tab { border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-muted); border-radius: 9999px; padding: 8px 14px; font-size: 12px; font-weight: 700; }
+  .mode-tab.active { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+  .split { display: grid; grid-template-columns: minmax(0,1.1fr) minmax(0,.9fr); gap: 16px; align-items: start; }
+  .chat-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 18px; box-shadow: var(--shadow-sm); padding: 16px; }
+  .bubble { border: 1px solid var(--color-border); border-radius: 4px 14px 14px 14px; background: var(--color-surface-2); padding: 11px 13px; margin-bottom: 10px; font-size: 13px; }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .rail { flex-direction: row; align-items: center; overflow-x: auto; }
+    .rail-card { display: none; }
+    .split { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 620px) {
+    .main { padding: 14px 12px 24px; }
+    .grid { grid-template-columns: 1fr; }
+    #variant-nav { overflow-x: auto; }
+  }
+</style>
+</head>
+<body>
+<div id="variant-nav">
+  <strong>Desk flow sketch</strong>
+  <button class="variant-tab active" onclick="showVariant('a', this)">A: Record → Review ★</button>
+  <button class="variant-tab" onclick="showVariant('b', this)">B: Three-step wizard</button>
+  <button class="variant-tab" onclick="showVariant('c', this)">C: Structured / Note tabs</button>
+</div>
+
+<!-- Variant A: two-step, note band above the form; review replaces the workspace -->
+<div id="variant-a" class="variant active">
+  <div class="app">
+    <aside class="rail">
+      <div class="brand"><span class="mark">TD</span><span><strong>TriageDesk</strong><small>OPD triage desk</small></span></div>
+      <nav class="nav"><a class="active" href="#">New case</a><a href="#">Waiting room</a><a href="#">System map</a></nav>
+      <div class="rail-card"><p class="eyebrow">Station link</p><strong>MCP</strong><p>Other stations read the same result through the MCP server.</p></div>
+    </aside>
+    <div class="main">
+      <header class="topbar"><div><p class="eyebrow">Triage workspace</p><h1>New patient</h1></div><span class="mode"><span class="dot"></span>Offline · deterministic scorer</span></header>
+      <nav class="steps" aria-label="Triage steps">
+        <span class="step current"><span class="num">1</span>Record details</span>
+        <span class="step-line"></span>
+        <span class="step"><span class="num">2</span>Review &amp; decide</span>
+      </nav>
+
+      <section class="note-band">
+        <h2>Start with a note — or fill the form below</h2>
+        <p>Paste the nurse's note and the local model will pre-fill the structured intake. The form is always the scored input.</p>
+        <div class="note-row"><textarea placeholder="e.g. 40M, RR 24, HR 118, BP 108/70, temp 38.9, chest pain"></textarea><button class="button primary">Fill form</button></div>
+        <p class="hint">Offline, the note becomes the presenting complaint. Online, it is read into the fields for your review.</p>
+      </section>
+
+      <section class="panel">
+        <header class="panel-head"><div><p class="eyebrow">Structured intake</p><h2>Patient details</h2></div><span class="badge">Scored input</span></header>
+        <div class="body">
+          <fieldset class="field-group"><legend>Patient context</legend><div class="grid">
+            <div class="field"><label>Age (years)</label><input value="34"></div>
+            <div class="field"><label>Age (months)</label><input placeholder="—"></div>
+            <div class="field"><label>Age unclear</label><span class="check"><input type="checkbox"> Not stated</span></div>
+            <div class="field"><label>Height (cm)</label><input placeholder="—"></div>
+          </div></fieldset>
+          <fieldset class="field-group"><legend>Observations</legend><div class="grid">
+            <div class="field"><label>Alertness (AVPU)</label><select><option>Alert</option></select></div>
+            <div class="field"><label>Breathing rate</label><input value="24"></div>
+            <div class="field"><label>Oxygen saturation</label><input value="94"></div>
+            <div class="field"><label>Heart rate</label><input value="118"></div>
+            <div class="field"><label>Systolic BP</label><input value="108"></div>
+            <div class="field"><label>Diastolic BP</label><input value="70"></div>
+            <div class="field"><label>Temperature (°C)</label><input value="38.9"></div>
+          </div></fieldset>
+          <fieldset class="field-group"><legend>Function</legend><div class="grid">
+            <div class="field"><label>Mobility</label><select><option>Walking</option></select></div>
+            <div class="field"><label>Trauma</label><span class="check"><input type="checkbox"> Present</span></div>
+          </div></fieldset>
+          <fieldset class="field-group"><legend>Presentation</legend><div class="grid">
+            <div class="field full"><label>Complaint</label><textarea>coughing and fast breathing since last night</textarea></div>
+          </div></fieldset>
+          <div class="form-actions"><button class="button primary">Get suggested priority</button><button class="button ghost">Clear form</button></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- Variant B: three-step wizard, one task per screen -->
+<div id="variant-b" class="variant">
+  <div class="app">
+    <aside class="rail">
+      <div class="brand"><span class="mark">TD</span><span><strong>TriageDesk</strong><small>OPD triage desk</small></span></div>
+      <nav class="nav"><a class="active" href="#">New case</a><a href="#">Waiting room</a><a href="#">System map</a></nav>
+      <div class="rail-card"><p class="eyebrow">Station link</p><strong>MCP</strong><p>Other stations read the same result through the MCP server.</p></div>
+    </aside>
+    <div class="main">
+      <header class="topbar"><div><p class="eyebrow">Triage workspace</p><h1>New patient</h1></div><span class="mode"><span class="dot"></span>Offline</span></header>
+      <nav class="steps" aria-label="Triage steps">
+        <span class="step current"><span class="num">1</span>Record</span><span class="step-line"></span>
+        <span class="step"><span class="num">2</span>Review</span><span class="step-line"></span>
+        <span class="step"><span class="num">3</span>Decide</span>
+      </nav>
+      <section class="panel wizard-card">
+        <header class="panel-head"><div><p class="eyebrow">Step 1 of 3</p><h2>Record the patient</h2></div><span class="badge">Scored input</span></header>
+        <div class="body">
+          <h2>Start with what you have</h2>
+          <p class="lede">Paste a note, or enter the vitals field by field. Nothing is scored until you choose Review.</p>
+          <div class="choice-row"><button class="button">Paste a note</button><button class="button primary">Enter vitals</button></div>
+          <p class="hint">One question at a time is available in the chat-style intake, but the structured form is faster for a routine case.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- Variant C: explicit mode tabs, structured or note -->
+<div id="variant-c" class="variant">
+  <div class="app">
+    <aside class="rail">
+      <div class="brand"><span class="mark">TD</span><span><strong>TriageDesk</strong><small>OPD triage desk</small></span></div>
+      <nav class="nav"><a class="active" href="#">New case</a><a href="#">Waiting room</a><a href="#">System map</a></nav>
+      <div class="rail-card"><p class="eyebrow">Station link</p><strong>MCP</strong><p>Other stations read the same result through the MCP server.</p></div>
+    </aside>
+    <div class="main">
+      <header class="topbar"><div><p class="eyebrow">Triage workspace</p><h1>New patient</h1></div><span class="mode"><span class="dot"></span>Online · model reads notes</span></header>
+      <div class="mode-tabs"><button class="mode-tab active">Structured intake</button><button class="mode-tab">Note assistant</button></div>
+      <div class="split">
+        <section class="panel">
+          <header class="panel-head"><div><p class="eyebrow">Structured intake</p><h2>Patient details</h2></div><span class="badge">Scored input</span></header>
+          <div class="body">
+            <fieldset class="field-group"><legend>Patient context</legend><div class="grid"><div class="field"><label>Age (years)</label><input value="34"></div><div class="field"><label>Age unclear</label><span class="check"><input type="checkbox"> Not stated</span></div></div></fieldset>
+            <fieldset class="field-group"><legend>Observations</legend><div class="grid"><div class="field"><label>Breathing rate</label><input value="24"></div><div class="field"><label>Heart rate</label><input value="118"></div><div class="field"><label>Systolic BP</label><input value="108"></div><div class="field"><label>Temperature (°C)</label><input value="38.9"></div></div></fieldset>
+            <fieldset class="field-group"><legend>Presentation</legend><div class="grid"><div class="field full"><label>Complaint</label><textarea>chest pain</textarea></div></div></fieldset>
+            <div class="form-actions"><button class="button primary">Get suggested priority</button></div>
+          </div>
+        </section>
+        <aside class="chat-card">
+          <p class="eyebrow">Note assistant</p>
+          <h2>Paste a note</h2>
+          <div class="bubble">I will structure the note into the form. Nothing is scored until you review it.</div>
+          <div class="note-row"><textarea placeholder="Paste the nurse's note…"></textarea><button class="button primary">Read note</button></div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showVariant(id, button) {
+  document.querySelectorAll('.variant').forEach(function (v) { v.classList.remove('active'); });
+  document.querySelectorAll('.variant-tab').forEach(function (t) { t.classList.remove('active'); });
+  document.getElementById('variant-' + id).classList.add('active');
+  button.classList.add('active');
+}
+</script>
+</body>
+</html>

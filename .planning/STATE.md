@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Desk demo & integration
-status: Phase 25 complete
-stopped_at: Phase 25 complete — modern chat desk + visible integration map
-last_updated: "2026-11-16T23:20:00.000Z"
-last_activity: 2026-11-16
-last_activity_desc: "Completed phase 25: modern chat desk and visible integration map"
+status: Phase 26 complete
+stopped_at: Phase 26 complete — guided intake/review flow and clean demo state
+last_updated: "2026-11-17T08:30:00.000Z"
+last_activity: 2026-11-17
+last_activity_desc: "Completed phase 26: guided Record → Confirm → Review & decide flow, human checkpoint, demo reset"
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
   percent: 0
-current_phase: 25
+current_phase: 26
 state_head: ca9515788b5f230f2a3e6d59b8b6bdeead809ccc
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 
 ## Current Position
 
-Phase: 25 — Modern chat desk and visible integration map
-Plan: 25-01 complete
+Phase: 26 — Clarify desk intake and review flow, and reset the demo state
+Plan: 26-01 complete
 Status: Complete
-Last activity: 2026-11-16 - Completed phase 25: modern chat desk and visible integration map
+Last activity: 2026-11-17 - Completed phase 26: guided intake/review flow, human checkpoint, demo reset
 
 ## Reviewer Challenge (drives this milestone)
 
@@ -121,6 +121,8 @@ and **no MCP elicitation (G7)**. v1.3 answers with behaviour + a structural proo
 
 - Phase 25 added and completed: modern chat desk and visible integration map
   (desk ↔ core ↔ MCP distinction, `/system`, UI-review blockers closed).
+- Phase 26 added and completed: guided Record → Confirm → Review & decide flow with an explicit
+  human checkpoint, note provenance, Edit details, and a clean demo database state.
 
 ### Decisions
 
@@ -278,8 +280,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-16T23:20:00.000Z
-Stopped at: Phase 25 complete — modern chat desk + visible integration map
+Last session: 2026-11-17T08:30:00.000Z
+Stopped at: Phase 26 complete — guided intake/review flow and clean demo state
 Resume file: None
 
 ## Operator Next Steps
