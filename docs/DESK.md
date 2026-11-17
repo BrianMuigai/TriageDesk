@@ -1,5 +1,10 @@
 # DESK — TriageDesk desk-surface quickstart
 
+> **Pitch demo recording:** [`desk-pitch-demo.mp4`](assets/desk-pitch-demo.mp4) — 83 seconds,
+> silent with captions, covering the deck's four demo beats (sourced priority, missing-temperature
+> re-measure, gate refusal, E-09 clarification) plus the waiting room, audit chain and MCP system
+> map. Narrate it live or play it as the slide-5 backup.
+
 > **One local surface.** The desk surface is served by the shipped `triagedesk` command. It binds
 > to **loopback only** (`127.0.0.1`), makes **no external request**, needs **no build step**, and
 > adds **no dependency**. A nurse opens it, enters the patient's vitals and complaint, reads the
