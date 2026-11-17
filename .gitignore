@@ -26,3 +26,6 @@ evals/results/report.ci.json
 
 # Local harness config (written by scripts/install_mcp.py --write)
 .opencode/
+# The pitch-deck generator is source, not a Python build artifact
+!pitch/build/
+!pitch/build/**
