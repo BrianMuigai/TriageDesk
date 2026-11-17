@@ -47,6 +47,7 @@ $workspace
 (function () {
   var form = document.getElementById('vitals-form');
   if (form) {
+    var formSubmitted = false;
     // Precompute: when the complaint text changes, ask the server to start the online
     // extraction in the background while the nurse finishes the vitals. Same-origin,
     // relative path, the form's own fields (including the CSRF token), and failures are
@@ -61,6 +62,8 @@ $workspace
       });
     }
     form.addEventListener('submit', function (event) {
+      if (formSubmitted) { event.preventDefault(); return; }
+      formSubmitted = true;
       var submitter = event && event.submitter ? event.submitter : null;
       if (submitter && submitter.getAttribute('value') === 'note') {
         // Keep the submitter enabled: a disabled submit button is not a "successful
@@ -72,9 +75,10 @@ $workspace
       }
       var button = document.getElementById('submit-vitals');
       if (!button) { return; }
-      button.disabled = true;
+      // Keep the submitter enabled for the same reason: its name=action value=confirm is
+      // the human checkpoint. Disabling it would drop the action and score the case early.
       button.setAttribute('aria-busy', 'true');
-      button.textContent = 'Getting the suggested priority…';
+      button.textContent = 'Checking the details…';
     });
     var reset = form.querySelector('button[type="reset"]');
     if (reset) {

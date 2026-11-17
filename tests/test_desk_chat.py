@@ -37,21 +37,24 @@ def _form_block(body: str) -> str:
     return body.split('<form id="vitals-form"', 1)[1].split("</form>", 1)[0]
 
 
-def test_the_page_renders_the_chat_workspace() -> None:
-    """The served page carries the app shell, a live log, the composer, and the scored form."""
+def test_the_page_renders_the_guided_record_step() -> None:
+    """Step 1 is the structured intake with a compact optional note helper — no gate."""
     body = desk_server.render_state()
 
     assert 'class="app-shell"' in body
-    assert 'role="log"' in body
-    assert 'class="chat-message assistant"' in body
-    assert "TriageDesk assistant" in body
+    assert 'class="steps"' in body
+    assert 'aria-current="step"' in body
+    assert "Record" in body
+    assert 'class="note-assistant"' in body
+    assert "Start with a note (optional)" in body
     assert 'id="note-input"' in body
     assert 'form="vitals-form"' in body
     assert 'value="note"' in body
-    assert 'class="intake-panel"' in body
+    assert 'name="action" value="confirm"' in body
     assert '<form id="vitals-form"' in body
-    assert "Structured intake" in body
-    assert 'class="waiting-page"' not in body
+    assert "Patient details" in body
+    assert 'class="priority-card"' not in body
+    assert 'class="approval-gate"' not in body
 
 
 def test_form_groups_partition_the_clinical_layout() -> None:
@@ -112,6 +115,7 @@ def test_note_online_prefills_from_the_grounded_read(
     assert re.search(r'id="age_years"[^>]*value="40"', body)
     assert re.search(r'id="respiratory_rate"[^>]*value="24"', body)
     assert re.search(r'id="heart_rate"[^>]*value="118"', body)
+    assert re.search(r'name="note_fields" value="[^"]*age_years', body)
     assert 'class="priority-card"' not in body
     assert 'class="approval-gate"' not in body
     assert injected_store.rows == []
@@ -238,6 +242,71 @@ def test_edit_with_a_selected_colour_commits_that_colour(
     assert injected_store.rows[0].colour == "YELLOW"
 
 
+def test_confirm_step_does_not_score_or_commit(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """The human checkpoint shows every value and runs no graph, card, gate, or queue write."""
+    form = _form_from_case(COMPLETE_CASE)
+    form["action"] = "confirm"
+    with _running_server(tmp_path / "confirm.db", injected_store) as server:
+        body = _post(_base(server) + "/case", form)
+
+    assert "Confirm what will be scored" in body
+    assert "Human checkpoint" in body
+    assert 'class="priority-card"' not in body
+    assert 'class="approval-gate"' not in body
+    assert injected_store.rows == []
+    assert injected_store.calls == []
+
+
+def test_score_from_confirm_runs_the_graph(tmp_path: Path, injected_store: Any) -> None:
+    """Only the explicit score action runs the graph and reaches the card and gate."""
+    form = _form_from_case(COMPLETE_CASE)
+    form["action"] = "score"
+    with _running_server(tmp_path / "score.db", injected_store) as server:
+        body = _post(_base(server) + "/case", form)
+
+    assert 'class="priority-card"' in body
+    assert 'class="approval-gate"' in body
+    assert "Review &amp; decide" in body
+
+
+def test_confirm_shows_note_provenance_and_gaps(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """A note-read value is labelled From note, and blanks are named as not stated."""
+    form = {
+        "age_years": "34",
+        "respiratory_rate": "24",
+        "heart_rate": "118",
+        "complaint": "chest pain",
+        "note_fields": "respiratory_rate,heart_rate",
+        "action": "confirm",
+    }
+    with _running_server(tmp_path / "confirm-provenance.db", injected_store) as server:
+        body = _post(_base(server) + "/case", form)
+
+    assert body.count('class="provenance">From note') == 2
+    assert "Not stated" in body
+    assert "Oxygen saturation" in body
+
+
+def test_edit_details_returns_to_the_intake_with_the_values(
+    tmp_path: Path, injected_store: Any
+) -> None:
+    """Edit details is a real human correction path, not a dead end."""
+    form = _form_from_case(COMPLETE_CASE)
+    form["action"] = "back"
+    with _running_server(tmp_path / "back.db", injected_store) as server:
+        body = _post(_base(server) + "/case", form)
+
+    assert 'name="action" value="confirm"' in body
+    assert re.search(r'id="age_years"[^>]*value="40"', body)
+    assert "central chest pain" in body
+    assert 'class="priority-card"' not in body
+    assert injected_store.rows == []
+
+
 def test_the_handover_renders_after_a_named_approval(tmp_path: Path, injected_store: Any) -> None:
     """The approved handover shows the committed facts and the MCP station note."""
     with _running_server(tmp_path / "handover.db", injected_store) as server:
@@ -259,6 +328,8 @@ def test_the_handover_renders_after_a_named_approval(tmp_path: Path, injected_st
     assert "Queue position" in decided
     assert "Read-only projection" in decided
     assert "the same sourced facts the MCP server returns" in decided
+    assert "Nothing was committed" not in decided
+    assert "Start next patient" in decided
     assert len(injected_store.rows) == 1
 
 

@@ -24,7 +24,7 @@ _BANNER_VITALS_ONLY_BODY = (
     "recorded vitals alone. Confirm before you act."
 )
 _EMPTY_HEADING = "No case yet"
-_EMPTY_BODY = "Enter the patient's vitals and complaint, then choose Get suggested priority."
+_EMPTY_BODY = "Enter the patient's vitals and complaint, then choose Review details."
 _CARD_FRAMING = "This is a suggestion, not a decision. You confirm the priority."
 # The mode label the page always shows (Plan 13-02): which extraction path is live, and the
 # one fact that never changes — the deterministic scorer decides the colour in both modes.
@@ -111,13 +111,14 @@ _CHAT_WELCOME_STEPS = (
     "1. Add the complaint or paste a note. 2. Complete the structured intake. "
     "3. Review the suggestion and its evidence. 4. Approve, edit, or dismiss."
 )
-_CHAT_COMPOSER_LABEL = "Message the triage assistant"
-_CHAT_COMPOSER_PLACEHOLDER = "Describe the complaint or paste a nurse's note…"
+_CHAT_COMPOSER_LABEL = "Paste a note"
+_CHAT_COMPOSER_PLACEHOLDER = "Paste the nurse's note, or describe the complaint…"
 _CHAT_COMPOSER_HINT = (
-    "Online, the local model structures a pasted note for your review. Offline, the text "
-    "becomes the presenting complaint. The structured intake is always the scored input."
+    "The note only fills the structured intake. Online, the local model reads it into the "
+    "fields; offline, the text becomes the presenting complaint. You confirm every value "
+    "before anything is scored."
 )
-_CHAT_SEND_NOTE = "Send note"
+_CHAT_SEND_NOTE = "Fill form from note"
 _CHAT_NOTE_OFFLINE = (
     "Added as the presenting complaint. Complete the vitals in the structured intake; the "
     "deterministic scorer uses those values."
@@ -161,3 +162,47 @@ _CHAT_HANDOVER_MCP = (
     "Read-only projection. The committed queue row and the hash-chained audit record remain "
     "authoritative."
 )
+
+# The guided patient flow (Phase 26). One primary task per step; the confirm step is the
+# human checkpoint before any scoring or graph run.
+_STEP_RECORD = "Record"
+_STEP_CONFIRM = "Confirm"
+_STEP_REVIEW = "Review & decide"
+_STEP_HANDOVER = "Handover"
+_STEP_NAV_LABEL = "Triage steps"
+_RECORD_HEADING = "Start with a note (optional)"
+_RECORD_COPY = (
+    "Paste the nurse's note and the local model will fill the structured intake below. "
+    "The form is always the scored input."
+)
+_RECORD_OFFLINE_HINT = (
+    "Offline, the note becomes the presenting complaint; the vitals stay yours to record."
+)
+_RECORD_ONLINE_HINT = (
+    "Online, the note is read into the fields for your review. You confirm every value."
+)
+_FORM_PRIMARY = "Review details"
+_FORM_LOADING = "Checking the details…"
+_CONFIRM_HEADING = "Confirm what will be scored"
+_CONFIRM_COPY = (
+    "Check every value and the gaps below. Nothing is scored until you choose "
+    "\u201cLooks right — get suggested priority\u201d."
+)
+_CONFIRM_SCORE = "Looks right — get suggested priority"
+_CONFIRM_EDIT = "Edit details"
+_CONFIRM_GAPS = "Not stated"
+_CONFIRM_PROVENANCE = "From note"
+_CONFIRM_PROVENANCE_NOTE = (
+    "Values marked From note were read from your note. Edit anything that is wrong."
+)
+_REVIEW_HEADING = "Review & decide"
+_REVIEW_COPY = (
+    "This is a suggestion, not a decision. Check the evidence, then record a named decision."
+)
+_REVIEW_PATIENT = "Patient details"
+_REVIEW_EDIT = "Edit details"
+_REVIEW_GATE_TITLE = "Your decision"
+_START_NEXT = "Start next patient"
+_OUTCOME_KICKER = "Complete"
+_OUTCOME_COPY = "The case is complete. Start a new patient when you are ready."
+_OUTCOME_TERMINAL_COPY = "Nothing was committed. Review the patient details or start a new patient."

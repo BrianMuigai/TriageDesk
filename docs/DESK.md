@@ -63,53 +63,67 @@ loaded SATS substrate, and a guard in the test suite keeps them equal to it._
 
 ```text
 Triage workspace
-  Conversation · Triage assistant                         Suggestion only
-    TriageDesk assistant: Record the vitals, add the presenting complaint, and I
-      will return a sourced SATS suggestion for you to confirm.
-    You: coughing and fast breathing since last night
-    TriageDesk assistant: Suggested priority
-      Suggested colour: GREEN            Target time: < 4 hours
-      Why these vitals: …                Evidence from the SATS knowledge base: …
-    TriageDesk assistant: Your decision
-      Your name: ______    Your role: ______
-      Choose the priority colour:  GREEN   ORANGE   RED   YELLOW
-      [ Approve suggestion ]   [ Edit colour ]   [ Dismiss (commit nothing) ]
+  [1 Record] — [2 Confirm] — [3 Review & decide] — [4 Handover]
 
-  Structured intake · Patient vitals                    Scored input
+Step 1 · Record
+  Start with a note (optional)
+    [ Paste a note ]  [ Fill form from note ]
+  Structured intake · Patient details                   Scored input
     Age (years) · Age (months) · Age unclear · Height (cm) · Alertness (AVPU) · Breathing rate
     Oxygen saturation · Heart rate · Systolic BP · Diastolic BP · Temperature (°C) · Mobility
     Trauma · Complaint
-    [ Get suggested priority ]   [ Clear form ]
+    [ Review details ]   [ Clear form ]
 
-Handover
+Step 2 · Confirm — Human checkpoint
+  Confirm what will be scored
+    Age (years) 34   Breathing rate 24   Heart rate 118   …
+    From note: the values the note supplied
+    Not stated: …
+    [ Looks right — get suggested priority ]   [ Edit details ]
+
+Step 3 · Review & decide
+  Suggested priority
+    Suggested colour: GREEN            Target time: < 4 hours
+    Why these vitals: …                Evidence from the SATS knowledge base: …
+  Patient details (edit)
+  Your decision
+    Your name: ______    Your role: ______
+    Choose the priority colour:  GREEN   ORANGE   RED   YELLOW
+    [ Approve suggestion ]   [ Edit colour ]   [ Dismiss (commit nothing) ]
+
+Step 4 · Handover
   Case …  Priority GREEN  Target < 4 hours
   Approved by NAME (ROLE) — committed to the queue at position 1.
-  Citations …  Read-only projection. The committed queue row and the hash-chained audit
-  record remain authoritative.
+  [ Start next patient ]
 
-Approved by NAME (ROLE) — committed to the queue at position 1.
 Dismissed — nothing has been committed.
 No decision was made — nothing has been committed.
 
 No discriminator matched / low confidence — nurse to confirm
 ```
 
-The left rail carries **New case** and **Waiting room**, the live mode label, and the
-**Station link: MCP** note. The page is a conversation beside the structured intake, not a
-replacement for it: the intake form remains the scored input, and the conversation is a
-truthful projection of the current case.
+The left rail carries **New case**, **Waiting room**, **System map**, the live mode label, and
+the **Station link: MCP** note. The desk is one guided patient flow:
 
-> **Since this transcript was written:** the page carries a live **conversation** and a
-> separate **structured intake** card. `GET /waiting` renders the committed queue as an
+1. **Record** — the structured intake is the primary surface; the note helper is optional
+   and sits above it.
+2. **Confirm** — a mandatory human checkpoint. Every value, the note provenance and the
+   not-stated gaps are shown. **No graph, scorer or queue write runs until the nurse chooses
+   “Looks right — get suggested priority.”**
+3. **Review & decide** — the sourced suggestion and the named gate. `Edit details` returns
+   to step 1 with the same values.
+4. **Handover** — the committed handover (or a terminal) with `Start next patient`.
+
+> **Since this transcript was written:** `GET /waiting` renders the committed queue as an
 > acuity-ordered, **read-only** waiting room — it never writes a row. The complaint field
 > precomputes its extraction in the background while you finish the vitals, and the form is
 > keyboard-first: the DOM order is the tab order, so no pointer is required.
 
-## The chat composer and note intake
+## The note helper and the human checkpoint
 
-Type in **Message the triage assistant** and choose **Send note** (or press `Ctrl`/`Cmd` +
-`Enter`). The composer is associated with the vitals form, so it posts the values already
-entered plus the per-server token; it is an intake step, never a scoring or decision step.
+Type in **Paste a note** and choose **Fill form from note** (or press `Ctrl`/`Cmd` + `Enter`).
+The helper is associated with the vitals form, so it posts the values already entered plus
+the per-server token; it is an intake helper, never a chat, scoring or decision step.
 
 - **Offline (the default):** the note becomes the presenting complaint. Complete the vitals
   in the structured intake; the deterministic scorer uses those values. No model is called.
@@ -118,12 +132,17 @@ entered plus the per-server token; it is an intake step, never a scoring or deci
   blank field may take what the note stated. A failed read is reported honestly and leaves
   the form untouched.
 
-Nothing is scored from the composer. It never runs the graph, never reaches the approval
-gate, and never writes a queue row.
+The note values are marked **From note** on the confirm step, so the nurse reviews the model's
+reading before it can influence a score. Nothing is scored from the helper: it never runs the
+graph, never reaches the approval gate, and never writes a queue row.
+
+`Review details` from step 1 opens the confirm checkpoint; `Looks right — get suggested
+priority` is the only action that runs the graph. `Edit details` on the confirm or review
+step is a real correction path back to step 1.
 
 ## Handover and the station link
 
-After a named approval, the conversation renders a **Handover** card: the committed colour,
+After a named approval, the handover step renders the **Handover** card: the committed colour,
 target, approver, decision, queue position, citations and the not-recorded/second-look
 facts. It is the same sourced projection the **TriageDesk MCP server** returns to another
 station — the desk is triage-only and does not write to a hospital station itself. The

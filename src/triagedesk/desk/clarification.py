@@ -42,13 +42,19 @@ _ANSWER_FIELD_PREFIX = "answer."
 
 
 def _question_html(
-    payload: Mapping[str, Any], thread_id: str, csrf_token: str | None = None
+    payload: Mapping[str, Any],
+    thread_id: str,
+    csrf_token: str | None = None,
+    case_values: Mapping[str, str] | None = None,
 ) -> str:
     """Render the question panel for one elicitation payload — a question, not a gate.
 
     *thread_id* is the paused thread id the ``/clarify`` POST resumes; *csrf_token* is the
-    per-server secret every POST must carry (WR-01). A payload with no form request renders
-    the "could not be delivered" line and no form, so there is nothing to submit.
+    per-server secret every POST must carry (WR-01). *case_values* are the paused case's form
+    values, carried as hidden fields so the review step keeps its patient summary and edit path
+    after the answer; they are presentation data only and are never read by the answer logic.
+    A payload with no form request renders the "could not be delivered" line and no form, so
+    there is nothing to submit.
     """
     requests = form_requests(payload)
     if not requests:
@@ -67,6 +73,10 @@ def _question_html(
         ' type="text" autocomplete="off"></div>'
         for field, prompt in zip(fields, prompts, strict=False)
     )
+    carried = "".join(
+        f'<input type="hidden" name="{_escaped(name)}" value="{_escaped(value)}">'
+        for name, value in (case_values or {}).items()
+    )
     return (
         '<section class="clarification-panel" aria-labelledby="clarification-heading">'
         f'<h2 id="clarification-heading">{_escaped(_QUESTION_HEADING)}</h2>'
@@ -75,6 +85,7 @@ def _question_html(
         f"{_csrf_field(csrf_token)}"
         f'<input type="hidden" name="thread_id" value="{_escaped(thread_id)}">'
         f'<input type="hidden" name="request_key" value="{_escaped(request_key)}">'
+        f"{carried}"
         f"{controls}"
         '<div class="clarification-actions">'
         '<button type="submit" name="action" value="accept" class="primary">'

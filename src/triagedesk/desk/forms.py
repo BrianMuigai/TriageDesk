@@ -7,7 +7,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, get_args
 
-from triagedesk.core.schema import CaseInput
+from triagedesk.core.schema import CaseInput, ExtractionResult
 from triagedesk.desk.markup import _escaped
 
 # The checkbox values that read as "set". Deliberately excludes the bare word a data file
@@ -359,3 +359,37 @@ def case_to_form_values(case: CaseInput) -> dict[str, str]:
         else:
             values[name] = str(value)
     return values
+
+
+def note_sourced_fields(form: Mapping[str, str], extraction: ExtractionResult) -> list[str]:
+    """The form fields whose value came from the note, not from the nurse.
+
+    A field is note-sourced exactly when the nurse left it blank and the extraction produced
+    a value. The confirm step shows this provenance so the human reviews the model's reading
+    before it can influence a score.
+    """
+    sourced: list[str] = []
+    for name in CaseInput.model_fields:
+        if str(form.get(name, "")).strip():
+            continue
+        value = getattr(extraction.case, name)
+        if value is None or value == "" or value is False:
+            continue
+        sourced.append(name)
+    return sourced
+
+
+def display_form_value(name: str, raw: str) -> str:
+    """A human-readable value for the confirm summary, without inventing a clinical value."""
+    value = raw.strip()
+    if name == "age_ambiguous":
+        return "Flagged" if value.lower() in _TRUTHY else "Not flagged"
+    if name == "trauma":
+        if not value:
+            return "Not stated"
+        return "Present" if value.lower() in _TRUTHY else "Absent"
+    if not value:
+        return "Not stated"
+    if name in ("mobility", "avpu"):
+        return _option_label(value)
+    return value

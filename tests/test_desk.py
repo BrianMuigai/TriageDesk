@@ -292,7 +292,7 @@ def test_form_to_card_to_gate_to_commit(tmp_path: Path, injected_store: Any) -> 
         empty = _get(base + "/")
         assert "No case yet" in empty
         assert (
-            "Enter the patient's vitals and complaint, then choose Get suggested priority."
+            "Enter the patient's vitals and complaint, then choose Review details."
             in empty
         )
         assert "Suggested priority" not in empty
@@ -995,11 +995,11 @@ def test_untrusted_complaint_escapes_markup(tmp_path: Path, injected_store: Any)
 
 
 def test_index_html_loading_swap_on_submit() -> None:
-    """``index.html`` carries the loading copy and a submit handler that disables the CTA."""
+    """``index.html`` carries the loading copy and a submit handler that keeps the CTA enabled."""
     source = (ASSET_DIR / "index.html").read_text(encoding="utf-8")
-    assert "Getting the suggested priority…" in source
+    assert "Checking the details…" in source
     assert "addEventListener('submit'" in source
-    assert "disabled = true" in source
+    assert "aria-busy" in source
 
     script = source.split("<script>", 1)[1].split("</script>", 1)[0]
     assert "$" not in script, "the inline script must carry no placeholder character"

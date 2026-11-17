@@ -50,6 +50,7 @@ from triagedesk.desk.forms import (
     case_to_form_values,
     form_to_case,
     merge_form_over_case,
+    note_sourced_fields,
 )
 from triagedesk.desk.gate import editable_colours
 from triagedesk.desk.loop import DeskLoop
@@ -191,10 +192,11 @@ class DeskHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _page(self, **kwargs: Any) -> str:
-        """Render a state with the per-server CSRF token and live mode threaded in."""
+        """Render a state with the per-server CSRF token, live mode, and step threaded in."""
         return render_state(
             csrf_token=self.server.csrf_token,
             mode_label=_MODE_ONLINE if self.server.online else _MODE_OFFLINE,
+            online=self.server.online,
             **kwargs,
         )
 
@@ -363,11 +365,17 @@ class DeskHandler(BaseHTTPRequestHandler):
             return None
 
     def _handle_case(self, form: Mapping[str, str]) -> str:
-        # The chat composer posts to the SAME form as the structured intake, with
-        # ``action=note``. It is an intake step, never a scoring or decision step: it
-        # validates the current form, fills the form from a read note, and returns.
-        if str(form.get("action", "")).strip() == "note":
+        # The note helper and the guided steps all post to the SAME form. ``note`` fills the
+        # form, ``confirm`` renders the human checkpoint, ``score`` runs the graph, and
+        # ``back`` returns to the editable intake. None of the first three commits anything.
+        action = str(form.get("action", "")).strip()
+        if action == "note":
             return self._handle_note(form)
+        if action == "back":
+            return self._page(
+                form_values=form,
+                note_fields=_note_fields(form),
+            )
         try:
             case = form_to_case(form)
         except ValidationError as exc:
@@ -377,12 +385,31 @@ class DeskHandler(BaseHTTPRequestHandler):
             # falls back to the error panel rather than mis-highlighting a field.
             field = _validation_field(exc)
             if field is None:
-                return self._page(error=_validation_message(exc), form_values=form)
-            return self._page(field_error=(field, _validation_message(exc)), form_values=form)
+                return self._page(
+                    error=_validation_message(exc),
+                    form_values=form,
+                    note_fields=_note_fields(form),
+                )
+            return self._page(
+                field_error=(field, _validation_message(exc)),
+                form_values=form,
+                note_fields=_note_fields(form),
+            )
         except (TypeError, ValueError):
             # Defence in depth: any coercion failure that somehow bypassed the schema's own
             # validator is still reported, never an approve (the surface's stated contract).
-            return self._page(error=_FAILURE_COPY, form_values=form)
+            return self._page(
+                error=_FAILURE_COPY,
+                form_values=form,
+                note_fields=_note_fields(form),
+            )
+        if action == "confirm":
+            # The human checkpoint: show every value and gap, but do not run the graph.
+            return self._page(
+                form_values=form,
+                note_fields=_note_fields(form),
+                step="confirm",
+            )
         # The clarification round the previous page carried (1 when it asked a question). It is
         # a presentation marker, not a clinical value: a malformed value degrades to round 0.
         try:
@@ -411,8 +438,16 @@ class DeskHandler(BaseHTTPRequestHandler):
             # at a time, but the waiting happens inside the loop (IN-03).
             paused = self.server.loop.run(self.server.serialised(pending))
         except Exception:  # noqa: BLE001 - any failure is reported, never an approve
-            return self._page(error=_FAILURE_COPY, form_values=form)
-        return self._page(paused=paused, form_values=form)
+            return self._page(
+                error=_FAILURE_COPY,
+                form_values=form,
+                note_fields=_note_fields(form),
+            )
+        return self._page(
+            paused=paused,
+            form_values=form,
+            note_fields=_note_fields(form),
+        )
 
     def _handle_note(self, form: Mapping[str, str]) -> str:
         """Read a chat note into the structured intake — never score, approve, or commit.
@@ -425,7 +460,11 @@ class DeskHandler(BaseHTTPRequestHandler):
         """
         note = str(form.get("note", "")).strip()
         if not note:
-            return self._page(error=_CHAT_NOTE_EMPTY, form_values=form)
+            return self._page(
+                error=_CHAT_NOTE_EMPTY,
+                form_values=form,
+                note_fields=_note_fields(form),
+            )
         try:
             form_to_case(form)
         except ValidationError as exc:
@@ -435,22 +474,38 @@ class DeskHandler(BaseHTTPRequestHandler):
                     error=_validation_message(exc),
                     form_values=form,
                     note=note,
+                    note_fields=_note_fields(form),
                 )
             return self._page(
                 field_error=(field, _validation_message(exc)),
                 form_values=form,
                 note=note,
+                note_fields=_note_fields(form),
             )
         except (TypeError, ValueError):
-            return self._page(error=_FAILURE_COPY, form_values=form, note=note)
+            return self._page(
+                error=_FAILURE_COPY,
+                form_values=form,
+                note=note,
+                note_fields=_note_fields(form),
+            )
         if not self.server.online:
             values = dict(form)
             values["complaint"] = note
-            return self._page(form_values=values, note=note)
+            return self._page(
+                form_values=values,
+                note=note,
+                note_fields=("complaint",),
+            )
         try:
             extraction = self.server.loop.run(extract_note(note))
         except Exception:  # noqa: BLE001 — a failed read is reported, never scored
-            return self._page(form_values=form, note=note, note_failed=True)
+            return self._page(
+                form_values=form,
+                note=note,
+                note_failed=True,
+                note_fields=_note_fields(form),
+            )
         try:
             merged = merge_form_over_case(form, extraction.case)
         except ValidationError as exc:  # defence in depth: form_to_case already ran
@@ -459,13 +514,16 @@ class DeskHandler(BaseHTTPRequestHandler):
                 form_values=form,
                 note=note,
                 note_failed=True,
+                note_fields=_note_fields(form),
             )
         if not merged.complaint.strip():
             merged = merged.model_copy(update={"complaint": note})
+        note_fields = note_sourced_fields(form, ExtractionResult(case=merged))
         return self._page(
             form_values=case_to_form_values(merged),
             note=note,
             extraction=extraction,
+            note_fields=note_fields,
         )
 
     def _handle_decision(self, form: Mapping[str, str]) -> str:
@@ -515,6 +573,13 @@ class DeskHandler(BaseHTTPRequestHandler):
             existed=False,
         )
         return self._page(paused=paused, form_values=form)
+
+
+def _note_fields(form: Mapping[str, str]) -> tuple[str, ...]:
+    """Parse the hidden note-provenance list carried through the intake forms."""
+    return tuple(
+        name.strip() for name in str(form.get("note_fields", "")).split(",") if name.strip()
+    )
 
 
 def _validation_field(exc: ValidationError) -> str | None:
@@ -584,7 +649,7 @@ def make_server(
 def serve(
     *,
     host: str = "127.0.0.1",
-    port: int = 8765,
+    port: int = 8165,
     db_path: str | Path = CHECKPOINTS_DB_PATH,
     allow_non_loopback: bool = False,
     online: bool = False,

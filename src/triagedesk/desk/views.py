@@ -5,13 +5,20 @@ hand-authored template.
 from __future__ import annotations
 
 import string
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from triagedesk.desk.assets import STATIC_DIR
 from triagedesk.desk.card import _card_html, _card_payload_from_state
-from triagedesk.desk.chat import handover_html as _handover_html
-from triagedesk.desk.chat import transcript
+from triagedesk.desk.chat import (
+    extraction_bubble,
+    note_failed_bubble,
+    note_offline_bubble,
+    nurse_bubble,
+)
+from triagedesk.desk.chat import (
+    handover_html as _handover_html,
+)
 from triagedesk.desk.clarification import _question_html
 from triagedesk.desk.copy import (
     _BANNER_HEADLINE,
@@ -19,13 +26,10 @@ from triagedesk.desk.copy import (
     _BANNER_NO_MATCH_BODY,
     _BANNER_VITALS_ONLY_BODY,
     _BANNER_VITALS_ONLY_HEADLINE,
-    _CHAT_ASSISTANT,
     _CHAT_BADGE_SCORED,
-    _CHAT_BADGE_SUGGESTION,
     _CHAT_COMPOSER_HINT,
     _CHAT_COMPOSER_LABEL,
     _CHAT_COMPOSER_PLACEHOLDER,
-    _CHAT_PANEL_CONVERSATION,
     _CHAT_PANEL_INTAKE,
     _CHAT_PANEL_WAITING_COPY,
     _CHAT_RAIL_FOOT,
@@ -34,20 +38,47 @@ from triagedesk.desk.copy import (
     _CHAT_RAIL_STATION_TITLE,
     _CHAT_SEND_NOTE,
     _CLARIFICATION_COPY,
+    _CONFIRM_COPY,
+    _CONFIRM_EDIT,
+    _CONFIRM_GAPS,
+    _CONFIRM_HEADING,
+    _CONFIRM_PROVENANCE,
+    _CONFIRM_PROVENANCE_NOTE,
+    _CONFIRM_SCORE,
     _DEFERRED_COPY,
     _DISMISSED_COPY,
     _EMPTY_BODY,
     _EMPTY_HEADING,
     _ESCALATED_COPY,
     _FAILURE_COPY,
+    _FORM_PRIMARY,
     _MODE_OFFLINE,
+    _OUTCOME_COPY,
+    _OUTCOME_KICKER,
+    _OUTCOME_TERMINAL_COPY,
+    _RECORD_COPY,
+    _RECORD_HEADING,
+    _RECORD_OFFLINE_HINT,
+    _RECORD_ONLINE_HINT,
+    _REVIEW_COPY,
+    _REVIEW_EDIT,
+    _REVIEW_HEADING,
+    _REVIEW_PATIENT,
+    _START_NEXT,
+    _STEP_CONFIRM,
+    _STEP_HANDOVER,
+    _STEP_NAV_LABEL,
+    _STEP_RECORD,
+    _STEP_REVIEW,
     _UNREACHED_COPY,
     recovery_copy,
 )
 from triagedesk.desk.forms import (
+    _VITALS_LAYOUT,
     _csrf_field,
     _vitals_fieldset,
     case_to_form_values,
+    display_form_value,
 )
 from triagedesk.desk.gate import _gate_html
 from triagedesk.desk.markup import _escaped
@@ -205,7 +236,9 @@ def _paused_view(paused: PausedRun, csrf_token: str | None = None) -> dict[str, 
                 "banner": "",
                 "card": "",
                 "gate": "",
-                "clarification": _question_html(paused.payload, paused.thread_id, csrf_token),
+                "clarification": _question_html(
+                    paused.payload, paused.thread_id, csrf_token, case_values
+                ),
             }
         return {
             "state_panel": "",
@@ -273,6 +306,7 @@ def _decision_view(result: Mapping[str, Any], form: Mapping[str, str]) -> dict[s
 
     if decision == "dismiss":
         panel = _panel(_DISMISSED_COPY, "muted")
+        outcome = "dismissed"
     elif commit is not None and getattr(commit, "committed", False):
         # The position comes off the typed CommitResult channel — never parsed from
         # the free-text reason (the module reads typed channels only). A CommitResult
@@ -291,9 +325,11 @@ def _decision_view(result: Mapping[str, Any], form: Mapping[str, str]) -> dict[s
         handover = result.get("handover")
         handover_html = _handover_html(handover, commit) if handover is not None else ""
         panel = _panel(copy, "success") + handover_html
+        outcome = "committed"
     else:
         reason = getattr(commit, "reason", None) or _FAILURE_COPY
         panel = _panel(reason, "error")
+        outcome = "refused"
 
     return {
         "state_panel": panel,
@@ -301,6 +337,7 @@ def _decision_view(result: Mapping[str, Any], form: Mapping[str, str]) -> dict[s
         "card": "",
         "gate": "",
         "clarification": "",
+        "outcome": outcome,
     }
 
 
@@ -309,13 +346,22 @@ def _error_panel(message: str) -> str:
     return _panel(message, "error")
 
 
+def _note_fields_hidden(note_fields: Sequence[str]) -> str:
+    """Carry note provenance through the form without a session store."""
+    if not note_fields:
+        return ""
+    value = ",".join(note_fields)
+    return f'<input type="hidden" name="note_fields" value="{_escaped(value)}">'
+
+
 def _intake_panel(
     form: Mapping[str, str],
     csrf_token: str | None,
     field_error: tuple[str, str] | None,
     clarification_round: int = 0,
+    note_fields: Sequence[str] = (),
 ) -> str:
-    """The structured vitals card — the scored input, always visible beside the chat."""
+    """The structured intake — the scored input, and the primary surface in step 1."""
     round_field = (
         f'<input type="hidden" name="clarification_round" value="{clarification_round}">'
         if clarification_round
@@ -323,25 +369,25 @@ def _intake_panel(
     )
     focus_name = field_error[0] if field_error is not None else None
     return (
-        '<aside class="intake-panel" aria-labelledby="intake-heading">'
+        '<section class="intake-panel" aria-labelledby="intake-heading">'
         '<header class="panel-head">'
         f'<div><p class="eyebrow">{_escaped(_CHAT_PANEL_INTAKE)}</p>'
-        '<h2 id="intake-heading">Patient vitals</h2></div>'
+        '<h2 id="intake-heading">Patient details</h2></div>'
         f'<span class="badge">{_escaped(_CHAT_BADGE_SCORED)}</span></header>'
         '<form id="vitals-form" class="vitals-form" method="post" action="/case">'
-        f"{_csrf_field(csrf_token)}{round_field}"
-        f"{_vitals_fieldset(form, field_error, autofocus_name=focus_name)}"  # noqa: E501
+        f"{_csrf_field(csrf_token)}{round_field}{_note_fields_hidden(note_fields)}"
+        f"{_vitals_fieldset(form, field_error, autofocus_name=focus_name)}"
         '<div class="form-actions">'
-        '<button type="submit" id="submit-vitals" class="primary">'
-        "Get suggested priority</button>"
+        '<button type="submit" name="action" value="confirm" id="submit-vitals" '
+        f'class="primary">{_escaped(_FORM_PRIMARY)}</button>'
         '<button type="reset" class="ghost" data-confirm="Clear form: this removes the '
         'vitals you have typed. Clear the form?">Clear form</button>'
-        "</div></form></aside>"
+        "</div></form></section>"
     )
 
 
 def _composer() -> str:
-    """The chat composer, associated with the vitals form so it posts the current values."""
+    """The optional note helper, associated with the intake form below it."""
     return (
         '<div class="composer">'
         f'<label class="composer-label" for="note-input">'
@@ -358,20 +404,178 @@ def _composer() -> str:
     )
 
 
-def _triage_workspace(
+def _note_status(
+    view: Mapping[str, str],
+    note: str | None,
+    extraction: Any,
+    note_failed: bool,
+) -> str:
+    """The result of the optional note helper — not a conversation log."""
+    if note_failed:
+        return note_failed_bubble()
+    if extraction is not None:
+        return extraction_bubble(extraction)
+    if note:
+        return nurse_bubble(note) + note_offline_bubble()
+    return view["state_panel"]
+
+
+def _record_workspace(
     view: Mapping[str, str],
     form: Mapping[str, str],
     csrf_token: str | None,
     field_error: tuple[str, str] | None,
-    chat_log: str,
-    clarification_round: int = 0,
+    note: str | None,
+    extraction: Any,
+    note_failed: bool,
+    note_fields: Sequence[str],
+    clarification_round: int,
+    online: bool,
 ) -> str:
-    """The conversation + structured-intake workspace (the default desk surface)."""
+    """Step 1: one structured intake, with a compact optional note helper above it."""
+    mode_hint = _RECORD_ONLINE_HINT if online else _RECORD_OFFLINE_HINT
+    status = _note_status(view, note, extraction, note_failed)
+    status_html = f'<div class="note-status" role="status">{status}</div>' if status else ""
+    return (
+        '<div class="record-stack">'
+        '<section class="note-assistant" aria-labelledby="note-heading">'
+        '<header class="note-head">'
+        f'<p class="eyebrow">{_escaped(_RECORD_HEADING)}</p>'
+        '<p class="note-copy">'
+        f"{_escaped(_RECORD_COPY)}</p></header>"
+        f"{_composer()}"
+        f'<p class="note-mode-hint">{_escaped(mode_hint)}</p>'
+        f"{status_html}"
+        "</section>"
+        f"{_intake_panel(form, csrf_token, field_error, clarification_round, note_fields)}"
+        "</div>"
+    )
+
+
+def _confirm_rows(form: Mapping[str, str], note_fields: Sequence[str]) -> tuple[str, str]:
+    """The confirm summary rows and the not-stated list, from the validated form values."""
+    note_set = set(note_fields)
+    rows: list[str] = []
+    gaps: list[str] = []
+    for name, label in _VITALS_LAYOUT:
+        raw = str(form.get(name, ""))
+        value = display_form_value(name, raw)
+        if not raw.strip():
+            gaps.append(label)
+        provenance = (
+            f'<span class="provenance">{_escaped(_CONFIRM_PROVENANCE)}</span>'
+            if name in note_set and raw.strip()
+            else ""
+        )
+        rows.append(
+            '<div class="confirm-fact">'
+            f"<dt>{_escaped(label)}{provenance}</dt>"
+            f"<dd>{_escaped(value)}</dd></div>"
+        )
+    gap_text = (
+        f'<p class="confirm-gaps"><span class="label">'
+        f"{_escaped(_CONFIRM_GAPS)}:</span> {_escaped(', '.join(gaps))}</p>"
+        if gaps
+        else ""
+    )
+    return "".join(rows), gap_text
+
+
+def _hidden_form_values(form: Mapping[str, str], csrf_token: str | None) -> str:
+    """A form's values as hidden inputs, for the confirm and edit-details posts.
+
+    ``action`` is excluded so the submit button is the ONLY action in the resulting POST;
+    a hidden action would otherwise be the first value and win the handler's ``action`` read.
+    """
+    hidden = "".join(
+        f'<input type="hidden" name="{_escaped(name)}" value="{_escaped(value)}">'
+        for name, value in form.items()
+        if name not in ("csrf_token", "action", "note")
+    )
+    return f"{_csrf_field(csrf_token)}{hidden}"
+
+
+def _confirm_workspace(
+    form: Mapping[str, str],
+    note_fields: Sequence[str],
+    csrf_token: str | None,
+) -> str:
+    """Step 2: the human checkpoint before any scoring or graph run."""
+    rows, gaps = _confirm_rows(form, note_fields)
+    provenance_note = (
+        f'<p class="confirm-provenance-note">{_escaped(_CONFIRM_PROVENANCE_NOTE)}</p>'
+        if note_fields
+        else ""
+    )
+    hidden = _hidden_form_values(form, csrf_token)
+    return (
+        '<section class="confirm-panel" aria-labelledby="confirm-heading">'
+        '<header class="panel-head">'
+        f'<div><p class="eyebrow">{_escaped(_STEP_CONFIRM)}</p>'
+        f'<h2 id="confirm-heading">{_escaped(_CONFIRM_HEADING)}</h2></div>'
+        '<span class="badge">Human checkpoint</span></header>'
+        '<div class="confirm-body">'
+        f'<p class="confirm-copy">{_escaped(_CONFIRM_COPY)}</p>'
+        f"{provenance_note}"
+        f'<dl class="confirm-grid">{rows}</dl>'
+        f"{gaps}"
+        '<form id="confirm-form" method="post" action="/case">'
+        f"{hidden}"
+        '<div class="confirm-actions">'
+        '<button type="submit" name="action" value="score" class="primary">'
+        f"{_escaped(_CONFIRM_SCORE)}</button>"
+        '<button type="submit" name="action" value="back">'
+        f"{_escaped(_CONFIRM_EDIT)}</button>"
+        "</div></form></div></section>"
+    )
+
+
+def _patient_summary(form: Mapping[str, str], csrf_token: str | None) -> str:
+    """A compact, read-only patient summary beside the review, with an edit path."""
+    key_fields = (
+        "age_years",
+        "complaint",
+        "avpu",
+        "respiratory_rate",
+        "spo2",
+        "heart_rate",
+        "systolic_bp",
+        "temperature_c",
+        "mobility",
+    )
+    labels = dict(_VITALS_LAYOUT)
+    rows = "".join(
+        '<div class="patient-fact">'
+        f"<dt>{_escaped(labels[name])}</dt>"
+        f"<dd>{_escaped(display_form_value(name, str(form.get(name, ''))))}</dd>"
+        "</div>"
+        for name in key_fields
+    )
+    hidden = _hidden_form_values(form, csrf_token)
+    return (
+        '<aside class="patient-details" aria-labelledby="patient-details-heading">'
+        f'<h2 id="patient-details-heading">{_escaped(_REVIEW_PATIENT)}</h2>'
+        f'<dl class="patient-facts">{rows}</dl>'
+        '<form id="edit-details-form" method="post" action="/case">'
+        f"{hidden}"
+        '<input type="hidden" name="action" value="back">'
+        '<button type="submit" class="ghost">'
+        f"{_escaped(_REVIEW_EDIT)}</button>"
+        "</form></aside>"
+    )
+
+
+def _review_workspace(
+    view: Mapping[str, str],
+    form: Mapping[str, str],
+    csrf_token: str | None,
+) -> str:
+    """Step 3: the suggestion and the named gate, with the intake collapsed to a summary."""
     banner = view["banner"]
     banner_html = (
         f'<div class="uncertainty-banner" aria-live="polite">{banner}</div>' if banner else ""
     )
-    result = "".join(
+    main = "".join(
         [
             view["state_panel"],
             banner_html,
@@ -380,26 +584,106 @@ def _triage_workspace(
             view.get("clarification", ""),
         ]
     )
-    result_html = (
-        f'<div class="chat-result">'
-        f'<p class="chat-author">{_escaped(_CHAT_ASSISTANT)}</p>{result}</div>'
-        if result
-        else ""
-    )
     return (
-        '<div class="workspace">'
-        '<section class="conversation" aria-labelledby="conversation-heading">'
-        '<header class="panel-head">'
-        f'<div><p class="eyebrow">{_escaped(_CHAT_PANEL_CONVERSATION)}</p>'
-        '<h2 id="conversation-heading">Triage assistant</h2></div>'
-        f'<span class="badge">{_escaped(_CHAT_BADGE_SUGGESTION)}</span></header>'
-        '<div class="chat-log" role="log" aria-live="polite" '
-        f'aria-relevant="additions text">{chat_log}{result_html}</div>'
-        f"{_composer()}"
-        "</section>"
-        f"{_intake_panel(form, csrf_token, field_error, clarification_round)}"
+        '<div class="review-layout">'
+        '<section class="review-main" aria-labelledby="review-heading">'
+        '<header class="review-head">'
+        f'<p class="eyebrow">{_escaped(_STEP_REVIEW)}</p>'
+        f'<h2 id="review-heading">{_escaped(_REVIEW_HEADING)}</h2>'
+        f'<p class="review-copy">{_escaped(_REVIEW_COPY)}</p></header>'
+        f"{main}</section>"
+        f"{_patient_summary(form, csrf_token)}"
         "</div>"
     )
+
+
+def _outcome_workspace(view: Mapping[str, str]) -> str:
+    """The completion state: handover/terminal facts and a clear next-patient action."""
+    banner = view["banner"]
+    banner_html = (
+        f'<div class="uncertainty-banner" aria-live="polite">{banner}</div>' if banner else ""
+    )
+    main = "".join([view["state_panel"], banner_html, view["card"], view["gate"]])
+    outcome = str(view.get("outcome", "refused"))
+    if outcome == "committed":
+        copy = _OUTCOME_COPY
+        note = ""
+    elif outcome == "dismissed":
+        copy = _DISMISSED_COPY
+        note = ""
+    else:
+        copy = _OUTCOME_COPY
+        note = f'<p class="outcome-note">{_escaped(_OUTCOME_TERMINAL_COPY)}</p>'
+    return (
+        '<section class="outcome-panel" aria-labelledby="outcome-heading">'
+        '<header class="outcome-head">'
+        f'<p class="eyebrow">{_escaped(_OUTCOME_KICKER)}</p>'
+        f'<h2 id="outcome-heading">{_escaped(_STEP_HANDOVER)}</h2>'
+        f'<p class="page-copy">{_escaped(copy)}</p></header>'
+        f"{main}{note}"
+        '<div class="page-actions">'
+        f'<a class="button-link" href="/">{_escaped(_START_NEXT)}</a></div>'
+        "</section>"
+    )
+
+
+def _stepper(step: str) -> str:
+    """The one step indicator: Record → Confirm → Review & decide → Handover."""
+    labels = (
+        ("record", "1", _STEP_RECORD),
+        ("confirm", "2", _STEP_CONFIRM),
+        ("review", "3", _STEP_REVIEW),
+        ("outcome", "4", _STEP_HANDOVER),
+    )
+    order = [key for key, _, _ in labels]
+    current = order.index(step) if step in order else 0
+    parts: list[str] = []
+    for index, (_key, number, label) in enumerate(labels):
+        status = "current" if index == current else ("done" if index < current else "")
+        current_attr = ' aria-current="step"' if index == current else ""
+        parts.append(
+            f'<span class="step {status}"{current_attr}>'
+            f'<span class="num">{number}</span>{_escaped(label)}</span>'
+        )
+        if index < len(labels) - 1:
+            parts.append('<span class="step-line" aria-hidden="true"></span>')
+    return f'<nav class="steps" aria-label="{_escaped(_STEP_NAV_LABEL)}">{"".join(parts)}</nav>'
+
+
+def _workspace(
+    step: str,
+    view: Mapping[str, str],
+    form: Mapping[str, str],
+    csrf_token: str | None,
+    field_error: tuple[str, str] | None,
+    note: str | None,
+    extraction: Any,
+    note_failed: bool,
+    note_fields: Sequence[str],
+    clarification_round: int,
+    online: bool,
+) -> str:
+    """Compose the one primary task for *step*, under the one step indicator."""
+    if step == "confirm":
+        body = _confirm_workspace(form, note_fields, csrf_token)
+    elif step == "review":
+        body = _review_workspace(view, form, csrf_token)
+    elif step == "outcome":
+        body = _outcome_workspace(view)
+    else:
+        body = _record_workspace(
+            view,
+            form,
+            csrf_token,
+            field_error,
+            note,
+            extraction,
+            note_failed,
+            note_fields,
+            clarification_round,
+            online,
+        )
+    return f"{_stepper(step)}{body}"
 
 
 def _waiting_page(waiting: str) -> str:
@@ -424,21 +708,23 @@ def _render(
     note: str | None = None,
     extraction: Any = None,
     note_failed: bool = False,
+    note_fields: Sequence[str] = (),
     clarification_round: int = 0,
+    step: str = "record",
+    online: bool = False,
     system: bool = False,
 ) -> str:
-    """Substitute the server-rendered regions into the hand-authored page (string.Template).
+    """Substitute the one step workspace into the hand-authored app shell.
 
-    ``string.Template`` (not ``str.format``) is used because the markup carries CSS braces; the
-    page's only ``$`` characters are its placeholders. The structured intake is rendered from
-    *form* (the submitted values), so a rejected submission repopulates the form and — when
-    *field_error* names the offending field — renders the schema's own message beside it. The
-    per-server CSRF token travels into every POST form. ``mode_label`` names the live extraction
-    mode (Plan 13-02). ``waiting`` selects the queue page and defaults to the triage workspace.
-    *note*/*extraction* drive the chat transcript for a pasted-note turn.
+    ``string.Template`` (not ``str.format``) is used because the markup carries CSS braces;
+    the page's only ``$`` characters are its placeholders. The step is chosen by the caller and
+    rendered by :func:`_workspace`; a rejected submission repopulates the form and, when
+    *field_error* names the offending field, renders the schema's message beside it. The
+    per-server CSRF token travels into every POST form. ``waiting`` selects the queue page and
+    defaults to the triage workspace. ``note``/``extraction``/``note_fields`` carry the optional
+    note helper and its provenance; ``online`` selects the mode-specific hint.
     """
     template = string.Template((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
-    chat_log = transcript(form, note=note, extraction=extraction, note_failed=note_failed)
     if system:
         workspace = (STATIC_DIR / "system.html").read_text(encoding="utf-8")
         page_title = "System map"
@@ -456,8 +742,18 @@ def _render(
         waiting_flag = ' aria-current="page"'
         system_flag = ""
     else:
-        workspace = _triage_workspace(
-            view, form, csrf_token, field_error, chat_log, clarification_round
+        workspace = _workspace(
+            step,
+            view,
+            form,
+            csrf_token,
+            field_error,
+            note,
+            extraction,
+            note_failed,
+            note_fields,
+            clarification_round,
+            online,
         )
         page_title = "New patient"
         page_eyebrow = "Triage workspace"
@@ -491,6 +787,26 @@ def render_system(mode_label: str = _MODE_OFFLINE) -> str:
     )
 
 
+def render_confirmation(
+    form_values: Mapping[str, str],
+    *,
+    note_fields: Sequence[str] = (),
+    csrf_token: str | None = None,
+    mode_label: str = _MODE_OFFLINE,
+    online: bool = False,
+) -> str:
+    """Render step 2 — the human confirmation checkpoint before any scoring."""
+    return _render(
+        _empty_view(),
+        form_values,
+        csrf_token,
+        mode_label=mode_label,
+        note_fields=note_fields,
+        step="confirm",
+        online=online,
+    )
+
+
 def render_state(
     paused: PausedRun | None = None,
     *,
@@ -504,21 +820,20 @@ def render_state(
     note: str | None = None,
     extraction: Any = None,
     note_failed: bool = False,
+    note_fields: Sequence[str] = (),
+    step: str = "record",
+    online: bool = False,
 ) -> str:
-    """Render the page for one state: empty, paused card+gate, terminal, decision, or error.
+    """Render the page for one step: record, confirm, review/decide, outcome, or waiting.
 
-    With no case submitted it renders the welcome conversation and the empty structured
-    intake with the ``No case yet`` heading and body and NO ``priority-card`` or
-    ``approval-gate`` region. On the committable path (``paused is True``) it renders the card
-    plus the gate and no banner. *error* is a server/graph failure and renders in the state
-    panel (the ``state-panel`` is the single surface for that copy). *field_error* is a schema
-    rejection — ``(field, message)`` — and renders beside the offending field instead, so the
-    mandated "Check the highlighted field" copy is literally true (the UI-SPEC ``## UI
-    Considerations`` ``error | vitals-form`` row). *csrf_token* is the per-server secret the
-    rendered forms carry (WR-01); it is optional so a direct (non-request) render — a test or a
-    proof — needs no server. *mode_label* names the live extraction mode (Plan 13-02).
-    *waiting* is the waiting-room panel (Plan 13-03). *note*/*extraction* carry the chat
-    intake projection for a pasted-note turn; *note_failed* reports a failed read honestly.
+    With no case submitted it renders step 1 — the optional note helper and the structured
+    intake — with the ``No case yet`` heading and body and NO ``priority-card`` or
+    ``approval-gate`` region. A confirmed form renders step 2 via
+    :func:`render_confirmation`; a paused run renders step 3 (card + gate); a decision renders
+    the outcome. *error* is a server/graph failure and renders in the state panel; *field_error*
+    is a schema rejection rendered beside the offending field. *csrf_token* is the per-server
+    secret every POST form carries (WR-01). *note*/*extraction*/*note_fields* carry the optional
+    note helper and its provenance; *online* selects the mode-specific hint.
     """
     form = form_values or {}
     if result is not None:
@@ -531,6 +846,9 @@ def render_state(
             note=note,
             extraction=extraction,
             note_failed=note_failed,
+            note_fields=note_fields,
+            step="outcome",
+            online=online,
         )
     if paused is not None:
         return _render(
@@ -542,7 +860,10 @@ def render_state(
             note=note,
             extraction=extraction,
             note_failed=note_failed,
+            note_fields=note_fields,
             clarification_round=(1 if terminal_kind(paused.result) == "clarification" else 0),
+            step="review",
+            online=online,
         )
     if error is not None:
         return _render(
@@ -560,6 +881,9 @@ def render_state(
             note=note,
             extraction=extraction,
             note_failed=note_failed,
+            note_fields=note_fields,
+            step="record",
+            online=online,
         )
     if field_error is not None:
         return _render(
@@ -578,6 +902,9 @@ def render_state(
             note=note,
             extraction=extraction,
             note_failed=note_failed,
+            note_fields=note_fields,
+            step="record",
+            online=online,
         )
     return _render(
         _empty_view(),
@@ -588,4 +915,7 @@ def render_state(
         note=note,
         extraction=extraction,
         note_failed=note_failed,
+        note_fields=note_fields,
+        step=step,
+        online=online,
     )
