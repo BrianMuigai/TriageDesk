@@ -121,11 +121,25 @@ UI-review blockers are closed.**
 
 ## Verification
 
-- `uv run pytest -q` — **1002 passed**.
-- `uv run ruff check src/triagedesk/desk tests` — clean.
+- `uv run pytest -q` — **1003 passed**.
+- `uv run ruff check src tests` — clean.
+- `uv run mypy src/triagedesk/desk` — Success (0 errors) after the follow-up debug fix.
 - `GET /system` and the gate were driven in a real browser (Playwright) at desktop and 375px.
 - The GSD UI review scored the first implementation 14/24 and flagged three blockers; all three
   are covered by the new tests above.
+
+## Follow-up debug (2026-11-17)
+
+GSD debug session `desk-launch-interactive-errors` fixed two independent boundary defects:
+
+- `cli.main` now catches `OSError`; an occupied desk port prints the address and the `--port`
+  remedy instead of a raw `[Errno 98]` traceback. Regression test:
+  `tests/test_desk.py::test_desk_command_reports_an_occupied_port_cleanly`.
+- `interactive._ask_choice` is generic over the schema Literal members, and `main` no longer
+  reuses `intake`/`state`, so `mypy src/triagedesk/desk` is clean without casts or restated
+  clinical values. The scripted interactive flow still reaches the gate and handover.
+
+Commit: `06c3b0f`.
 
 ## Deviations
 
