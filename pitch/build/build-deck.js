@@ -68,108 +68,37 @@ function mono(slide, text, o) {
   });
 }
 
-// ============================================================ 1. TITLE ========
+// ============================================================ 1. COVER ========
 {
   const s = pres.addSlide();
   s.background = { color: P.ink };
-
-  // The acuity chips as a hero graphic: four stacked bars, most urgent last.
-  const chips = [P.green, P.yellow, P.orange, P.red];
-  chips.forEach((c, i) => {
-    s.addShape("rect", {
-      x: W - 1.05,
-      y: 1.15 + i * 0.62,
-      w: 0.52,
-      h: 0.5,
-      fill: { color: c },
-      line: { color: P.ink, width: 0 },
-    });
-  });
-  addT(s, "SATS", {
-    x: W - 1.55,
-    y: 1.15,
-    w: 0.45,
-    h: 0.3,
-    fontFace: T.body,
-    fontSize: 10,
-    color: P.muted,
-    align: "right",
-    margin: 0,
-    isTextBox: true,
+  s.addImage({
+    path: path.join(__dirname, "..", "assets", "cover.jpg"),
+    x: 0,
+    y: 0,
+    w: W,
+    h: H,
   });
 
-  addT(s, "AFRICAN AGENTIC AI DESIGN CHALLENGE · NAIROBI · HEALTH & WELLBEING", {
+  // The artwork is the cover. Keep the challenge identity and repository visible in
+  // the dark band at the very bottom, without competing with the designed title.
+  addT(s, "Brian Muigai   ·   Apache-2.0   ·   github.com/BrianMuigai/TriageDesk   ·   one command from a clean clone", {
     x: M,
-    y: 1.28,
-    w: 9.6,
-    h: 0.3,
+    y: H - 0.26,
+    w: CW,
+    h: 0.18,
     fontFace: T.body,
-    fontSize: 11,
-    bold: true,
-    color: P.accent,
-    charSpacing: 1.5,
-    margin: 0,
-    isTextBox: true,
-  });
-
-  addT(s, "TriageDesk", {
-    x: M,
-    y: 1.98,
-    w: 9.4,
-    h: 1.6,
-    fontFace: T.head,
-    fontSize: 78,
-    bold: true,
-    color: P.text,
-    lineSpacingMultiple: 0.92,
-    margin: 0,
-    isTextBox: true,
-  });
-
-  addT(s, 
-    "The triage scale your nurses already know — without the paper.",
-    {
-      x: M,
-      y: 3.72,
-      w: 9.5,
-      h: 0.7,
-      fontFace: T.body,
-      fontSize: 17,
-      color: P.textDim,
-      lineSpacingMultiple: 1.15,
-      margin: 0,
-      isTextBox: true,
-    },
-  );
-
-  addT(s, "Symptom-based priority scoring · Brian Muigai · open source", {
-    x: M,
-    y: 5.62,
-    w: 6,
-    h: 0.4,
-    fontFace: T.body,
-    fontSize: 15,
-    bold: true,
-    color: P.accent,
-    margin: 0,
-    isTextBox: true,
-  });
-
-  addT(s, "github.com/BrianMuigai/TriageDesk   ·   Apache-2.0   ·   one command from a clean clone", {
-    x: M,
-    y: 6.72,
-    w: 11,
-    h: 0.3,
-    fontFace: T.body,
-    fontSize: 11,
-    color: P.muted,
+    fontSize: 8,
+    color: "D7FFF6",
+    transparency: 15,
     margin: 0,
     isTextBox: true,
   });
 
   s.addNotes(
     "0:00 — 6 seconds. Warm, not rehearsed.\n\n" +
-      "Good morning. I'm Brian Muigai. This is TriageDesk — it gives a triage nurse a sourced, nurse-approved priority in the time it takes to write a card. The scale is one she already knows. The change is that it stops being done on paper, by hand, with no record.\n\n" +
+      "Good morning. I'm Brian Muigai. This is TriageDesk — the triage scale your nurses already know, without the paper. " +
+      "It gives a triage nurse a sourced, nurse-approved priority in the time it takes to write a card.\n\n" +
       "Five minutes: a problem you'll recognise, a fix you can watch, a price you can afford.",
   );
 }
