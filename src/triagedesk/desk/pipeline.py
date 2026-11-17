@@ -91,12 +91,24 @@ async def decide(thread_id: str, form: Mapping[str, str], db_path: str | Path) -
     field (rendered from the interrupt payload's ``case_id`` — the ONE content-derived thread
     id).
     """
-    decision = approval_decision(
-        str(form.get("decision", "")),
-        approver=form.get("name"),
-        role=form.get("role"),
-        colour=form.get("colour"),
-    )
+    try:
+        decision = approval_decision(
+            str(form.get("decision", "")),
+            approver=form.get("name"),
+            role=form.get("role"),
+            colour=form.get("colour"),
+        )
+    except DurableError as exc:
+        # The shared gate speaks in CLI flags; the desk says the same fact in prose without
+        # changing the one identity rule.
+        message = (
+            str(exc)
+            .replace("--approver", "A name")
+            .replace("--role", "A role")
+            .replace("a 'approve' decision", "an approve decision")
+            .replace("a 'edit' decision", "an edit decision")
+        )
+        raise DurableError(message) from exc
     # The gate's colour radios belong to the EDIT disclosure only. An approve must not
     # silently discard a selected colour: refuse it with a reason the nurse can act on.
     # (The client also clears stale radios; this is the fail-closed backstop.)

@@ -807,6 +807,52 @@ def render_confirmation(
     )
 
 
+def render_gate_error(
+    thread_id: str,
+    form_values: Mapping[str, str],
+    message: str,
+    *,
+    csrf_token: str | None = None,
+    mode_label: str = _MODE_OFFLINE,
+    note_fields: Sequence[str] = (),
+    online: bool = False,
+) -> str:
+    """Re-render the paused gate with the refusal — the nurse corrects the identity and retries.
+
+    A refused decision (blank identity, missing edit colour) leaves the thread paused. The
+    surface must not drop the nurse back to the intake and force a re-score; it shows the error
+    and the same gate, so the human can correct the decision in place.
+    """
+    excluded = {
+        "csrf_token",
+        "thread_id",
+        "decision",
+        "name",
+        "role",
+        "colour",
+        "action",
+        "note_fields",
+        "clarification_round",
+    }
+    case_values = {name: value for name, value in form_values.items() if name not in excluded}
+    view = {
+        "state_panel": _error_panel(message),
+        "banner": "",
+        "card": "",
+        "gate": _gate_html(thread_id, csrf_token, case_values),
+        "clarification": "",
+    }
+    return _render(
+        view,
+        form_values,
+        csrf_token,
+        mode_label=mode_label,
+        note_fields=note_fields,
+        step="review",
+        online=online,
+    )
+
+
 def render_state(
     paused: PausedRun | None = None,
     *,

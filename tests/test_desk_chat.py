@@ -242,9 +242,7 @@ def test_edit_with_a_selected_colour_commits_that_colour(
     assert injected_store.rows[0].colour == "YELLOW"
 
 
-def test_confirm_step_does_not_score_or_commit(
-    tmp_path: Path, injected_store: Any
-) -> None:
+def test_confirm_step_does_not_score_or_commit(tmp_path: Path, injected_store: Any) -> None:
     """The human checkpoint shows every value and runs no graph, card, gate, or queue write."""
     form = _form_from_case(COMPLETE_CASE)
     form["action"] = "confirm"
@@ -271,9 +269,7 @@ def test_score_from_confirm_runs_the_graph(tmp_path: Path, injected_store: Any) 
     assert "Review &amp; decide" in body
 
 
-def test_confirm_shows_note_provenance_and_gaps(
-    tmp_path: Path, injected_store: Any
-) -> None:
+def test_confirm_shows_note_provenance_and_gaps(tmp_path: Path, injected_store: Any) -> None:
     """A note-read value is labelled From note, and blanks are named as not stated."""
     form = {
         "age_years": "34",
@@ -304,6 +300,28 @@ def test_edit_details_returns_to_the_intake_with_the_values(
     assert re.search(r'id="age_years"[^>]*value="40"', body)
     assert "central chest pain" in body
     assert 'class="priority-card"' not in body
+    assert injected_store.rows == []
+
+
+def test_a_refused_gate_decision_stays_on_the_gate(tmp_path: Path, injected_store: Any) -> None:
+    """A blank identity is refused in place; the nurse corrects it without re-scoring."""
+    with _running_server(tmp_path / "gate-refusal.db", injected_store) as server:
+        base = _base(server)
+        body = _post(base + "/case", _form_from_case(COMPLETE_CASE))
+        thread_id = _thread_id(body)
+        refused = _post(
+            base + "/decision",
+            {
+                "thread_id": thread_id,
+                "decision": "approve",
+                "name": " ",
+                "role": "triage nurse",
+            },
+        )
+
+    assert "A name is required" in refused
+    assert 'class="approval-gate"' in refused
+    assert 'class="handover-card"' not in refused
     assert injected_store.rows == []
 
 

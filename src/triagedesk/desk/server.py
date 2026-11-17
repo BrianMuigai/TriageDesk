@@ -55,7 +55,13 @@ from triagedesk.desk.forms import (
 from triagedesk.desk.gate import editable_colours
 from triagedesk.desk.loop import DeskLoop
 from triagedesk.desk.pipeline import answer_clarification, decide, submit_case
-from triagedesk.desk.views import banner_trigger, render_state, render_system, terminal_kind
+from triagedesk.desk.views import (
+    banner_trigger,
+    render_gate_error,
+    render_state,
+    render_system,
+    terminal_kind,
+)
 from triagedesk.desk.waiting import read_rows, waiting_html
 from triagedesk.durable import DurableError, PausedRun
 from triagedesk.graph.build import CHECKPOINTS_DB_PATH
@@ -198,6 +204,18 @@ class DeskHandler(BaseHTTPRequestHandler):
             mode_label=_MODE_ONLINE if self.server.online else _MODE_OFFLINE,
             online=self.server.online,
             **kwargs,
+        )
+
+    def _gate_error_page(self, thread_id: str, form: Mapping[str, str], message: str) -> str:
+        """Re-render the paused gate after a refused decision, so the nurse can retry."""
+        return render_gate_error(
+            thread_id,
+            form,
+            message,
+            csrf_token=self.server.csrf_token,
+            mode_label=_MODE_ONLINE if self.server.online else _MODE_OFFLINE,
+            note_fields=_note_fields(form),
+            online=self.server.online,
         )
 
     def _host_ok(self) -> bool:
@@ -536,10 +554,18 @@ class DeskHandler(BaseHTTPRequestHandler):
             )
         except DurableError as exc:
             # The gate's OWN refusal (blank identity, missing colour, no pending gate): the
-            # surface shows that reason and restates no gate logic.
-            return self._page(error=str(exc), form_values=form)
+            # surface shows that reason and restates no gate logic. A pending gate is
+            # re-rendered in place so the nurse can correct the decision and retry.
+            message = str(exc)
+            if "no pending approval gate" in message:
+                return self._page(
+                    error=message,
+                    form_values=form,
+                    note_fields=_note_fields(form),
+                )
+            return self._gate_error_page(thread_id, form, message)
         except Exception:  # noqa: BLE001 - a server/graph failure leaves the decision unresolved
-            return self._page(error=_FAILURE_COPY, form_values=form)
+            return self._gate_error_page(thread_id, form, _FAILURE_COPY)
         return self._page(result=result, form_values=form)
 
     def _handle_clarify(self, form: Mapping[str, str]) -> str:
