@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import errno
 import logging
 import sqlite3
 import sys
@@ -458,10 +459,24 @@ def main(argv: list[str] | None = None) -> int:
                 db_path=args.db or CHECKPOINTS_DB_PATH,
                 online=args.online,
             )
+        except OSError as exc:
+            # A bind failure is the likeliest launch error, and the raw ``OSError`` text
+            # ("[Errno 98] Address already in use") names neither the address nor the way out.
+            # An occupied port gets the address and the ``--port`` remedy; any other OS-level
+            # failure is still reported cleanly instead of as a traceback (WR-04).
+            if exc.errno == errno.EADDRINUSE:
+                print(
+                    f"port {args.port} on {args.host} is already in use. "
+                    "Stop the other process, or choose a free port with --port.",
+                    file=sys.stderr,
+                )
+            else:
+                print(str(exc), file=sys.stderr)
+            return 1
         except (ValueError, RuntimeError, sqlite3.Error, ExceptionGroup) as exc:
-            # A bind failure, a bad ``--db`` or an unexpected runtime error is reported cleanly
-            # with a non-zero exit rather than a raw traceback (WR-04). The surface commits
-            # nothing, so there is nothing to roll back.
+            # A bad ``--db`` or an unexpected runtime error is reported cleanly with a non-zero
+            # exit rather than a raw traceback (WR-04). The surface commits nothing, so there is
+            # nothing to roll back.
             print(str(exc), file=sys.stderr)
             return 1
         return 0

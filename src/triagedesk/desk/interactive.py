@@ -50,6 +50,12 @@ Tell = Callable[[str], None]
 
 _DECISIONS: tuple[str, ...] = ("approve", "edit", "dismiss")
 
+# The schema's Literal members as runtime sequences, annotated with the schema's OWN types.
+# ``get_args`` stays the single source of the values, so a prompt can never offer an option
+# the schema would reject and no clinical value is restated under ``src/`` (CONVENTIONS §1).
+_AVPU_OPTIONS: tuple[AVPU, ...] = get_args(AVPU)
+_MOBILITY_OPTIONS: tuple[Mobility, ...] = get_args(Mobility)
+
 
 class _Quit(Exception):
     """The operator asked to stop — never an error, never a partial commit."""
@@ -122,8 +128,14 @@ def _ask_float(ask: Ask, label: str, low: float, high: float) -> float | None:
         print(f"  (out of range: {low:g}–{high:g}; blank to skip)")
 
 
-def _ask_choice(ask: Ask, label: str, choices: Sequence[str]) -> str | None:
-    """Ask for one of *choices* by number or by name; blank skips."""
+def _ask_choice[ChoiceT: str](
+    ask: Ask, label: str, choices: Sequence[ChoiceT]
+) -> ChoiceT | None:
+    """Ask for one of *choices* by number or by name; blank skips.
+
+    The answer is one member of *choices*, so the return is narrowed to that member's own
+    type — a caller prompting from a schema ``Literal`` gets the ``Literal`` back, never ``str``.
+    """
     rendered = " · ".join(f"{index}) {choice}" for index, choice in enumerate(choices, start=1))
     while True:
         raw = _read(ask, f"{label} [{rendered}] ").lower()
@@ -131,8 +143,9 @@ def _ask_choice(ask: Ask, label: str, choices: Sequence[str]) -> str | None:
             return None
         if raw.isdigit() and 1 <= int(raw) <= len(choices):
             return choices[int(raw) - 1]
-        if raw in choices:
-            return raw
+        for choice in choices:
+            if raw == choice:
+                return choice
         print(f"  (choose one of: {', '.join(choices)}, or blank to skip)")
 
 
@@ -213,14 +226,14 @@ def collect_case(ask: Ask = input, *, online: bool = False) -> Intake | None:
             age_months = _ask_int(ask, "Age (months)         ", 0, 1560)
             if age_months is None:
                 age_ambiguous = bool(_ask_bool(ask, "Age unclear?        "))
-        avpu = _ask_choice(ask, "Alertness (AVPU)    ", list(get_args(AVPU)))
+        avpu = _ask_choice(ask, "Alertness (AVPU)    ", _AVPU_OPTIONS)
         respiratory_rate = _ask_int(ask, "Respiratory rate     ", 0, 100)
         spo2 = _ask_int(ask, "SpO2 (%)             ", 0, 100)
         heart_rate = _ask_int(ask, "Heart rate           ", 0, 350)
         systolic_bp = _ask_int(ask, "Systolic BP          ", 0, 400)
         diastolic_bp = _ask_int(ask, "Diastolic BP         ", 0, 300)
         temperature_c = _ask_float(ask, "Temperature (°C)     ", 20.0, 45.0)
-        mobility = _ask_choice(ask, "Mobility             ", list(get_args(Mobility)))
+        mobility = _ask_choice(ask, "Mobility             ", _MOBILITY_OPTIONS)
         trauma = _ask_bool(ask, "Trauma?             ")
         complaint = _ask_text(
             ask, "Complaint (one line) ", required=True
@@ -292,7 +305,7 @@ def _gate_form(payload: Mapping[str, Any], ask: Ask) -> dict[str, str]:
     if payload.get("missing_vitals"):
         print(f"  Missing: {', '.join(payload['missing_vitals'])}")
     print("  This is a suggestion. Nothing is queued until you decide.\n")
-    decision = _ask_choice(ask, "Decision (approve/edit/dismiss)", list(_DECISIONS))
+    decision = _ask_choice(ask, "Decision (approve/edit/dismiss)", _DECISIONS)
     if decision is None:
         return {"decision": "dismiss"}
     form = {"decision": decision}
@@ -406,11 +419,11 @@ def main(
             if not online:
                 tell("A raw note needs the model: re-run with --online.")
                 return 1
-            intake = asyncio.run(_intake_from_note(note))
+            noted = asyncio.run(_intake_from_note(note))
             tell("\n  The model read this case as:")
-            for line in describe_case(intake.case):
+            for line in describe_case(noted.case):
                 tell(line)
-            state = asyncio.run(run_one(intake, db_path, online=online, ask=ask, tell=tell))
+            state = asyncio.run(run_one(noted, db_path, online=online, ask=ask, tell=tell))
             render_outcome(state, tell)
             return 0
         while True:
@@ -418,15 +431,15 @@ def main(
             if intake is None:
                 tell("\nStopped.")
                 return 0
-            state: Mapping[str, Any] | None = None
+            outcome: Mapping[str, Any] | None = None
             try:
-                state = asyncio.run(run_one(intake, db_path, online=online, ask=ask, tell=tell))
+                outcome = asyncio.run(run_one(intake, db_path, online=online, ask=ask, tell=tell))
             except DurableError as exc:
                 # The gate's OWN refusal (a blank identity, a missing colour, no pending
                 # gate). Nothing was written; show the reason and let the operator retry.
                 tell(f"\nThe gate refused the decision: {exc}")
-            if state is not None:
-                render_outcome(state, tell)
+            if outcome is not None:
+                render_outcome(outcome, tell)
             again = _ask_bool(ask, "\nNext patient?")
             if not again:
                 tell("Stopped.")

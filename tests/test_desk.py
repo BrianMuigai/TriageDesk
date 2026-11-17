@@ -914,6 +914,34 @@ def test_desk_command_refuses_a_non_loopback_host(tmp_path: Path) -> None:
     assert code == 1
 
 
+def test_desk_command_reports_an_occupied_port_cleanly(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An occupied port is a clean, actionable exit — never a raw ``OSError`` traceback.
+
+    Regression for the launch failure: the handler caught ``ValueError``/``RuntimeError``/
+    ``sqlite3.Error``/``ExceptionGroup`` but not ``OSError``, so a stale desk already listening
+    on the requested port escaped as ``[Errno 98] Address already in use`` plus a traceback
+    through ``server_bind``. The real socket below (not a spy) makes the bind genuinely fail.
+    """
+    occupied = socket.socket()
+    try:
+        occupied.bind(("127.0.0.1", 0))
+        occupied.listen(1)
+        port = occupied.getsockname()[1]
+
+        code = main(["desk", "--port", str(port), "--db", str(tmp_path / "c.db")])
+    finally:
+        occupied.close()
+
+    assert code == 1
+    err = capsys.readouterr().err
+    assert "already in use" in err
+    assert "--port" in err
+    assert str(port) in err
+    assert "Traceback" not in err
+
+
 def test_desk_entry_point_hardens_offline_before_serve(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
